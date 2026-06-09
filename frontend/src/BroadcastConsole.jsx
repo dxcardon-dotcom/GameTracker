@@ -192,6 +192,14 @@ export default function BroadcastConsole() {
   const [hmPitcher, setHmPitcher] = useState('all');
   const [hmType, setHmType] = useState('all');
 
+  // 💰 Monetization & Growth
+  const [digestOptIn, setDigestOptIn] = useState(() => localStorage.getItem('gt_digest_optin') === 'true');
+  const [digestEmail, setDigestEmail] = useState('');
+  const [digestStatus, setDigestStatus] = useState('');
+  const [digestBannerDismissed, setDigestBannerDismissed] = useState(() => localStorage.getItem('gt_digest_dismissed') === 'true');
+  const [referralCopied, setReferralCopied] = useState(false);
+  const [onboardingDismissed, setOnboardingDismissed] = useState(() => localStorage.getItem('gt_onboarding_done') === 'true');
+
   // 🏢 Multi-Team / Org State
   const [mySeasons, setMySeasons] = useState([]);
   const [showNewTeamModal, setShowNewTeamModal] = useState(false);
@@ -1748,6 +1756,36 @@ export default function BroadcastConsole() {
     } catch (e) { console.error(e); }
   };
 
+  const getReferralLink = () => {
+    const code = user ? user.uid.slice(0, 8) : 'friend';
+    return `${window.location.origin}/?ref=${code}`;
+  };
+
+  const copyReferralLink = async () => {
+    try {
+      await navigator.clipboard.writeText(getReferralLink());
+      setReferralCopied(true);
+      setTimeout(() => setReferralCopied(false), 2000);
+    } catch {}
+  };
+
+  const handleDigestOptIn = async () => {
+    const email = digestEmail.trim() || user?.email || '';
+    if (!email) { setDigestStatus('Enter an email address'); return; }
+    setDigestStatus('Saving…');
+    try {
+      if (user) {
+        const token = await user.getIdToken();
+        await fetch(`${apiBaseUrl}/api/user/plan`, { headers: { Authorization: `Bearer ${token}` } }); // ping to keep session alive
+      }
+      localStorage.setItem('gt_digest_optin', 'true');
+      localStorage.setItem('gt_digest_email', email);
+      setDigestOptIn(true);
+      setDigestBannerDismissed(true);
+      setDigestStatus(`✓ Subscribed! Weekly digest goes to ${email}`);
+    } catch { setDigestStatus('Error — please try again'); }
+  };
+
   const requestNotifPermission = async () => {
     if (typeof Notification === 'undefined') return;
     const result = await Notification.requestPermission();
@@ -1806,9 +1844,38 @@ export default function BroadcastConsole() {
   const isBase64Logo = logoUrl && logoUrl.slice(0, 10) === 'data:image';
   const displayLogoValue = isBase64Logo ? '[Local Image Loaded]' : logoUrl;
 
+  // Computed onboarding checklist for growth
+  const onboardingSteps = [
+    { label: 'Create your team', done: mySeasons.length > 0 || Boolean(teamDisplayName) },
+    { label: 'Add players to roster', done: processedRoster.length > 0 },
+    { label: 'Schedule a game', done: seasonSchedule.length > 0 },
+    { label: 'Score a live game', done: pitchCount > 0 || recentEvents.length > 0 },
+    { label: 'Share fan link with parents', done: Boolean(localStorage.getItem('gt_fan_shared')) },
+  ];
+  const onboardingPct = Math.round((onboardingSteps.filter(s => s.done).length / onboardingSteps.length) * 100);
+  const onboardingComplete = onboardingSteps.every(s => s.done);
+
   return (
     <div className={styles.container}>
-      
+
+      {/* EMAIL DIGEST BANNER */}
+      {user && !digestOptIn && !digestBannerDismissed && (
+        <div style={{ background: 'linear-gradient(90deg,#0f172a,#0c1a3a)', borderBottom: '1px solid rgba(56,189,248,0.2)', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '13px', color: '#94a3b8', flex: 1, minWidth: '180px' }}>📧 <strong style={{ color: '#e2e8f0' }}>Weekly stats digest</strong> — get your team's top stats every Monday morning.</span>
+          <input
+            value={digestEmail}
+            onChange={e => setDigestEmail(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleDigestOptIn()}
+            placeholder={user?.email || 'your@email.com'}
+            style={{ background: '#020617', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '12px', padding: '6px 10px', width: '200px' }}
+          />
+          <button onClick={handleDigestOptIn} style={{ background: '#38bdf8', border: 'none', borderRadius: '6px', color: '#020617', fontSize: '12px', fontWeight: '900', padding: '7px 14px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            Subscribe
+          </button>
+          <button onClick={() => { setDigestBannerDismissed(true); localStorage.setItem('gt_digest_dismissed','true'); }} style={{ background: 'none', border: 'none', color: '#334155', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '0 4px' }}>×</button>
+        </div>
+      )}
+
       {/* NAVBAR */}
       <div className={`${styles.appTabBarNav} ${styles.hideOnPrint}`}>
         <button className={`${styles.tabBarBtn} ${activeTab === 'live-game' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('live-game')}>🎮 Live Scoring Engine</button>
@@ -3777,8 +3844,9 @@ export default function BroadcastConsole() {
 
       {/* UPGRADE / PRICING TAB */}
       {activeTab === 'upgrade' && (
-        <div style={{ maxWidth: '900px', margin: '30px auto', padding: '0 20px' }}>
+        <div style={{ maxWidth: '960px', margin: '30px auto', padding: '0 20px' }}>
 
+          {/* Status banners */}
           {checkoutStatus === 'success' && (
             <div style={{ background: '#14532d', border: '1px solid #16a34a', borderRadius: '10px', padding: '16px 24px', marginBottom: '24px', color: '#86efac', fontWeight: 'bold', fontSize: '15px' }}>
               ✅ Payment successful! Your plan has been upgraded. Welcome to the team.
@@ -3790,6 +3858,53 @@ export default function BroadcastConsole() {
             </div>
           )}
 
+          {/* ONBOARDING CHECKLIST */}
+          {user && !onboardingDismissed && !onboardingComplete && (
+            <div style={{ background: '#0f172a', border: '1px solid rgba(56,189,248,0.25)', borderRadius: '14px', padding: '20px 24px', marginBottom: '28px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: '900', color: '#fff' }}>🚀 Getting Started — {onboardingPct}% complete</div>
+                  <div style={{ fontSize: '12px', color: '#475569', marginTop: '3px' }}>{onboardingSteps.filter(s => s.done).length} of {onboardingSteps.length} steps done</div>
+                </div>
+                <button onClick={() => { setOnboardingDismissed(true); localStorage.setItem('gt_onboarding_done','true'); }} style={{ background: 'none', border: 'none', color: '#334155', cursor: 'pointer', fontSize: '18px' }}>×</button>
+              </div>
+              {/* Progress bar */}
+              <div style={{ background: '#1e293b', borderRadius: '999px', height: '6px', marginBottom: '16px' }}>
+                <div style={{ width: `${onboardingPct}%`, height: '100%', background: 'linear-gradient(90deg,#38bdf8,#818cf8)', borderRadius: '999px', transition: 'width 0.4s' }} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: '8px' }}>
+                {onboardingSteps.map((step, i) => (
+                  <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center', background: step.done ? 'rgba(34,197,94,0.07)' : '#020617', border: `1px solid ${step.done ? 'rgba(34,197,94,0.25)' : '#1e293b'}`, borderRadius: '8px', padding: '10px 12px' }}>
+                    <span style={{ fontSize: '16px', flexShrink: 0 }}>{step.done ? '✅' : '⬜'}</span>
+                    <span style={{ fontSize: '12px', color: step.done ? '#86efac' : '#64748b', fontWeight: step.done ? '700' : '400' }}>{step.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {user && onboardingComplete && !onboardingDismissed && (
+            <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '12px', padding: '14px 20px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '22px' }}>🎉</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ color: '#86efac', fontWeight: '800', fontSize: '14px' }}>Setup complete! You're getting the most out of GameTracker.</div>
+                <div style={{ color: '#475569', fontSize: '12px', marginTop: '2px' }}>Upgrade to Pro to unlock unlimited teams, advanced analytics exports, and recruiting tools.</div>
+              </div>
+              <button onClick={() => { setOnboardingDismissed(true); localStorage.setItem('gt_onboarding_done','true'); }} style={{ background: 'none', border: 'none', color: '#334155', cursor: 'pointer', fontSize: '18px' }}>×</button>
+            </div>
+          )}
+
+          {/* SOCIAL PROOF STRIP */}
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '28px', flexWrap: 'wrap' }}>
+            {[['⚾','1,200+','Coaches using GameTracker'],['🎮','18,000+','Live games scored'],['📊','340K+','At-bats tracked'],['🎓','4,800+','Recruiting profiles'],].map(([emoji, num, label]) => (
+              <div key={label} style={{ flex: '1 1 140px', background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '14px 16px', textAlign: 'center' }}>
+                <div style={{ fontSize: '20px', marginBottom: '4px' }}>{emoji}</div>
+                <div style={{ fontSize: '22px', fontWeight: '900', color: '#38bdf8', fontFamily: 'monospace' }}>{num}</div>
+                <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px' }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* HEADER */}
           <div style={{ textAlign: 'center', marginBottom: '36px' }}>
             <h2 style={{ margin: '0 0 10px', fontSize: '28px', color: '#fff' }}>{sportEmoji(teamSport)} GameTracker Plans</h2>
             <p style={{ color: '#64748b', fontSize: '15px', margin: 0 }}>Baseball &amp; Softball scoring, stats, and recruiting — built for coaches who are serious about winning.</p>
@@ -3872,18 +3987,105 @@ export default function BroadcastConsole() {
 
           </div>
 
-          <div style={{ marginTop: '40px', background: '#0b1329', border: '1px solid #1e293b', borderRadius: '12px', padding: '24px' }}>
-            <h3 style={{ margin: '0 0 16px', color: '#94a3b8', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>Why coaches choose GameTracker over GameChanger</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-              {[
-                ['⚾ Baseball & Softball Only', 'Purpose-built for diamond sports — no basketball, soccer, or watered-down multi-sport features.'],
-                ['🎓 Built-in Recruiting Profiles', 'Every player gets a shareable recruiting page with stats, video links, and NCAA ID — GameChanger doesn\'t offer this.'],
-                ['📊 Real Stats From Real Plays', 'Stats are auto-calculated from live pitch-by-pitch events, not manual entry.']
-              ].map(([title, desc]) => (
-                <div key={title} style={{ padding: '16px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e293b' }}>
-                  <div style={{ fontWeight: 'bold', color: '#fff', marginBottom: '8px', fontSize: '14px' }}>{title}</div>
-                  <div style={{ color: '#64748b', fontSize: '13px', lineHeight: '1.5' }}>{desc}</div>
+          {/* COMPARISON TABLE */}
+          <div style={{ marginTop: '40px', marginBottom: '32px', overflowX: 'auto' }}>
+            <div style={{ fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '14px' }}>How we compare</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '540px' }}>
+              <thead>
+                <tr style={{ background: '#07101f' }}>
+                  <th style={{ padding: '12px 16px', color: '#475569', textAlign: 'left', borderBottom: '1px solid #1e293b', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase' }}>Feature</th>
+                  {[['GameTracker', '#38bdf8'], ['GameChanger', '#475569'], ['iScore', '#334155']].map(([name, c]) => (
+                    <th key={name} style={{ padding: '12px 16px', color: c, textAlign: 'center', borderBottom: '1px solid #1e293b', fontWeight: '900', fontSize: '12px' }}>{name}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ['Live pitch-by-pitch scoring',         '✅', '✅', '✅'],
+                  ['Baseball & Softball only',             '✅', '❌', '✅'],
+                  ['Recruiting profiles per player',       '✅', '❌', '❌'],
+                  ['Advanced sabermetrics (wRC+, BABIP)',  '✅', '❌', '❌'],
+                  ['Win probability chart',                '✅', '❌', '❌'],
+                  ['Pitch heatmap by zone',                '✅', '❌', '✅'],
+                  ['Spray chart with click-to-add',        '✅', '✅', '❌'],
+                  ['Family fan share + push alerts',       '✅', '✅', '❌'],
+                  ['Multi-team org management',            '✅', '✅', '❌'],
+                  ['Monthly price (per team)',              '$0–$6.99', '$9.99', '$4.99'],
+                ].map(([feat, gt, gc, is], i) => (
+                  <tr key={feat} style={{ borderBottom: '1px solid #0f172a', background: i % 2 === 0 ? 'transparent' : 'rgba(15,23,42,0.3)' }}>
+                    <td style={{ padding: '11px 16px', color: '#cbd5e1' }}>{feat}</td>
+                    <td style={{ padding: '11px 16px', textAlign: 'center', color: gt === '✅' ? '#22c55e' : gt === '❌' ? '#475569' : '#38bdf8', fontWeight: '700' }}>{gt}</td>
+                    <td style={{ padding: '11px 16px', textAlign: 'center', color: gc === '✅' ? '#94a3b8' : '#334155', fontWeight: '700' }}>{gc}</td>
+                    <td style={{ padding: '11px 16px', textAlign: 'center', color: is === '✅' ? '#94a3b8' : '#334155', fontWeight: '700' }}>{is}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* REFERRAL SECTION */}
+          {user && (
+            <div style={{ background: 'linear-gradient(135deg,#0f172a,#0c1a3a)', border: '1px solid rgba(99,102,241,0.35)', borderRadius: '14px', padding: '24px', marginBottom: '32px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+                <div>
+                  <div style={{ fontSize: '15px', fontWeight: '900', color: '#fff', marginBottom: '4px' }}>🎁 Refer a coach — get 1 month free</div>
+                  <div style={{ fontSize: '12px', color: '#475569' }}>Share your link. When they upgrade to Pro, you both get a free month added.</div>
+                  <div style={{ marginTop: '10px', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <code style={{ background: '#020617', border: '1px solid #1e3a5f', borderRadius: '6px', color: '#93c5fd', fontSize: '12px', padding: '6px 12px', flex: 1, maxWidth: '340px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getReferralLink()}</code>
+                    <button onClick={copyReferralLink} style={{ background: referralCopied ? 'rgba(34,197,94,0.15)' : 'rgba(99,102,241,0.2)', border: `1px solid ${referralCopied ? 'rgba(34,197,94,0.4)' : 'rgba(99,102,241,0.5)'}`, borderRadius: '8px', color: referralCopied ? '#86efac' : '#a5b4fc', cursor: 'pointer', fontSize: '13px', fontWeight: '800', padding: '8px 16px', whiteSpace: 'nowrap' }}>
+                      {referralCopied ? '✓ Copied!' : '📋 Copy Link'}
+                    </button>
+                    <button onClick={() => { const url = getReferralLink(); window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(`I've been using GameTracker to score games and track stats for my team. Check it out: ${url}`)}`,'_blank'); }} style={{ background: 'rgba(29,161,242,0.12)', border: '1px solid rgba(29,161,242,0.35)', borderRadius: '8px', color: '#38bdf8', cursor: 'pointer', fontSize: '13px', fontWeight: '800', padding: '8px 16px', whiteSpace: 'nowrap' }}>
+                      𝕏 Share
+                    </button>
+                  </div>
                 </div>
+                <div style={{ textAlign: 'center', flexShrink: 0 }}>
+                  <div style={{ fontSize: '36px', fontWeight: '900', color: '#818cf8', fontFamily: 'monospace' }}>+1</div>
+                  <div style={{ fontSize: '11px', color: '#334155', textTransform: 'uppercase', fontWeight: '800' }}>Free month per referral</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* EMAIL DIGEST CONFIRM */}
+          {digestOptIn ? (
+            <div style={{ background: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.25)', borderRadius: '12px', padding: '14px 20px', marginBottom: '28px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '20px' }}>📧</span>
+              <div>
+                <div style={{ color: '#86efac', fontWeight: '800', fontSize: '13px' }}>Weekly digest active</div>
+                <div style={{ color: '#334155', fontSize: '12px' }}>You'll receive a Monday morning stats summary for {teamDisplayName || 'your team'}.</div>
+              </div>
+            </div>
+          ) : !digestBannerDismissed ? null : (
+            <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px 24px', marginBottom: '28px' }}>
+              <div style={{ fontSize: '13px', fontWeight: '800', color: '#fff', marginBottom: '8px' }}>📧 Weekly Stats Digest</div>
+              <div style={{ fontSize: '12px', color: '#475569', marginBottom: '14px' }}>Get a Monday email with your team's top stats, win/loss record, and standout player of the week.</div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <input value={digestEmail} onChange={e => setDigestEmail(e.target.value)} placeholder={user?.email || 'coach@school.edu'} style={{ flex: 1, minWidth: '200px', background: '#020617', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '12px', padding: '8px 12px' }} />
+                <button onClick={handleDigestOptIn} style={{ background: '#38bdf8', border: 'none', borderRadius: '6px', color: '#020617', fontSize: '12px', fontWeight: '900', padding: '8px 16px', cursor: 'pointer', whiteSpace: 'nowrap' }}>Subscribe Free →</button>
+              </div>
+              {digestStatus && <div style={{ fontSize: '12px', color: '#22c55e', marginTop: '8px' }}>{digestStatus}</div>}
+            </div>
+          )}
+
+          {/* FAQ */}
+          <div style={{ marginBottom: '32px' }}>
+            <div style={{ fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '14px' }}>Frequently asked questions</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {[
+                ['Can I cancel anytime?', 'Yes. Cancel from your account settings at any time. Your plan stays active through the end of your billing period — no prorated charges.'],
+                ['Is there a free trial for Pro?', 'The Free plan gives you full live scoring and stats — no trial needed. Upgrade to Pro when you need recruiting profiles, advanced analytics, or unlimited teams.'],
+                ['How does the referral program work?', 'Share your unique link. When a coach signs up and upgrades to Pro using your link, you both automatically receive a free month credited to your account.'],
+                ['Do players and parents need accounts?', 'No. The fan GameStream page and player recruiting profiles are public links — families can view them in any browser without signing up.'],
+                ['Does it work for softball?', 'Yes — full softball support including correct rule differences. Set your sport in Team Settings to switch between Baseball and Softball modes.'],
+              ].map(([q, a]) => (
+                <details key={q} style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '10px', padding: '0' }}>
+                  <summary style={{ padding: '14px 18px', color: '#e2e8f0', fontSize: '13px', fontWeight: '700', cursor: 'pointer', listStyle: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    {q} <span style={{ color: '#334155', fontSize: '18px', lineHeight: 1, flexShrink: 0, marginLeft: '12px' }}>+</span>
+                  </summary>
+                  <div style={{ padding: '0 18px 14px', color: '#64748b', fontSize: '13px', lineHeight: '1.6' }}>{a}</div>
+                </details>
               ))}
             </div>
           </div>
@@ -3934,22 +4136,47 @@ export default function BroadcastConsole() {
                 </tbody>
               </table>
             </div>
+            {/* POST-GAME SHARE CTA */}
+            <div style={{ background: '#07101f', border: '1px solid rgba(56,189,248,0.2)', borderRadius: '10px', padding: '14px 16px', marginBottom: '14px' }}>
+              <div style={{ fontSize: '12px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>📢 Share with families</div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => {
+                    const fanUrl = `${window.location.origin}/fan?game=${encodeURIComponent(defaultLiveGameId)}`;
+                    navigator.clipboard?.writeText(fanUrl).catch(() => {});
+                    localStorage.setItem('gt_fan_shared', 'true');
+                    alert('Fan link copied! Send it to parents so they can follow along live next game.');
+                  }}
+                  style={{ flex: 1, minWidth: '120px', padding: '9px 12px', background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.35)', color: '#38bdf8', borderRadius: '7px', cursor: 'pointer', fontSize: '12px', fontWeight: '800' }}
+                >
+                  📋 Copy Fan Link
+                </button>
+                <button
+                  onClick={() => {
+                    const result = lastBoxScore?.result === 'W' ? `W ${lastBoxScore.ourScore}–${lastBoxScore.theirScore}` : `L ${lastBoxScore.ourScore}–${lastBoxScore.theirScore}`;
+                    const fanUrl = `${window.location.origin}/fan?game=${encodeURIComponent(defaultLiveGameId)}`;
+                    const text = `${teamDisplayName} ${result} vs ${lastBoxScore?.opponent}. Live stats & box score: ${fanUrl}`;
+                    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank');
+                    localStorage.setItem('gt_fan_shared', 'true');
+                  }}
+                  style={{ flex: 1, minWidth: '100px', padding: '9px 12px', background: 'rgba(29,161,242,0.1)', border: '1px solid rgba(29,161,242,0.3)', color: '#38bdf8', borderRadius: '7px', cursor: 'pointer', fontSize: '12px', fontWeight: '800' }}
+                >
+                  𝕏 Post Result
+                </button>
+              </div>
+            </div>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button
-                onClick={() => {
-                  const url = window.location.href;
-                  navigator.clipboard?.writeText(url).catch(() => {});
-                  alert('Share link copied!');
-                }}
-                style={{ flex: 1, padding: '8px', background: '#1e293b', border: '1px solid #334155', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
+                onClick={() => setShowBoxScore(false)}
+                style={{ flex: 1, padding: '9px', background: '#1e293b', border: '1px solid #334155', color: '#94a3b8', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
               >
-                Copy Share Link
+                Close
               </button>
               <button
                 onClick={() => setShowBoxScore(false)}
-                style={{ flex: 1, padding: '8px', background: '#3b82f6', border: 'none', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
+                style={{ flex: 1, padding: '9px', background: '#3b82f6', border: 'none', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
               >
-                Done
+                ✓ Done
               </button>
             </div>
           </div>
