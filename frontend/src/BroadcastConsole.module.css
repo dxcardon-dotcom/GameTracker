@@ -2273,3 +2273,248 @@
     margin-left: 0;
   }
 }
+
+/* ==========================================
+   📱 TABLET BREAKPOINT (≤768px)
+   ========================================== */
+@media (max-width: 768px) {
+  .container {
+    padding: 12px;
+  }
+
+  /* Nav: scroll horizontally on small screens */
+  .appTabBarNav {
+    overflow-x: auto;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 8px;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .appTabBarNav::-webkit-scrollbar { display: none; }
+
+  .tabBarBtn {
+    padding: 10px 14px;
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Banner: stack vertically */
+  .scheduleHeaderBanner {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .bannerLeftSection h2 {
+    font-size: 20px;
+  }
+
+  .bannerRecordsRibbon {
+    gap: 14px;
+    padding: 8px 14px;
+    flex-wrap: wrap;
+  }
+
+  .ribbonStatBox strong {
+    font-size: 15px;
+  }
+
+  /* Scoreboard */
+  .scoreboard {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .scoreDigit {
+    font-size: 32px;
+  }
+
+  /* Live game 3-col → 1-col */
+  .splitWorkspace {
+    grid-template-columns: 1fr;
+  }
+
+  /* Diamond: smaller */
+  .diamondField {
+    width: 200px;
+    height: 200px;
+  }
+
+  .baseTop  { top: -12px; left: 88px; }
+  .baseLeft { top: 88px; left: -12px; }
+  .baseRight{ top: 88px; right: -12px; }
+  .homePlateAnchor { left: 88px; }
+
+  /* Pitch button grid: 2 cols */
+  .theTripleConsoleGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* Stats table: horizontal scroll */
+  .statTableWrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .statGridTable {
+    min-width: 600px;
+  }
+
+  /* Schedule workspace: single col */
+  .scheduleWorkspaceSplit {
+    grid-template-columns: 1fr;
+  }
+
+  /* Game card: stack */
+  .gameMediaCard {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .cardLeftMeta { width: auto; flex-direction: row; align-items: center; gap: 10px; }
+  .cardRightStatus { width: 100%; flex-direction: row; justify-content: space-between; }
+  .scheduleCardActions { margin-left: 0; flex-wrap: wrap; }
+
+  /* Setup grid: 2 cols */
+  .setupGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lineupPreviewGrid { grid-template-columns: 1fr 1fr; }
+  .teamCreationGrid { grid-template-columns: 1fr 1fr; }
+  .rosterFormGrid { grid-template-columns: 1fr 1fr; }
+  .schedulePlannerGrid { grid-template-columns: 1fr 1fr; }
+
+  /* Lineup builder actions: 2 cols */
+  .lineupBuilderActions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* Roster list: simpler columns */
+  .rosterListHeader,
+  .rosterListRow {
+    grid-template-columns: 40px 1fr 90px;
+  }
+
+  /* Play log row: stack */
+  .playLogRow {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .playLogActions { justify-content: flex-start; }
+
+  /* GC score strip: 3 cols */
+  .gcScoreStrip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .gcActionGrid { grid-template-columns: 1fr 1fr; }
+  .gcNoteRow { grid-template-columns: 1fr; }
+}
+
+/* ==========================================
+   📱 PHONE BREAKPOINT (≤480px)
+   ========================================== */
+@media (max-width: 480px) {
+  .container {
+    padding: 8px;
+  }
+
+  .tabBarBtn {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+
+  .bannerLeftSection h2 {
+    font-size: 17px;
+  }
+
+  .bannerRecordsRibbon {
+    gap: 10px;
+  }
+
+  .scoreDigit {
+    font-size: 26px;
+  }
+
+  .countString {
+    font-size: 16px;
+  }
+
+  /* Diamond: compact */
+  .diamondField {
+    width: 160px;
+    height: 160px;
+  }
+
+  .baseTop  { top: -12px; left: 68px; }
+  .baseLeft { top: 68px; left: -12px; }
+  .baseRight{ top: 68px; right: -12px; }
+  .homePlateAnchor { left: 68px; }
+
+  /* All grids → single col on phone */
+  .setupGrid,
+  .lineupPreviewGrid,
+  .teamCreationGrid,
+  .rosterFormGrid,
+  .schedulePlannerGrid,
+  .lineupBuilderActions,
+  .gcScoreStrip,
+  .gcActionGrid,
+  .gcButtonGrid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Roster list: name + actions only */
+  .rosterListHeader,
+  .rosterListRow {
+    grid-template-columns: 1fr auto;
+  }
+
+  .rosterRowActions {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  /* Sub-nav tabs: wrap */
+  .subNavigationTabs {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .subTabBtn {
+    font-size: 11px;
+    padding: 5px 10px;
+  }
+
+  /* Lineup builder row: compact */
+  .lineupBuilderRow {
+    grid-template-columns: 26px 1fr 70px;
+  }
+
+  /* Schedule card action buttons: smaller */
+  .scheduleCardActions button {
+    font-size: 9px;
+    padding: 5px 6px;
+  }
+
+  /* Play log: compact */
+  .playLogRows {
+    max-height: 240px;
+  }
+
+  /* Lineup builder grid: single col */
+  .lineupBuilderGrid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Pitch button grid: 2 cols (keep side by side) */
+  .theTripleConsoleGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* GC button grid: single col */
+  .gcButtonGrid {
+    grid-template-columns: 1fr;
+  }
+}
