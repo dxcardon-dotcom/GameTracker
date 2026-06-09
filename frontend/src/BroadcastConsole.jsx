@@ -4,6 +4,8 @@ import { db, storage } from './firebase';
 import { collection, doc, limit, onSnapshot, orderBy, query, setDoc } from 'firebase/firestore';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getDownloadURL, ref, uploadBytesResumable } from 'firebase/storage';
+import ScoutingReportTab from './ScoutingReportTab';
+import TournamentBracketTab from './TournamentBracketTab';
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 const defaultTeamId = import.meta.env.VITE_DEFAULT_TEAM_ID || 'e3UukXkIjMHcr0uB5rZ3';
@@ -84,7 +86,9 @@ export default function BroadcastConsole() {
   const [selectedSeason, setSelectedSeason] = useState('2025–2026');
   
   // 📈 Metric System Sub-Tabs
-  const [statsSubTab, setStatsSubTab] = useState('standard-hitting'); 
+  const [statsSubTab, setStatsSubTab] = useState('standard-hitting');
+  const [sprayChartPlayer, setSprayChartPlayer] = useState('team');
+  const [sprayDots, setSprayDots] = useState([]);
 
   // Live Score Modifier Tracker States
   const [scoringOpponent, setScoringOpponent] = useState('Fabens High School');
@@ -161,6 +165,9 @@ export default function BroadcastConsole() {
   const [authError, setAuthError] = useState('');
   const [userPlan, setUserPlan] = useState('free');
   const [checkoutStatus, setCheckoutStatus] = useState('');
+  const [notifPermission, setNotifPermission] = useState(() =>
+    typeof Notification !== 'undefined' ? Notification.permission : 'default'
+  );
 
   // 🖼️ Logo Configuration State
   const [logoUrl, setLogoUrl] = useState('');
@@ -669,6 +676,7 @@ export default function BroadcastConsole() {
     else if (runnerOnSecond) setRunnerOnSecond(false);
     else if (runnerOnFirst) setRunnerOnFirst(false);
     setLastPlaySummary('Manual run added.');
+    sendGameNotif(`${sportEmoji(teamSport)} Run Scores!`, `${teamDisplayName || homeTeamName} scores a run — Inn ${currentInning}`);
 
     await logScoringEvent('manual_run', {
       result: 'run',
@@ -1617,6 +1625,17 @@ export default function BroadcastConsole() {
     }
   };
 
+  const requestNotifPermission = async () => {
+    if (typeof Notification === 'undefined') return;
+    const result = await Notification.requestPermission();
+    setNotifPermission(result);
+  };
+
+  const sendGameNotif = (title, body) => {
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    new Notification(title, { body, icon: '/favicon.ico' });
+  };
+
   const copyFanLink = (player) => {
     const url = `${window.location.origin}/fan?game=${encodeURIComponent(defaultLiveGameId)}`;
     const text = `Follow ${player.firstName} ${player.lastName} live at ${teamDisplayName || homeTeamName}! ${url}`;
@@ -1672,6 +1691,8 @@ export default function BroadcastConsole() {
         <button className={`${styles.tabBarBtn} ${activeTab === 'live-game' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('live-game')}>🎮 Live Scoring Engine</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'schedule' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('schedule')}>📅 Results &amp; Records</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'stats' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('stats')}>📈 Stat Sheets</button>
+        <button className={`${styles.tabBarBtn} ${activeTab === 'scouting' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('scouting')}>🔍 Scouting</button>
+        <button className={`${styles.tabBarBtn} ${activeTab === 'bracket' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('bracket')}>🏆 Bracket</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'upgrade' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('upgrade')} style={{ marginLeft: 'auto', color: '#f59e0b', borderColor: '#f59e0b' }}>⭐ Upgrade</button>
       </div>
 
@@ -1714,16 +1735,32 @@ export default function BroadcastConsole() {
             <div className={styles.ribbonStatBox}><small>TEAM ERA</small><strong>{teamTotals.era.toFixed(2)}</strong></div>
             <div className={styles.ribbonStatBox}><small>FIELD %</small><strong>{teamTotals.fp.toFixed(3)}</strong></div>
           </div>
-          {selectedSeason && (
-            <a
-              href={`/team?season=${encodeURIComponent(selectedSeason)}`}
-              target="_blank"
-              rel="noreferrer"
-              style={{ fontSize: '11px', color: '#38bdf8', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.3)', padding: '4px 12px', borderRadius: '999px' }}
-            >
-              🌐 Public Team Page ↗
-            </a>
-          )}
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {notifPermission !== 'granted' && (
+              <button
+                onClick={requestNotifPermission}
+                title="Enable game notifications"
+                style={{ fontSize: '11px', color: '#f59e0b', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', padding: '4px 12px', borderRadius: '999px', cursor: 'pointer' }}
+              >
+                🔔 Enable Notifications
+              </button>
+            )}
+            {notifPermission === 'granted' && (
+              <span style={{ fontSize: '11px', color: '#22c55e', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', padding: '4px 12px', borderRadius: '999px' }}>
+                🔔 Notifications On
+              </span>
+            )}
+            {selectedSeason && (
+              <a
+                href={`/team?season=${encodeURIComponent(selectedSeason)}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{ fontSize: '11px', color: '#38bdf8', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.3)', padding: '4px 12px', borderRadius: '999px' }}
+              >
+                🌐 Public Team Page ↗
+              </a>
+            )}
+          </div>
         </div>
       </div>
 
@@ -2710,6 +2747,7 @@ export default function BroadcastConsole() {
             <button className={`${styles.subTabBtn} ${statsSubTab === 'sabermetrics' ? styles.subTabBtnActive : ''}`} onClick={() => setStatsSubTab('sabermetrics')}>📊 Sabermetrics</button>
             <button className={`${styles.subTabBtn} ${statsSubTab === 'pitching' ? styles.subTabBtnActive : ''}`} onClick={() => setStatsSubTab('pitching')}>🔥 Pitching Staff</button>
             <button className={`${styles.subTabBtn} ${statsSubTab === 'fielding' ? styles.subTabBtnActive : ''}`} onClick={() => setStatsSubTab('fielding')}>🧤 Fielding Leather</button>
+            <button className={`${styles.subTabBtn} ${statsSubTab === 'spray' ? styles.subTabBtnActive : ''}`} onClick={() => setStatsSubTab('spray')}>🗺️ Spray Chart</button>
           </div>
 
           <div className={styles.statTableWrapper}>
@@ -2771,7 +2809,136 @@ export default function BroadcastConsole() {
               )}
             </table>
           </div>
+
+          {/* SPRAY CHART */}
+          {statsSubTab === 'spray' && (() => {
+            const hitColors = { single: '#22c55e', double: '#3b82f6', triple: '#a855f7', home_run: '#f59e0b', out: '#475569' };
+            const filteredDots = sprayChartPlayer === 'team'
+              ? sprayDots
+              : sprayDots.filter(d => d.batter === sprayChartPlayer);
+            const canvasW = 340, canvasH = 320;
+            const addDot = (e) => {
+              if (!user) return;
+              const rect = e.currentTarget.getBoundingClientRect();
+              const x = ((e.clientX - rect.left) / rect.width * 100).toFixed(1);
+              const y = ((e.clientY - rect.top) / rect.height * 100).toFixed(1);
+              const result = window.prompt('Hit result? (single/double/triple/home_run/groundout/flyout)', 'single');
+              if (!result) return;
+              const batter = sprayChartPlayer === 'team' ? (currentBatter || 'Unknown') : sprayChartPlayer;
+              setSprayDots(prev => [...prev, { x, y, result: result.trim().toLowerCase(), batter, id: Date.now() }]);
+            };
+            return (
+              <div style={{ padding: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                  <h3 style={{ margin: 0, color: '#94a3b8', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1px' }}>🗺️ Spray Chart — Hit Location Tracker</h3>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <select value={sprayChartPlayer} onChange={e => setSprayChartPlayer(e.target.value)} style={{ background: '#1e293b', border: '1px solid #334155', color: '#fff', borderRadius: '6px', padding: '6px 10px', fontSize: '12px' }}>
+                      <option value="team">All Players</option>
+                      {processedRoster.map(p => <option key={p.id} value={`${p.firstName} ${p.lastName}`}>{p.firstName} {p.lastName}</option>)}
+                    </select>
+                    <button onClick={() => setSprayDots([])} disabled={!user || sprayDots.length === 0} style={{ background: '#7f1d1d', border: '1px solid #ef4444', color: '#fca5a5', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', cursor: 'pointer' }}>Clear</button>
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '24px', alignItems: 'start' }}>
+                  <div>
+                    <p style={{ color: '#475569', fontSize: '12px', margin: '0 0 10px' }}>{user ? 'Click anywhere on the field to log a hit location.' : 'Log in to add hits to the spray chart.'}</p>
+                    <div
+                      onClick={addDot}
+                      style={{ position: 'relative', width: '100%', maxWidth: `${canvasW}px`, aspectRatio: `${canvasW}/${canvasH}`, background: '#0b1a0b', border: '1px solid #1e293b', borderRadius: '8px', cursor: user ? 'crosshair' : 'default', overflow: 'hidden' }}
+                    >
+                      {/* Field outline — SVG */}
+                      <svg viewBox={`0 0 ${canvasW} ${canvasH}`} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
+                        {/* Outfield arc */}
+                        <path d={`M 170 ${canvasH} A 220 220 0 0 1 ${canvasW - 30} 80`} fill="none" stroke="#1a3a1a" strokeWidth="60" />
+                        <path d={`M 170 ${canvasH} A 220 220 0 0 1 ${canvasW - 30} 80`} fill="none" stroke="#166534" strokeWidth="2" />
+                        {/* Infield dirt */}
+                        <polygon points={`170,${canvasH - 30} 90,200 170,120 250,200`} fill="#2a1a0a" stroke="#3d2b10" strokeWidth="1" />
+                        {/* Foul lines */}
+                        <line x1="170" y1={canvasH} x2="10" y2="30" stroke="#334155" strokeWidth="1" strokeDasharray="4,4" />
+                        <line x1="170" y1={canvasH} x2={canvasW - 10} y2="30" stroke="#334155" strokeWidth="1" strokeDasharray="4,4" />
+                        {/* Bases */}
+                        {[[170,120],[250,200],[170,canvasH-30],[90,200]].map(([bx,by],i) => (
+                          <rect key={i} x={bx-6} y={by-6} width="12" height="12" fill={i===2?'#fff':'#f59e0b'} transform={`rotate(45,${bx},${by})`} />
+                        ))}
+                        {/* Pitcher mound */}
+                        <circle cx="170" cy="175" r="8" fill="#2a1a0a" stroke="#3d2b10" strokeWidth="1" />
+                      </svg>
+                      {/* Hit dots */}
+                      {filteredDots.map(dot => (
+                        <div
+                          key={dot.id}
+                          title={`${dot.batter} — ${dot.result}`}
+                          style={{
+                            position: 'absolute',
+                            left: `${dot.x}%`, top: `${dot.y}%`,
+                            width: '10px', height: '10px',
+                            borderRadius: '50%',
+                            background: hitColors[dot.result] || '#64748b',
+                            border: '1.5px solid rgba(255,255,255,0.3)',
+                            transform: 'translate(-50%,-50%)',
+                            pointerEvents: 'none'
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  {/* Legend + summary */}
+                  <div style={{ minWidth: '140px' }}>
+                    <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '14px', marginBottom: '12px' }}>
+                      <div style={{ fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', marginBottom: '10px' }}>Legend</div>
+                      {Object.entries(hitColors).map(([k, c]) => (
+                        <div key={k} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                          <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: c, flexShrink: 0 }} />
+                          <span style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'capitalize' }}>{k.replace('_', ' ')}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '14px' }}>
+                      <div style={{ fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', marginBottom: '10px' }}>Summary</div>
+                      {Object.entries(hitColors).map(([k, c]) => {
+                        const count = filteredDots.filter(d => d.result === k).length;
+                        if (!count) return null;
+                        return (
+                          <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>
+                            <span style={{ textTransform: 'capitalize' }}>{k.replace('_',' ')}</span>
+                            <strong style={{ color: c }}>{count}</strong>
+                          </div>
+                        );
+                      })}
+                      {filteredDots.length === 0 && <div style={{ fontSize: '12px', color: '#334155' }}>No data yet</div>}
+                      <div style={{ borderTop: '1px solid #1e293b', marginTop: '8px', paddingTop: '8px', fontSize: '12px', color: '#64748b', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Total</span><strong style={{ color: '#fff' }}>{filteredDots.length}</strong>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
+      )}
+
+      {/* SCOUTING REPORT TAB */}
+      {activeTab === 'scouting' && (
+        <ScoutingReportTab
+          user={user}
+          schedule={currentSeasonData.schedule || []}
+          selectedSeason={selectedSeason}
+          db={db}
+          setDoc={setDoc}
+          doc={doc}
+        />
+      )}
+
+      {/* TOURNAMENT BRACKET TAB */}
+      {activeTab === 'bracket' && (
+        <TournamentBracketTab
+          user={user}
+          selectedSeason={selectedSeason}
+          teamDisplayName={teamDisplayName || homeTeamName}
+          sportEmoji={sportEmoji}
+          teamSport={teamSport}
+        />
       )}
 
       {/* UPGRADE / PRICING TAB */}
