@@ -1707,11 +1707,23 @@ export default function BroadcastConsole() {
             </div>
           </div>
         </div>
-        <div className={styles.bannerRecordsRibbon}>
-          <div className={styles.ribbonStatBox}><small>RECORD</small><strong>{seasonWins}-{seasonLosses}</strong></div>
-          <div className={styles.ribbonStatBox}><small>TEAM AVG</small><strong>{teamTotals.avg.toFixed(3)}</strong></div>
-          <div className={styles.ribbonStatBox}><small>TEAM ERA</small><strong>{teamTotals.era.toFixed(2)}</strong></div>
-          <div className={styles.ribbonStatBox}><small>FIELD %</small><strong>{teamTotals.fp.toFixed(3)}</strong></div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
+          <div className={styles.bannerRecordsRibbon}>
+            <div className={styles.ribbonStatBox}><small>RECORD</small><strong>{seasonWins}-{seasonLosses}</strong></div>
+            <div className={styles.ribbonStatBox}><small>TEAM AVG</small><strong>{teamTotals.avg.toFixed(3)}</strong></div>
+            <div className={styles.ribbonStatBox}><small>TEAM ERA</small><strong>{teamTotals.era.toFixed(2)}</strong></div>
+            <div className={styles.ribbonStatBox}><small>FIELD %</small><strong>{teamTotals.fp.toFixed(3)}</strong></div>
+          </div>
+          {selectedSeason && (
+            <a
+              href={`/team?season=${encodeURIComponent(selectedSeason)}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{ fontSize: '11px', color: '#38bdf8', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.3)', padding: '4px 12px', borderRadius: '999px' }}
+            >
+              🌐 Public Team Page ↗
+            </a>
+          )}
         </div>
       </div>
 

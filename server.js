@@ -273,6 +273,28 @@ async function saveSeasonRoster(req, res, seasonId) {
   }
 }
 
+async function getPublicSeasonPage(res, seasonId) {
+  try {
+    const seasonSnap = await getDb().collection("seasons").doc(seasonId).get();
+    if (!seasonSnap.exists) {
+      return sendJson(res, 404, { error: "Season not found" });
+    }
+    const season = serializeFirestoreValue(seasonSnap.data());
+    if (season.visibility === "private") {
+      return sendJson(res, 403, { error: "This team page is private" });
+    }
+    return sendJson(res, 200, {
+      roster: season.roster || [],
+      schedule: season.schedule || [],
+      teamProfile: season.teamProfile || {},
+      branding: season.branding || {},
+    });
+  } catch (error) {
+    console.error("Public season page error:", error);
+    return sendJson(res, 500, { error: "Could not load team page" });
+  }
+}
+
 async function getPublicGameStream(res, gameId) {
   try {
     const gameRef = getDb().collection("games").doc(gameId);
@@ -511,6 +533,11 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "POST" && requestUrl.pathname === "/stripe-webhook") {
     return handleStripeWebhook(req, res);
+  }
+
+  const publicSeasonMatch = requestUrl.pathname.match(/^\/api\/public\/seasons\/([^/]+)$/);
+  if (req.method === "GET" && publicSeasonMatch) {
+    return getPublicSeasonPage(res, decodeURIComponent(publicSeasonMatch[1]));
   }
 
   const publicGameStreamMatch = requestUrl.pathname.match(/^\/api\/public\/games\/([^/]+)\/stream$/);
