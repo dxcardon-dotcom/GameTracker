@@ -244,6 +244,8 @@ export default function BroadcastConsole() {
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [userPlan, setUserPlan] = useState('free');
+  const [userLimits, setUserLimits] = useState({ maxGames: 3, maxTeams: 1, recruiting: false, pushNotifications: false, pdfReports: false, advancedStats: false });
+  const [gamesPlayed, setGamesPlayed] = useState(0);
   const [checkoutStatus, setCheckoutStatus] = useState('');
   const [notifPermission, setNotifPermission] = useState(() =>
     typeof Notification !== 'undefined' ? Notification.permission : 'default'
@@ -371,6 +373,14 @@ export default function BroadcastConsole() {
           if (res.ok) {
             const data = await res.json();
             setUserPlan(data.plan || 'free');
+          }
+          const limRes = await fetch(`${apiBaseUrl}/api/user/limits`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (limRes.ok) {
+            const limData = await limRes.json();
+            setUserLimits(limData.limits || {});
+            setGamesPlayed(limData.gamesPlayed || 0);
           }
         } catch (e) { console.error(e); }
         loadMySeasons(currentUser);
@@ -2340,6 +2350,23 @@ export default function BroadcastConsole() {
         <button className={`${styles.tabBarBtn} ${activeTab === 'upgrade' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('upgrade')} style={{ marginLeft: 'auto', color: activeTab === 'upgrade' ? '#fff' : '#f59e0b', background: activeTab === 'upgrade' ? '#854d0e' : 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.4)' }}>⭐ Upgrade</button>
       </div>
 
+      {/* ── FREE PLAN LIMIT BANNER ── */}
+      {user && userPlan === 'free' && userLimits.maxGames > 0 && (
+        <div style={{ background: gamesPlayed >= userLimits.maxGames ? 'rgba(245,158,11,0.12)' : 'rgba(56,189,248,0.06)', borderBottom: `1px solid ${gamesPlayed >= userLimits.maxGames ? '#f59e0b44' : '#38bdf822'}`, padding: '8px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', fontSize: '12px', flexShrink: 0 }}>
+          <span style={{ color: gamesPlayed >= userLimits.maxGames ? '#f59e0b' : '#64748b' }}>
+            {gamesPlayed >= userLimits.maxGames
+              ? `⚠️ Free plan limit reached — ${gamesPlayed}/${userLimits.maxGames} games scored. Upgrade for unlimited games.`
+              : `⚾ Free plan: ${gamesPlayed}/${userLimits.maxGames} games scored`}
+          </span>
+          {gamesPlayed >= userLimits.maxGames && (
+            <button onClick={() => setActiveTab('upgrade')}
+              style={{ background: '#f59e0b', border: 'none', borderRadius: '6px', color: '#020617', fontWeight: '900', fontSize: '11px', padding: '4px 12px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              ⭐ Upgrade to Pro
+            </button>
+          )}
+        </div>
+      )}
+
       {/* TOP MEDIA BANNER */}
       <div className={styles.scheduleHeaderBanner} style={{ borderLeft: '6px solid #3b82f6' }}>
         <div className={styles.bannerLeftSection} style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
@@ -3920,7 +3947,18 @@ export default function BroadcastConsole() {
                           <div className={styles.scheduleCardActions}>
                             {game.status === 'Final'
                               ? <button disabled={!user} onClick={() => reopenFinalGame(game)} style={{ color: '#f59e0b', borderColor: '#f59e0b55' }}>↩ Re-open</button>
-                              : <button disabled={!user} onClick={() => loadScheduledGameForScoring(game)}>Score Game</button>
+                              : (() => {
+                                  const atLimit = userPlan === 'free' && userLimits.maxGames > 0 && gamesPlayed >= userLimits.maxGames;
+                                  return (
+                                    <button
+                                      disabled={!user || atLimit}
+                                      onClick={() => atLimit ? setActiveTab('upgrade') : loadScheduledGameForScoring(game)}
+                                      title={atLimit ? `Free plan: ${userLimits.maxGames} games max. Upgrade to Pro for unlimited.` : ''}
+                                      style={atLimit ? { color: '#f59e0b', borderColor: '#f59e0b55', cursor: 'pointer' } : {}}>
+                                      {atLimit ? '⭐ Upgrade to Score' : 'Score Game'}
+                                    </button>
+                                  );
+                                })()
                             }
                             <button disabled={!user} onClick={() => editScheduledGame(game)}>Edit</button>
                             <button disabled={!user} onClick={() => deleteScheduledGame(game.id)}>Remove</button>

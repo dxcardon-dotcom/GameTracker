@@ -764,6 +764,25 @@ const server = http.createServer(async (req, res) => {
     return getUserPlan(req, res);
   }
 
+  if (req.method === "GET" && requestUrl.pathname === "/api/user/limits") {
+    try {
+      const user = await requireUser(req);
+      const userDoc = await getDb().collection("users").doc(user.uid).get();
+      const plan = userDoc.exists ? (userDoc.data().plan || "free") : "free";
+      const limits = {
+        free:  { maxGames: 3,  maxTeams: 1,  recruiting: false, pushNotifications: false, pdfReports: false, advancedStats: false },
+        pro:   { maxGames: -1, maxTeams: -1, recruiting: true,  pushNotifications: true,  pdfReports: true,  advancedStats: true  },
+        org:   { maxGames: -1, maxTeams: -1, recruiting: true,  pushNotifications: true,  pdfReports: true,  advancedStats: true  },
+      };
+      const seasonsSnap = await getDb().collection("seasons").where("teamId", "==", user.uid).limit(10).get();
+      let gamesPlayed = 0;
+      seasonsSnap.forEach(doc => { gamesPlayed += (doc.data().schedule || []).length; });
+      return sendJson(res, 200, { plan, limits: limits[plan] || limits.free, gamesPlayed });
+    } catch (error) {
+      return sendJson(res, 403, { error: error.message });
+    }
+  }
+
   if (req.method === "POST" && requestUrl.pathname === "/create-checkout") {
     try {
       const user = await requireUser(req);
