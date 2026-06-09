@@ -247,6 +247,7 @@ export default function BroadcastConsole() {
   const [userLimits, setUserLimits] = useState({ maxGames: 3, maxTeams: 1, recruiting: false, pushNotifications: false, pdfReports: false, advancedStats: false });
   const [gamesPlayed, setGamesPlayed] = useState(0);
   const [checkoutStatus, setCheckoutStatus] = useState('');
+  const [billingCycle, setBillingCycle] = useState('monthly');
   const [notifPermission, setNotifPermission] = useState(() =>
     typeof Notification !== 'undefined' ? Notification.permission : 'default'
   );
@@ -2154,7 +2155,7 @@ export default function BroadcastConsole() {
       const res = await fetch(`${apiBaseUrl}/create-checkout`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tier })
+        body: JSON.stringify({ tier, billingCycle })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Checkout failed');
@@ -4371,8 +4372,13 @@ export default function BroadcastConsole() {
 
           {/* HEADER */}
           <div style={{ textAlign: 'center', marginBottom: '36px' }}>
-            <h2 style={{ margin: '0 0 10px', fontSize: '28px', color: '#fff' }}>{sportEmoji(teamSport)} GameTracker Plans</h2>
-            <p style={{ color: '#64748b', fontSize: '15px', margin: 0 }}>Baseball &amp; Softball scoring, stats, and recruiting — built for coaches who are serious about winning.</p>
+            <h2 style={{ margin: '0 0 10px', fontSize: '28px', color: '#fff' }}>{sportEmoji(teamSport)} DiamondConnectPro Plans</h2>
+            <p style={{ color: '#64748b', fontSize: '15px', margin: '0 0 20px' }}>Baseball &amp; Softball scoring, stats, and recruiting — built for coaches who are serious about winning.</p>
+            {/* Billing toggle */}
+            <div style={{ display: 'inline-flex', background: '#0f172a', border: '1px solid #1e293b', borderRadius: '30px', padding: '4px', gap: '4px' }}>
+              <button onClick={() => setBillingCycle('monthly')} style={{ padding: '6px 20px', borderRadius: '24px', border: 'none', cursor: 'pointer', fontWeight: '700', fontSize: '13px', background: billingCycle === 'monthly' ? '#1e293b' : 'transparent', color: billingCycle === 'monthly' ? '#fff' : '#475569', transition: 'all 0.2s' }}>Monthly</button>
+              <button onClick={() => setBillingCycle('annual')} style={{ padding: '6px 20px', borderRadius: '24px', border: 'none', cursor: 'pointer', fontWeight: '700', fontSize: '13px', background: billingCycle === 'annual' ? '#22c55e' : 'transparent', color: billingCycle === 'annual' ? '#020617' : '#475569', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px' }}>Annual <span style={{ background: '#16a34a', color: '#fff', fontSize: '10px', fontWeight: '900', padding: '1px 6px', borderRadius: '10px' }}>SAVE 30%</span></button>
+            </div>
             {user && (
               <div style={{ marginTop: '12px', display: 'inline-block', padding: '6px 18px', borderRadius: '20px', background: userPlan === 'free' ? '#1e293b' : userPlan === 'org' ? '#7c3aed' : '#1d4ed8', color: '#fff', fontSize: '13px', fontWeight: 'bold' }}>
                 Current plan: {userPlan === 'free' ? 'Free' : userPlan === 'org' ? 'Organization' : 'Pro Coach'}
@@ -4404,8 +4410,8 @@ export default function BroadcastConsole() {
               <div style={{ position: 'absolute', top: '-13px', left: '50%', transform: 'translateX(-50%)', background: '#3b82f6', color: '#fff', fontSize: '11px', fontWeight: 'bold', padding: '4px 14px', borderRadius: '20px', whiteSpace: 'nowrap' }}>MOST POPULAR</div>
               <div style={{ marginBottom: '20px' }}>
                 <div style={{ fontSize: '13px', color: '#3b82f6', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>Pro Coach</div>
-                <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#fff', margin: '8px 0 2px' }}>$6.99<span style={{ fontSize: '16px', fontWeight: 'normal', color: '#64748b' }}>/mo</span></div>
-                <div style={{ fontSize: '13px', color: '#475569' }}>or $59/year — save 30%</div>
+                <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#fff', margin: '8px 0 2px' }}>{billingCycle === 'annual' ? '$4.92' : '$6.99'}<span style={{ fontSize: '16px', fontWeight: 'normal', color: '#64748b' }}>/mo</span></div>
+                <div style={{ fontSize: '13px', color: billingCycle === 'annual' ? '#22c55e' : '#475569' }}>{billingCycle === 'annual' ? '✓ Billed $59/yr — 2 months free' : 'or $59/yr — save 30%'}</div>
               </div>
               <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
                 {['Everything in Free', 'Unlimited teams', 'Recruiting profiles per player', 'Highlight video uploads', 'Advanced stats (OBP, SLG, OPS, WHIP)', 'Printable lineup cards', 'Box score sharing', 'Family fan share links', 'Play log edit / undo', 'Priority support'].map(f => (

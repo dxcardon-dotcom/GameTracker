@@ -22,6 +22,8 @@ const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripePriceId = process.env.STRIPE_PRICE_ID;
 const stripeProPriceId = process.env.STRIPE_PRO_PRICE_ID || stripePriceId;
 const stripeOrgPriceId = process.env.STRIPE_ORG_PRICE_ID || stripePriceId;
+const stripeProAnnualPriceId = process.env.STRIPE_PRO_ANNUAL_PRICE_ID || '';
+const stripeOrgAnnualPriceId = process.env.STRIPE_ORG_ANNUAL_PRICE_ID || '';
 const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
 const firebaseServiceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
@@ -623,12 +625,17 @@ function readRawBody(req) {
   });
 }
 
-async function createCheckoutSession({ uid, email, tier = "pro" }) {
+async function createCheckoutSession({ uid, email, tier = "pro", billingCycle = "monthly" }) {
   if (!stripeSecretKey) {
     throw new Error("Missing STRIPE_SECRET_KEY in .env");
   }
 
-  const priceId = tier === "org" ? stripeOrgPriceId : stripeProPriceId;
+  let priceId;
+  if (billingCycle === "annual") {
+    priceId = tier === "org" ? (stripeOrgAnnualPriceId || stripeOrgPriceId) : (stripeProAnnualPriceId || stripeProPriceId);
+  } else {
+    priceId = tier === "org" ? stripeOrgPriceId : stripeProPriceId;
+  }
 
   if (!priceId) {
     throw new Error("Missing Stripe price ID in .env");
@@ -790,8 +797,9 @@ const server = http.createServer(async (req, res) => {
       const uid = user.uid;
       const email = user.email;
       const tier = body.tier || "pro";
+      const billingCycle = body.billingCycle || "monthly";
 
-      const session = await createCheckoutSession({ uid, email, tier });
+      const session = await createCheckoutSession({ uid, email, tier, billingCycle });
 
       return sendJson(res, 200, { id: session.id });
     } catch (error) {
