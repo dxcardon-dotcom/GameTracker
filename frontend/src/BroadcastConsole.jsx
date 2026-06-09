@@ -2643,6 +2643,56 @@ export default function BroadcastConsole() {
       {/* STAT SHEETS TAB SUB-SYSTEM */}
       {activeTab === 'stats' && (
         <div>
+
+          {/* SEASON LEADERBOARD */}
+          {processedRoster.length > 0 && (() => {
+            const qualified = processedRoster.filter(p => p.ab >= 5);
+            const qualifiedPitchers = processedRoster.filter(p => p.ip >= 1);
+            const top = (arr, key, asc = false) =>
+              [...arr].sort((a, b) => asc ? a[key] - b[key] : b[key] - a[key]).slice(0, 3);
+
+            const categories = [
+              { label: 'Batting Avg', emoji: '🏏', players: top(qualified, 'avg'), fmt: p => p.avg.toFixed(3) },
+              { label: 'Home Runs', emoji: '💣', players: top(processedRoster, 'hr'), fmt: p => p.hr },
+              { label: 'RBI', emoji: '🤝', players: top(processedRoster, 'rbi'), fmt: p => p.rbi },
+              { label: 'ERA', emoji: '🔥', players: top(qualifiedPitchers, 'era', true), fmt: p => p.era.toFixed(2) },
+              { label: 'Strikeouts', emoji: '⚡', players: top(processedRoster, 'strikeouts'), fmt: p => p.strikeouts },
+            ];
+
+            return (
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                  <h3 style={{ margin: 0, color: '#94a3b8', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1px' }}>🏆 Season Leaderboard — {selectedSeason}</h3>
+                  <span style={{ fontSize: '12px', color: '#475569' }}>Min 5 AB / 1 IP to qualify</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px' }}>
+                  {categories.map(cat => (
+                    <div key={cat.label} style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '10px', padding: '14px 16px' }}>
+                      <div style={{ fontSize: '11px', color: '#475569', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>{cat.emoji} {cat.label}</div>
+                      {cat.players.length === 0 ? (
+                        <div style={{ fontSize: '12px', color: '#334155' }}>No data yet</div>
+                      ) : (
+                        cat.players.map((p, i) => (
+                          <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '7px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                              <span style={{ fontSize: '11px', fontWeight: 'bold', color: i === 0 ? '#f59e0b' : i === 1 ? '#94a3b8' : '#78716c', minWidth: '16px' }}>
+                                {i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}
+                              </span>
+                              <span style={{ fontSize: '12px', color: '#cbd5e1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80px' }}>
+                                {p.firstName} {p.lastName}
+                              </span>
+                            </div>
+                            <strong style={{ fontSize: '13px', color: i === 0 ? '#f59e0b' : '#fff' }}>{cat.fmt(p)}</strong>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
           <div className={styles.subNavigationTabs}>
             <button className={`${styles.subTabBtn} ${statsSubTab === 'standard-hitting' ? styles.subTabBtnActive : ''}`} onClick={() => setStatsSubTab('standard-hitting')}>🏏 Standard Hitting</button>
             <button className={`${styles.subTabBtn} ${statsSubTab === 'sabermetrics' ? styles.subTabBtnActive : ''}`} onClick={() => setStatsSubTab('sabermetrics')}>📊 Sabermetrics</button>
