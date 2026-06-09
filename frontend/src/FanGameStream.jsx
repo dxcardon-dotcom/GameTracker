@@ -159,13 +159,51 @@ export default function FanGameStream() {
   }, [gameId]);
 
   const subscribeNotifs = async () => {
-    if (typeof Notification === 'undefined') return;
-    const result = await Notification.requestPermission();
-    setNotifStatus(result);
-    if (result === 'granted') {
-      new Notification(`📲 Subscribed to ${teamName}!`, { body: `You'll get alerts for big plays and score changes.`, icon: '/favicon.ico' });
+    if (typeof Notification === 'undefined' || !('serviceWorker' in navigator)) {
+      setNotifStatus('unsupported');
+      return;
+    }
+    try {
+      const permission = await Notification.requestPermission();
+      setNotifStatus(permission);
+      if (permission !== 'granted') return;
+
+      // Register SW if not yet registered
+      let reg = await navigator.serviceWorker.getRegistration('/sw.js');
+      if (!reg) reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      await navigator.serviceWorker.ready;
+
+      // Fetch VAPID public key from server
+      const keyRes = await fetch(`${apiBaseUrl}/api/vapid-public-key`);
+      const { publicKey } = await keyRes.json();
+      if (!publicKey) { setNotifStatus('denied'); return; }
+
+      // Subscribe with push manager
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+
+      // Send subscription to server
+      await fetch(`${apiBaseUrl}/api/games/${encodeURIComponent(gameId)}/push-subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sub.toJSON()),
+      });
+
+      setNotifStatus('granted');
+    } catch (e) {
+      console.error('Push subscribe error:', e);
+      setNotifStatus('denied');
     }
   };
+
+  function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = atob(base64);
+    return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+  }
 
   const recentPitches = useMemo(() => {
     return events.filter(e => e.eventType === 'pitch' && e.pitchType).slice(-8).reverse();

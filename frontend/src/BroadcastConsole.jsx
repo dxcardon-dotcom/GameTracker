@@ -6,6 +6,8 @@ import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from
 import { getDownloadURL, ref, uploadBytesResumable } from 'firebase/storage';
 import ScoutingReportTab from './ScoutingReportTab';
 import TournamentBracketTab from './TournamentBracketTab';
+import SprayChart from './SprayChart';
+import StatsPanel from './StatsPanel';
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 const defaultTeamId = import.meta.env.VITE_DEFAULT_TEAM_ID || 'e3UukXkIjMHcr0uB5rZ3';
@@ -80,6 +82,37 @@ const emptyScheduleForm = {
   notes: ''
 };
 
+function SubForm({ subModal, onConfirm, onCancel }) {
+  const [subName, setSubName] = useState(subModal.name);
+  const [subJersey, setSubJersey] = useState('');
+  const [subPos, setSubPos] = useState('');
+  return (
+    <div style={{ marginTop: '10px', background: '#0f172a', border: '1px solid #38bdf8', borderRadius: '10px', padding: '12px 14px' }}>
+      <div style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '800', marginBottom: '8px' }}>
+        SUB into slot {subModal.idx + 1} — replacing {subModal.name}
+      </div>
+      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+        <input value={subName} onChange={e => setSubName(e.target.value)} placeholder="New player name"
+          style={{ flex: 2, minWidth: '120px', background: '#020617', border: '1px solid #334155', color: '#fff', borderRadius: '6px', padding: '6px 8px', fontSize: '12px' }} />
+        <input value={subJersey} onChange={e => setSubJersey(e.target.value)} placeholder="#"
+          style={{ width: '50px', background: '#020617', border: '1px solid #334155', color: '#fff', borderRadius: '6px', padding: '6px 8px', fontSize: '12px' }} />
+        <input value={subPos} onChange={e => setSubPos(e.target.value)} placeholder="Pos"
+          style={{ width: '60px', background: '#020617', border: '1px solid #334155', color: '#fff', borderRadius: '6px', padding: '6px 8px', fontSize: '12px' }} />
+      </div>
+      <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+        <button onClick={() => onConfirm(subModal.idx, subName, subJersey, subPos)}
+          style={{ background: '#1d4ed8', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer', fontSize: '12px', fontWeight: '800', padding: '6px 16px' }}>
+          Confirm Sub
+        </button>
+        <button onClick={onCancel}
+          style={{ background: 'transparent', border: '1px solid #334155', borderRadius: '6px', color: '#475569', cursor: 'pointer', fontSize: '12px', padding: '6px 12px' }}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function BroadcastConsole() {
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState('live-game'); 
@@ -89,6 +122,7 @@ export default function BroadcastConsole() {
   const [statsSubTab, setStatsSubTab] = useState('standard-hitting');
   const [sprayChartPlayer, setSprayChartPlayer] = useState('team');
   const [sprayDots, setSprayDots] = useState([]);
+  const [sprayPending, setSprayPending] = useState(null); // { xPct, yPct } — pending click on spray chart
 
   // ⚾ Pitch Velocity & Type
   const [pitchVelo, setPitchVelo] = useState('');
@@ -149,6 +183,7 @@ export default function BroadcastConsole() {
   const [pitchHardLimit, setPitchHardLimit] = useState(85);
   const [scoringWorkflowStep, setScoringWorkflowStep] = useState('pitch');
   const [lastPlaySummary, setLastPlaySummary] = useState('Ready for first pitch.');
+  const [speakEnabled, setSpeakEnabled] = useState(false);
   const [playNote, setPlayNote] = useState('');
   const [teamSport, setTeamSport] = useState('Baseball');
   const [teamType, setTeamType] = useState('School');
@@ -169,6 +204,32 @@ export default function BroadcastConsole() {
   const [scheduleStatus, setScheduleStatus] = useState('Ready');
   const [lineupEntries, setLineupEntries] = useState([]);
   const [lineupStatus, setLineupStatus] = useState('Not saved');
+  const [lineupBatterIndex, setLineupBatterIndex] = useState(0);
+  const [gcScoringMode, setGcScoringMode] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 480);
+  const [liveGameId, setLiveGameId] = useState(defaultLiveGameId);
+  const [showFieldView, setShowFieldView] = useState(false);
+  const [runnerToast, setRunnerToast] = useState(null); // { first, second, third, label, timer }
+  const [gameClockMs, setGameClockMs] = useState(0);
+  const [gameClockRunning, setGameClockRunning] = useState(false);
+  const [opponentPitcher, setOpponentPitcher] = useState('');
+  const gameClockRef = React.useRef(null);
+  const [inningBreak, setInningBreak] = useState(null); // { runsThisHalf, wasTop, inning } — shown between half-innings
+  const [showLineupSetup, setShowLineupSetup] = useState(false);
+  const [redoStack, setRedoStack] = useState([]); // forward state snapshots for redo
+  const [subModal, setSubModal] = useState(null); // { idx, name } — lineup slot being subbed
+  const [dragIdx, setDragIdx] = useState(null); // index being dragged in lineup reorder
+  const [editingSprayDot, setEditingSprayDot] = useState(null); // dot id being edited
+  const [showHotZones, setShowHotZones] = useState(false);
+  const [pitchAlert, setPitchAlert] = useState(null); // 'warning' | 'limit' | null
+  const [gameOver, setGameOver] = useState(false);
+  const [gameOverReason, setGameOverReason] = useState('');
+  const [showBoxScoreStrip, setShowBoxScoreStrip] = useState(true);
+  const [oppScoringMode, setOppScoringMode] = useState(false); // quick opp PA scoring
+  const [oppBatterName, setOppBatterName] = useState('');
+  const [errorModal, setErrorModal] = useState(false); // show E1-E9 picker
+  const [currentPASequence, setCurrentPASequence] = useState([]); // pitches in current PA
+  const [fcDpModal, setFcDpModal] = useState(null); // { type:'FC'|'DP', play } — routing picker
   const [correctionNote, setCorrectionNote] = useState('');
   const [lastBoxScore, setLastBoxScore] = useState(null);
   const [showBoxScore, setShowBoxScore] = useState(false);
@@ -262,6 +323,42 @@ export default function BroadcastConsole() {
     } catch (e) { console.error('loadSeasonCoaches', e); }
   };
 
+  // ── BROADCAST CALL GENERATOR ─────────────────────────────────────────────
+  const broadcastCall = (outcome, batter, runsScored, inning, isTop, teamName, opp) => {
+    const b = batter || 'The batter';
+    const inn = `${isTop ? 'top' : 'bottom'} of the ${inning}${inning === 1 ? 'st' : inning === 2 ? 'nd' : inning === 3 ? 'rd' : 'th'}`;
+    const runLine = runsScored === 1 ? 'A run scores!' : runsScored > 1 ? `${runsScored} runs score!` : '';
+    const calls = {
+      single:          [`Base hit! ${b} lines a single${runLine ? ' — ' + runLine : ''}`, `Singles through the infield — ${b} on first.`, `${b} slaps one through the gap for a base hit!`],
+      double:          [`${b} doubles! Ball in the gap — two bases!${runLine ? ' ' + runLine : ''}`, `Extra-base hit, ${b} is standing on second!`],
+      triple:          [`TRIPLE! ${b} rounds second, heading to third — ${runLine || 'big play'}!`, `Three-bagger for ${b}! That's a triple!`],
+      home_run:        [`GONE! ${b} PUTS IT OVER THE FENCE! HOME RUN!${runLine ? ' ' + runLine : ''}`, `That ball is OUTTA HERE — home run, ${b}!`],
+      strikeout:       [`Strike three — ${b} goes down swinging.`, `Caught looking — ${b} is rung up.`, `Strikeout, ${b} heads back to the dugout.`],
+      groundout:       [`Ground ball, ${b} thrown out at first.`, `${b} hits it on the ground — out at first.`],
+      flyout:          [`Fly ball caught in the outfield — ${b} is out.`, `${b} flies out to end the at-bat.`],
+      lineout:         [`Line drive — caught! ${b} is retired.`, `Rope right at 'em — lineout, ${b}.`],
+      pop_out:         [`${b} pops it up — caught for the out.`, `Pop fly, infield makes the play on ${b}.`],
+      walk:            [`Ball four — ${b} takes the walk.`, `${b} works a walk, takes first base.`],
+      hit_by_pitch:    [`${b} is hit by the pitch — takes first base.`],
+      sac_fly:         [`Sacrifice fly! ${runLine || 'Runner tags and scores'} — ${b} with the RBI.`],
+      fielder_choice:  [`Fielder's choice — ${b} reaches on the play.`],
+      error:           [`Error on the play — ${b} reaches base safely.`],
+    };
+    const opts = calls[outcome?.result] || [`${outcome?.label || 'Play recorded'} — ${b}.`];
+    return opts[Math.floor(Math.random() * opts.length)];
+  };
+
+  useEffect(() => {
+    if (!speakEnabled || !lastPlaySummary || lastPlaySummary === 'Ready for first pitch.') return;
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const utt = new SpeechSynthesisUtterance(lastPlaySummary);
+    utt.rate = 1.1;
+    utt.pitch = 1.0;
+    window.speechSynthesis.speak(utt);
+  }, [lastPlaySummary, speakEnabled]);
+  // ─────────────────────────────────────────────────────────────────────────
+
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
@@ -292,11 +389,44 @@ export default function BroadcastConsole() {
   }, [auth]);
 
   useEffect(() => {
-    const gameRef = doc(db, 'games', defaultLiveGameId);
+    const onResize = () => setIsMobile(window.innerWidth <= 480);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  useEffect(() => {
+    const gameRef = doc(db, 'games', liveGameId);
     const unsubscribeGame = onSnapshot(
       gameRef,
       (snapshot) => {
-        if (!snapshot.exists()) return;
+        if (!snapshot.exists()) {
+          // Fallback: try to restore from localStorage if cloud doc is missing
+          try {
+            const cached = localStorage.getItem(`gc_game_${liveGameId}`);
+            if (cached) {
+              const game = JSON.parse(cached);
+              hydratingFromCloud.current = true;
+              if (game.inning) setCurrentInning(game.inning);
+              if (game.half !== undefined) setIsTopInning(game.half !== 'bottom');
+              if (game.balls !== undefined) setBalls(game.balls);
+              if (game.strikes !== undefined) setStrikes(game.strikes);
+              if (game.outs !== undefined) setOuts(game.outs);
+              if (game.pitchCount !== undefined) setPitchCount(game.pitchCount);
+              if (game.currentBatter) setCurrentBatter(game.currentBatter);
+              if (game.currentPitcher) setCurrentPitcher(game.currentPitcher);
+              if (game.runners) { setRunnerOnFirst(!!game.runners.first); setRunnerOnSecond(!!game.runners.second); setRunnerOnThird(!!game.runners.third); }
+              if (game.ourInnings) setOurInnings(game.ourInnings);
+              if (game.theirInnings) setTheirInnings(game.theirInnings);
+              if (game.ourHits !== undefined) setOurHits(game.ourHits);
+              if (game.theirHits !== undefined) setTheirHits(game.theirHits);
+              if (game.ourErrors !== undefined) setOurErrors(game.ourErrors);
+              if (game.theirErrors !== undefined) setTheirErrors(game.theirErrors);
+              if (game.opponentName) setScoringOpponent(game.opponentName);
+              setSyncStatus('☇ Restored from local cache');
+            }
+          } catch (_) {}
+          return;
+        }
 
         hydratingFromCloud.current = true;
         const game = snapshot.data();
@@ -344,7 +474,7 @@ export default function BroadcastConsole() {
     );
 
     const eventsQuery = query(
-      collection(db, 'games', defaultLiveGameId, 'events'),
+      collection(db, 'games', liveGameId, 'events'),
       orderBy('sequence', 'desc'),
       limit(12)
     );
@@ -383,7 +513,7 @@ export default function BroadcastConsole() {
     if (!user) return;
 
     try {
-      await authenticatedPost(`/api/games/${defaultLiveGameId}/events`, {
+      await authenticatedPost(`/api/games/${liveGameId}/events`, {
         eventType,
         inning: currentInning,
         half: isTopInning ? 'top' : 'bottom',
@@ -436,6 +566,11 @@ export default function BroadcastConsole() {
         next[inningIndex] = Number(next[inningIndex] || 0) + runs;
         return next;
       });
+      // Walk-off: home team scores in bottom half to go ahead in 7th+ with 2 outs
+      const newOurScore = ourLiveScore + runs;
+      if (!isTopInning && currentInning >= 7 && newOurScore > theirLiveScore && scoringLocation !== 'Away') {
+        setTimeout(() => { setGameOverReason('Walk-off!'); setGameOver(true); }, 300);
+      }
     } else {
       setTheirInnings((innings) => {
         const next = [...innings];
@@ -508,19 +643,59 @@ export default function BroadcastConsole() {
 
   const advanceHalfInningIfNeeded = (nextOuts) => {
     if (nextOuts < 3) return;
+    // Capture runs this half before clearing state
+    const runsThisHalf = isTopInning ? ourLiveScore : theirLiveScore;
+    setInningBreak({ runsThisHalf, wasTop: isTopInning, inning: currentInning });
+  };
+
+  const confirmInningBreak = () => {
+    // Mercy rule check: 10+ run lead after 4+ innings
+    const runDiff = Math.abs(ourLiveScore - theirLiveScore);
+    if (currentInning >= 4 && runDiff >= 10) {
+      const leader = ourLiveScore > theirLiveScore ? (teamDisplayName || 'Us') : (scoringOpponent || 'Opp');
+      setGameOverReason(`Mercy rule — ${leader} leads by ${runDiff}`);
+      setGameOver(true);
+      setInningBreak(null);
+      return;
+    }
+    setInningBreak(null);
     setOuts(0);
     setBalls(0);
     setStrikes(0);
     setRunnerOnFirst(false);
     setRunnerOnSecond(false);
     setRunnerOnThird(false);
-
     if (isTopInning) {
       setIsTopInning(false);
     } else {
       setIsTopInning(true);
       setCurrentInning((inning) => inning + 1);
     }
+  };
+
+  const recordRunnerAdvance = async (type) => {
+    if (!user) return;
+    // Advance the lead runner one base (closest to scoring first)
+    let label = type;
+    if (type === 'WP' || type === 'PB' || type === 'SB') {
+      if (runnerOnThird) {
+        setRunnerOnThird(false);
+        addRunsToCurrentFrame(1);
+        label = `${type} — runner scores from 3rd`;
+      } else if (runnerOnSecond) {
+        setRunnerOnSecond(false);
+        setRunnerOnThird(true);
+        label = `${type} — runner advances to 3rd`;
+      } else if (runnerOnFirst) {
+        setRunnerOnFirst(false);
+        setRunnerOnSecond(true);
+        label = `${type} — runner advances to 2nd`;
+      } else {
+        label = `${type} — no runners on base`;
+      }
+    }
+    setLastPlaySummary(label);
+    await logScoringEvent('defensive_play', { result: type.toLowerCase(), label, notation: type, outsAfter: outs });
   };
 
   useEffect(() => {
@@ -533,7 +708,7 @@ export default function BroadcastConsole() {
     setSyncStatus('Saving');
     const timeout = window.setTimeout(async () => {
       try {
-        await authenticatedPost(`/api/games/${defaultLiveGameId}/state`, {
+        await authenticatedPost(`/api/games/${liveGameId}/state`, {
           teamId: defaultTeamId,
           opponentName: scoringOpponent,
           location: scoringLocation,
@@ -579,9 +754,30 @@ export default function BroadcastConsole() {
           }
         });
         setSyncStatus('Saved');
+        // Offline fallback: mirror to localStorage
+        try {
+          localStorage.setItem(`gc_game_${liveGameId}`, JSON.stringify({
+            inning: currentInning, half: isTopInning ? 'top' : 'bottom',
+            balls, strikes, outs, pitchCount, currentBatter, currentPitcher,
+            runners: { first: runnerOnFirst, second: runnerOnSecond, third: runnerOnThird },
+            ourInnings, theirInnings, ourHits, theirHits, ourErrors, theirErrors,
+            opponentName: scoringOpponent, location: scoringLocation, gameType: scoringType,
+            savedAt: Date.now()
+          }));
+        } catch (_) {}
       } catch (error) {
         console.error(error);
-        setSyncStatus('Sync error');
+        setSyncStatus('Offline — saved locally');
+        try {
+          localStorage.setItem(`gc_game_${liveGameId}`, JSON.stringify({
+            inning: currentInning, half: isTopInning ? 'top' : 'bottom',
+            balls, strikes, outs, pitchCount, currentBatter, currentPitcher,
+            runners: { first: runnerOnFirst, second: runnerOnSecond, third: runnerOnThird },
+            ourInnings, theirInnings, ourHits, theirHits, ourErrors, theirErrors,
+            opponentName: scoringOpponent, location: scoringLocation, gameType: scoringType,
+            savedAt: Date.now()
+          }));
+        } catch (_) {}
       }
     }, 650);
 
@@ -597,6 +793,35 @@ export default function BroadcastConsole() {
     lineupEntries
   ]);
 
+  // Game clock ticker
+  useEffect(() => {
+    if (gameClockRunning) {
+      gameClockRef.current = setInterval(() => setGameClockMs(ms => ms + 1000), 1000);
+    } else {
+      clearInterval(gameClockRef.current);
+    }
+    return () => clearInterval(gameClockRef.current);
+  }, [gameClockRunning]);
+
+  const formatClock = (ms) => {
+    const totalSec = Math.floor(ms / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  };
+
+  const advanceBatterInLineup = () => {
+    if (!lineupEntries || lineupEntries.length === 0) return;
+    const nextIdx = (lineupBatterIndex + 1) % lineupEntries.length;
+    setLineupBatterIndex(nextIdx);
+    const nextBatter = lineupEntries[nextIdx];
+    if (nextBatter) {
+      const name = [nextBatter.firstName, nextBatter.lastName].filter(Boolean).join(' ') || nextBatter.name || '';
+      if (name) setCurrentBatter(name);
+    }
+  };
+
   const recordPitch = async (result) => {
     if (!user) return;
     if (pitchCount === 0) markCurrentGameLiveOnSchedule();
@@ -606,10 +831,22 @@ export default function BroadcastConsole() {
     let nextBalls = balls;
     let nextStrikes = strikes;
     let nextOuts = outs;
+    let autoResult = null; // 'walk' or 'strikeout'
 
-    if (result === 'ball') nextBalls = balls === 3 ? 0 : balls + 1;
+    if (result === 'ball') {
+      if (balls === 3) {
+        // Auto-walk
+        autoResult = 'walk';
+        nextBalls = 0;
+        nextStrikes = 0;
+      } else {
+        nextBalls = balls + 1;
+      }
+    }
     if (result === 'called_strike' || result === 'swinging_strike') {
       if (strikes === 2) {
+        // Auto-strikeout
+        autoResult = 'strikeout';
         nextStrikes = 0;
         nextBalls = 0;
         nextOuts = Math.min(3, outs + 1);
@@ -622,14 +859,38 @@ export default function BroadcastConsole() {
       nextBalls = 0;
       nextStrikes = 0;
     }
+    if (result === 'hit_by_pitch') {
+      // Treat like walk for baserunners
+      autoResult = 'hbp';
+    }
 
     setBalls(nextBalls);
     setStrikes(nextStrikes);
     setOuts(nextOuts);
-    setPitchCount((count) => count + 1);
-    setScoringWorkflowStep(result === 'in_play' ? 'result' : 'pitch');
-    setLastPlaySummary(`${pitch?.label || result} recorded for ${currentBatter || 'current batter'}.`);
-    advanceHalfInningIfNeeded(nextOuts);
+    setPitchCount((count) => {
+      const next = count + 1;
+      if (next >= pitchHardLimit) setPitchAlert('limit');
+      else if (next >= pitchWarningLimit) setPitchAlert('warning');
+      return next;
+    });
+    setCurrentPASequence(prev => [...prev, { type: pitchType, result, balls, strikes }]);
+
+    if (autoResult === 'walk' || autoResult === 'hbp') {
+      applyWalkOrHitByPitch();
+      advanceBatterInLineup();
+      setScoringWorkflowStep('pitch');
+      setLastPlaySummary(autoResult === 'hbp' ? `HBP — ${currentBatter || 'batter'} takes first.` : `Walk — ${currentBatter || 'batter'} takes first.`);
+      advanceHalfInningIfNeeded(nextOuts);
+    } else if (autoResult === 'strikeout') {
+      advanceBatterInLineup();
+      setScoringWorkflowStep('pitch');
+      setLastPlaySummary(`Strikeout — ${currentBatter || 'batter'} out.`);
+      advanceHalfInningIfNeeded(nextOuts);
+    } else {
+      setScoringWorkflowStep(result === 'in_play' ? 'result' : 'pitch');
+      setLastPlaySummary(`${pitch?.label || result} recorded for ${currentBatter || 'current batter'}.`);
+      advanceHalfInningIfNeeded(nextOuts);
+    }
 
     const veloNum = pitchVelo ? Number(pitchVelo) : null;
     setPitchLog(prev => [...prev, {
@@ -665,8 +926,21 @@ export default function BroadcastConsole() {
     if (outcome.kind === 'hit') {
       addHitToBattingTeam();
       const bases = outcome.result === 'single' ? 1 : outcome.result === 'double' ? 2 : outcome.result === 'triple' ? 3 : 4;
+
+      // Compute proposed runner state for the confirm toast
+      let pFirst = false, pSecond = false, pThird = false;
+      if (bases === 4) { pFirst = false; pSecond = false; pThird = false; }
+      else if (bases === 3) { pFirst = false; pSecond = false; pThird = true; }
+      else if (bases === 2) { pFirst = false; pSecond = true; pThird = runnerOnFirst; }
+      else { pFirst = true; pSecond = runnerOnFirst; pThird = runnerOnSecond; }
+
       runsScored = applyHitAdvancement(bases);
       clearCount();
+
+      // Show runner confirm toast (auto-dismiss after 4s)
+      if (runnerToast?.timer) clearTimeout(runnerToast.timer);
+      const timer = setTimeout(() => setRunnerToast(null), 4000);
+      setRunnerToast({ first: pFirst, second: pSecond, third: pThird, label: outcome.label, timer });
     }
 
     if (outcome.kind === 'walk') {
@@ -695,16 +969,57 @@ export default function BroadcastConsole() {
       advanceHalfInningIfNeeded(nextOuts);
     }
 
+    // Auto-populate spray chart dot — realistic zones per outcome
+    (() => {
+      const rand = (min, max) => (Math.random() * (max - min) + min).toFixed(1);
+      // Fan field SVG: home plate at bottom-center (50%, ~97%), outfield top ~3%
+      // x=0 is left foul, x=100 is right foul; y=0 is outfield wall, y=100 is home plate
+      const zones = {
+        single:         () => ({ x: rand(25, 75), y: rand(48, 68) }),  // shallow outfield / gap
+        double:         () => ({ x: rand(15, 85), y: rand(28, 50) }),  // deep gap
+        triple:         () => ({ x: rand(10, 90), y: rand(15, 35) }),  // warning track
+        home_run:       () => ({ x: rand(20, 80), y: rand(5, 22)  }),  // over wall
+        groundout:      () => ({ x: rand(30, 70), y: rand(68, 85) }),  // infield
+        flyout:         () => ({ x: rand(20, 80), y: rand(35, 58) }),  // outfield
+        lineout:        () => ({ x: rand(25, 75), y: rand(50, 68) }),  // shallow / line drives
+        sac_fly:        () => ({ x: rand(15, 85), y: rand(32, 52) }),  // deep outfield
+        fielder_choice: () => ({ x: rand(30, 70), y: rand(65, 82) }),  // infield
+        error:          () => ({ x: rand(28, 72), y: rand(58, 78) }),  // infield / short hop
+      };
+      const zone = zones[outcome.result];
+      if (!zone) return;
+      const { x, y } = zone();
+      const batter = currentBatter || 'Unknown';
+      setSprayDots(prev => [...prev, { x, y, result: outcome.result, batter, id: Date.now() }]);
+    })();
+
+    advanceBatterInLineup();
     setScoringWorkflowStep('pitch');
-    setLastPlaySummary(`${outcome.label}${runsScored ? `, ${runsScored} run${runsScored > 1 ? 's' : ''} scored` : ''}.`);
+    setLastPlaySummary(broadcastCall(outcome, currentBatter, runsScored, currentInning, isTopInning, teamDisplayName, scoringOpponent));
+
+    const pitchSeq = [...currentPASequence];
+    setCurrentPASequence([]);
 
     await logScoringEvent('plate_appearance', {
       result: outcome.result,
       label: outcome.label,
       notation: outcome.notation,
       runsScored,
-      outsAfter: nextOuts
+      outsAfter: nextOuts,
+      pitchSequence: pitchSeq,
     });
+  };
+
+  const recordError = async (position) => {
+    if (!user) return;
+    const notation = `E${position}`;
+    const posNames = { 1:'P', 2:'C', 3:'1B', 4:'2B', 5:'3B', 6:'SS', 7:'LF', 8:'CF', 9:'RF' };
+    const label = `Error — ${posNames[position] || position} (${notation})`;
+    if (isOurTeamBatting()) setTheirErrors(e => e + 1);
+    else setOurErrors(e => e + 1);
+    setLastPlaySummary(label);
+    setErrorModal(false);
+    await logScoringEvent('defensive_play', { result: 'error', label, notation, position, outsAfter: outs });
   };
 
   const recordDefensivePlay = async (play) => {
@@ -767,6 +1082,65 @@ export default function BroadcastConsole() {
     });
   };
 
+  const recordOppPA = async (outcome) => {
+    if (!user) return;
+    const isHitOutcome = ['single','double','triple','home_run'].includes(outcome.result);
+    const isOutcome = ['groundout','flyout','strikeout','lineout','pop_out'].includes(outcome.result);
+    const isWalk = ['walk','hit_by_pitch'].includes(outcome.result);
+
+    let nextOuts = outs;
+    if (isOutcome) {
+      nextOuts = outs + (outcome.outs || 1);
+    }
+
+    // Opp run scoring
+    if (outcome.result === 'home_run') {
+      const runs = 1 + Number(runnerOnFirst) + Number(runnerOnSecond) + Number(runnerOnThird);
+      setTheirInnings(prev => {
+        const next = [...prev];
+        const idx = Math.max(0, currentInning - 1);
+        while (next.length <= idx) next.push(0);
+        next[idx] = (next[idx] || 0) + runs;
+        return next;
+      });
+      setRunnerOnFirst(false); setRunnerOnSecond(false); setRunnerOnThird(false);
+    } else if (outcome.result === 'single') {
+      const scored = Number(runnerOnThird);
+      if (scored) setTheirInnings(prev => { const n=[...prev]; const i=Math.max(0,currentInning-1); while(n.length<=i)n.push(0); n[i]=(n[i]||0)+scored; return n; });
+      setRunnerOnThird(runnerOnSecond); setRunnerOnSecond(runnerOnFirst); setRunnerOnFirst(true);
+    } else if (outcome.result === 'double') {
+      const scored = Number(runnerOnSecond) + Number(runnerOnThird);
+      if (scored) setTheirInnings(prev => { const n=[...prev]; const i=Math.max(0,currentInning-1); while(n.length<=i)n.push(0); n[i]=(n[i]||0)+scored; return n; });
+      setRunnerOnThird(runnerOnFirst); setRunnerOnSecond(true); setRunnerOnFirst(false);
+    } else if (outcome.result === 'triple') {
+      const scored = Number(runnerOnFirst) + Number(runnerOnSecond) + Number(runnerOnThird);
+      if (scored) setTheirInnings(prev => { const n=[...prev]; const i=Math.max(0,currentInning-1); while(n.length<=i)n.push(0); n[i]=(n[i]||0)+scored; return n; });
+      setRunnerOnFirst(false); setRunnerOnSecond(false); setRunnerOnThird(true);
+    } else if (isWalk) {
+      const scored = runnerOnFirst && runnerOnSecond && runnerOnThird ? 1 : 0;
+      if (scored) setTheirInnings(prev => { const n=[...prev]; const i=Math.max(0,currentInning-1); while(n.length<=i)n.push(0); n[i]=(n[i]||0)+1; return n; });
+      if (runnerOnFirst && runnerOnSecond) setRunnerOnThird(true);
+      if (runnerOnFirst) setRunnerOnSecond(true);
+      setRunnerOnFirst(true);
+    }
+
+    if (isOutcome) { setOuts(nextOuts); setBalls(0); setStrikes(0); }
+    else { setBalls(0); setStrikes(0); }
+
+    const label = `Opp ${oppBatterName ? oppBatterName + ' ' : ''}— ${outcome.label}`;
+    setLastPlaySummary(label);
+    advanceHalfInningIfNeeded(nextOuts);
+
+    await logScoringEvent('plate_appearance', {
+      result: outcome.result,
+      label,
+      notation: outcome.notation || outcome.result,
+      batter: oppBatterName || 'Opp',
+      isOpponent: true,
+      outsAfter: nextOuts,
+    });
+  };
+
   const restoreStateFromEvent = (event) => {
     const snapshot = event.stateBefore || {};
     setCurrentInning(snapshot.inning || event.inning || currentInning);
@@ -788,6 +1162,16 @@ export default function BroadcastConsole() {
     if (snapshot.currentPitcher !== undefined) setCurrentPitcher(snapshot.currentPitcher || '');
   };
 
+  const captureCurrentState = () => ({
+    inning: currentInning, half: isTopInning ? 'top' : 'bottom',
+    balls, strikes, outs, pitchCount,
+    runners: { first: runnerOnFirst, second: runnerOnSecond, third: runnerOnThird },
+    ourInnings: [...ourInnings], theirInnings: [...theirInnings],
+    ourHits, theirHits, ourErrors, theirErrors,
+    currentBatter, currentPitcher,
+    lineupBatterIndex,
+  });
+
   const undoLastPlay = async () => {
     if (!user) return;
     const lastScoringEvent = recentEvents.find((event) => !['correction', 'undo'].includes(event.eventType));
@@ -796,6 +1180,9 @@ export default function BroadcastConsole() {
       setPlayLogStatus('No play to undo');
       return;
     }
+
+    // Push current state to redo stack before restoring
+    setRedoStack(prev => [...prev, captureCurrentState()]);
 
     restoreStateFromEvent(lastScoringEvent);
     setLastPlaySummary(`Undo recorded for ${lastScoringEvent.label || lastScoringEvent.result || 'last play'}.`);
@@ -810,6 +1197,49 @@ export default function BroadcastConsole() {
     });
     setCorrectionNote('');
   };
+
+  const redoLastPlay = () => {
+    if (redoStack.length === 0) return;
+    const snapshot = redoStack[redoStack.length - 1];
+    setRedoStack(prev => prev.slice(0, -1));
+    setCurrentInning(snapshot.inning);
+    setIsTopInning(snapshot.half !== 'bottom');
+    setBalls(snapshot.balls); setStrikes(snapshot.strikes); setOuts(snapshot.outs);
+    setPitchCount(snapshot.pitchCount);
+    setRunnerOnFirst(snapshot.runners.first); setRunnerOnSecond(snapshot.runners.second); setRunnerOnThird(snapshot.runners.third);
+    setOurInnings(snapshot.ourInnings); setTheirInnings(snapshot.theirInnings);
+    setOurHits(snapshot.ourHits); setTheirHits(snapshot.theirHits);
+    setOurErrors(snapshot.ourErrors); setTheirErrors(snapshot.theirErrors);
+    setCurrentBatter(snapshot.currentBatter); setCurrentPitcher(snapshot.currentPitcher);
+    setLineupBatterIndex(snapshot.lineupBatterIndex);
+    setLastPlaySummary('Redo applied.');
+  };
+
+  const substitutePlayer = (slotIdx, newName, newJersey, newPosition) => {
+    setLineupEntries(prev => prev.map((entry, i) => i === slotIdx
+      ? { ...entry, firstName: newName.split(' ')[0] || '', lastName: newName.split(' ').slice(1).join(' ') || '', jersey: newJersey || entry.jersey, position: newPosition || entry.position, name: newName }
+      : entry
+    ));
+    if (slotIdx === lineupBatterIndex) setCurrentBatter(newName);
+    setSubModal(null);
+    setLastPlaySummary(`Sub: ${newName} enters at slot ${slotIdx + 1}.`);
+  };
+
+  const handleLineupDragStart = (idx) => setDragIdx(idx);
+  const handleLineupDragOver = (e, idx) => {
+    e.preventDefault();
+    if (dragIdx === null || dragIdx === idx) return;
+    setLineupEntries(prev => {
+      const next = [...prev];
+      const [moved] = next.splice(dragIdx, 1);
+      next.splice(idx, 0, moved);
+      return next;
+    });
+    if (dragIdx === lineupBatterIndex) setLineupBatterIndex(idx);
+    else if (idx === lineupBatterIndex) setLineupBatterIndex(dragIdx);
+    setDragIdx(idx);
+  };
+  const handleLineupDragEnd = () => setDragIdx(null);
 
   const startEditingEvent = (event) => {
     setEditingEventId(event.id);
@@ -1398,6 +1828,28 @@ export default function BroadcastConsole() {
     }
   };
 
+  const reopenFinalGame = (game) => {
+    const gameId = game.gameId || `${defaultLiveGameId}-reopen-${game.id || Date.now()}`;
+    setLiveGameId(gameId);
+    setGameDate(game.date || new Date().toISOString().slice(0, 10));
+    setScoringOpponent(game.opponent || '');
+    setScoringLocation(game.location || 'Home');
+    setScoringType(game.type || 'District');
+    setOurInnings(game.ourInnings?.length ? [...game.ourInnings] : [0,0,0,0,0,0,0]);
+    setTheirInnings(game.theirInnings?.length ? [...game.theirInnings] : [0,0,0,0,0,0,0]);
+    setOurHits(game.ourHits ?? 0);
+    setTheirHits(game.theirHits ?? 0);
+    setOurErrors(game.ourErrors ?? 0);
+    setTheirErrors(game.theirErrors ?? 0);
+    setBalls(0); setStrikes(0); setOuts(0); setPitchCount(0);
+    setCurrentInning(game.ourInnings?.length || 7);
+    setIsTopInning(false);
+    setRunnerOnFirst(false); setRunnerOnSecond(false); setRunnerOnThird(false);
+    setLastPlaySummary(`Re-opened: ${game.opponent} (${game.date})`);
+    setSetupStatus('ready');
+    setActiveTab('live-game');
+  };
+
   const loadScheduledGameForScoring = (game) => {
     setGameDate(game.date || new Date().toISOString().slice(0, 10));
     setScoringOpponent(game.opponent || '');
@@ -1485,7 +1937,7 @@ export default function BroadcastConsole() {
 
     try {
       await Promise.all([
-        authenticatedPost(`/api/games/${defaultLiveGameId}/state`, {
+        authenticatedPost(`/api/games/${liveGameId}/state`, {
           lineupEntries: normalizedLineup,
           setupStatus: 'lineups'
         }),
@@ -1798,7 +2250,7 @@ export default function BroadcastConsole() {
   };
 
   const copyFanLink = (player) => {
-    const url = `${window.location.origin}/fan?game=${encodeURIComponent(defaultLiveGameId)}`;
+    const url = `${window.location.origin}/fan?game=${encodeURIComponent(liveGameId)}`;
     const text = `Follow ${player.firstName} ${player.lastName} live at ${teamDisplayName || homeTeamName}! ${url}`;
     navigator.clipboard?.writeText(text).catch(() => {});
     alert(`Fan link for ${player.firstName} ${player.lastName} copied! Share with their family.`);
@@ -1902,7 +2354,7 @@ export default function BroadcastConsole() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
               <h2 style={{ margin: 0 }}>{sportEmoji(teamSport)} {teamDisplayName || homeTeamName} Stats Central</h2>
               <a
-                href={`/fan?game=${encodeURIComponent(defaultLiveGameId)}`}
+                href={`/fan?game=${encodeURIComponent(liveGameId)}`}
                 target="_blank"
                 rel="noreferrer"
                 style={{ padding: '4px 10px', fontSize: '11px', borderRadius: '4px', background: '#2563eb', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 'bold', textDecoration: 'none' }}
@@ -2469,147 +2921,776 @@ export default function BroadcastConsole() {
               </table>
             </div>
 
-            <div className={styles.gameChangerPanel}>
-              <div className={styles.gcPanelHeader}>
-                <div>
-                  <h3>GameChanger-Style Scorekeeper</h3>
-                  <p>{battingTeamName} batting · {fieldingTeamName} fielding · {currentCountLabel}</p>
-                </div>
-                <div className={styles.gcStepRail}>
-                  {[
-                    ['setup', 'Setup'],
-                    ['pitch', 'Pitch'],
-                    ['result', 'Result'],
-                    ['runners', 'Runners'],
-                    ['review', 'Review']
-                  ].map(([step, label]) => (
-                    <button
-                      key={step}
-                      disabled={!user}
-                      className={scoringWorkflowStep === step ? styles.gcStepActive : ''}
-                      onClick={() => setScoringWorkflowStep(step)}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+            {/* ─────────────────────────────────────────────────────────
+                GC-STYLE SCORING ENGINE
+                Layout: [Lineup Rail] | [Scoreboard + Pitch Buttons]
+                ───────────────────────────────────────────────────── */}
+            <div style={{
+              background: '#07101f',
+              border: '1px solid #1e293b',
+              borderRadius: '14px',
+              overflow: 'hidden',
+              position: gcScoringMode ? 'fixed' : 'relative',
+              top: gcScoringMode ? 0 : 'auto',
+              left: gcScoringMode ? 0 : 'auto',
+              right: gcScoringMode ? 0 : 'auto',
+              bottom: gcScoringMode ? 0 : 'auto',
+              zIndex: gcScoringMode ? 9990 : 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              height: gcScoringMode ? '100dvh' : 'auto',
+            }}>
 
-              <div className={styles.gcScoreStrip}>
-                <div>
-                  <span>Pitcher</span>
-                  <strong>{currentPitcher || 'Set pitcher'}</strong>
+              {/* ── TOP SCOREBOARD BAR ── */}
+              <div style={{ background: '#020617', borderBottom: '1px solid #1e293b', padding: isMobile ? '6px 10px' : '10px 16px', display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : '12px', flexWrap: 'wrap', flexShrink: 0 }}>
+                {/* Score */}
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'baseline' }}>
+                  <span style={{ fontSize: '10px', color: '#475569', textTransform: 'uppercase', fontWeight: '800' }}>{isMobile ? (teamDisplayName || homeTeamName).slice(0,6) : (teamDisplayName || homeTeamName)}</span>
+                  <span style={{ fontSize: isMobile ? '22px' : '28px', fontWeight: '900', color: '#f59e0b', fontFamily: 'monospace', lineHeight: 1 }}>{ourLiveScore}</span>
+                  <span style={{ fontSize: '14px', color: '#334155', fontWeight: '900' }}>–</span>
+                  <span style={{ fontSize: isMobile ? '22px' : '28px', fontWeight: '900', color: '#94a3b8', fontFamily: 'monospace', lineHeight: 1 }}>{theirLiveScore}</span>
+                  <span style={{ fontSize: '10px', color: '#475569', textTransform: 'uppercase', fontWeight: '800' }}>{isMobile ? (scoringOpponent || 'OPP').slice(0,6) : (scoringOpponent || 'OPP')}</span>
                 </div>
-                <div>
-                  <span>Batter</span>
-                  <strong>{currentBatter || 'Set batter'}</strong>
-                </div>
-                <div>
-                  <span>Count</span>
-                  <strong>{balls}-{strikes}</strong>
-                </div>
-                <div>
-                  <span>Outs</span>
-                  <strong>{outs}</strong>
-                </div>
-                <div>
-                  <span>Last play</span>
-                  <strong>{lastPlaySummary}</strong>
-                </div>
-              </div>
 
-              <div className={styles.gcActionGrid}>
-                <div className={styles.gcActionCard}>
-                  <h4>1. Pitch</h4>
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <select value={pitchType} onChange={e => setPitchType(e.target.value)} disabled={!user}
-                      title="FB=Fastball CB=Curveball CH=Changeup SL=Slider CT=Cutter SP=Splitter 2S=2-Seam KN=Knuckleball"
-                      style={{ background: '#0b1329', border: '1px solid #334155', color: '#f8fafc', borderRadius: '6px', padding: '6px 10px', fontSize: '12px', fontWeight: '800' }}>
-                      {[['FB','Fastball'],['CB','Curveball'],['CH','Changeup'],['SL','Slider'],['CT','Cutter'],['SP','Splitter'],['2S','2-Seam'],['KN','Knuckleball']].map(([t,l]) => <option key={t} value={t}>{t} — {l}</option>)}
-                    </select>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <input type="number" min="40" max="110" placeholder="MPH" value={pitchVelo} onChange={e => setPitchVelo(e.target.value)} disabled={!user}
-                        style={{ background: '#0b1329', border: '1px solid #334155', color: '#f8fafc', borderRadius: '6px', padding: '6px 8px', fontSize: '12px', width: '72px', textAlign: 'center' }} />
-                      <span style={{ fontSize: '11px', color: '#475569' }}>mph</span>
+                {/* Inning */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1, gap: '1px', padding: '0 8px', borderLeft: '1px solid #1e293b', borderRight: '1px solid #1e293b' }}>
+                  <span style={{ fontSize: '8px', color: isTopInning ? '#38bdf8' : '#475569' }}>▲</span>
+                  <span style={{ fontSize: '15px', fontWeight: '900', color: '#fff', fontFamily: 'monospace' }}>{currentInning}</span>
+                  <span style={{ fontSize: '8px', color: !isTopInning ? '#38bdf8' : '#475569' }}>▼</span>
+                </div>
+
+                {/* Count */}
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '9px', color: '#475569', fontWeight: '800', textTransform: 'uppercase' }}>B</div>
+                    <div style={{ display: 'flex', gap: '3px', marginTop: '2px' }}>
+                      {[0,1,2,3].map(i => <div key={i} style={{ width: '10px', height: '10px', borderRadius: '50%', background: i < balls ? '#22c55e' : '#1e293b', border: '1px solid #334155' }} />)}
                     </div>
-                    {pitchLog.filter(p => p.velo).length > 0 && (() => {
-                      const vl = pitchLog.filter(p => p.velo);
-                      const avg = (vl.reduce((s, p) => s + p.velo, 0) / vl.length).toFixed(1);
-                      const top = Math.max(...vl.map(p => p.velo));
-                      return <span style={{ fontSize: '11px', color: '#64748b' }}>avg <strong style={{ color: '#38bdf8' }}>{avg}</strong> · top <strong style={{ color: '#f59e0b' }}>{top}</strong></span>;
-                    })()}
                   </div>
-                  <div className={styles.gcButtonGrid}>
-                    {pitchResults.map((pitch) => (
-                      <button
-                        key={pitch.result}
-                        disabled={!user}
-                        onClick={() => recordPitch(pitch.result)}
-                      >
-                        <span>{pitch.notation}</span>
-                        {pitch.label}
-                      </button>
-                    ))}
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '9px', color: '#475569', fontWeight: '800', textTransform: 'uppercase' }}>S</div>
+                    <div style={{ display: 'flex', gap: '3px', marginTop: '2px' }}>
+                      {[0,1,2].map(i => <div key={i} style={{ width: '10px', height: '10px', borderRadius: '50%', background: i < strikes ? '#eab308' : '#1e293b', border: '1px solid #334155' }} />)}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '9px', color: '#475569', fontWeight: '800', textTransform: 'uppercase' }}>O</div>
+                    <div style={{ display: 'flex', gap: '3px', marginTop: '2px' }}>
+                      {[0,1,2].map(i => <div key={i} style={{ width: '10px', height: '10px', borderRadius: '50%', background: i < outs ? '#ef4444' : '#1e293b', border: '1px solid #334155' }} />)}
+                    </div>
                   </div>
                 </div>
 
-                <div className={styles.gcActionCard}>
-                  <h4>2. Plate Result</h4>
-                  <div className={styles.gcButtonGrid}>
-                    {plateAppearanceResults.map((outcome) => (
-                      <button
-                        key={outcome.result}
-                        disabled={!user}
-                        onClick={() => recordPlateAppearance(outcome)}
-                      >
-                        <span>{outcome.notation}</span>
-                        {outcome.label}
-                      </button>
-                    ))}
+                {/* Mini diamond */}
+                <div style={{ position: 'relative', width: '36px', height: '36px', flexShrink: 0 }}>
+                  {[
+                    { on: runnerOnSecond, x: 13, y: 0, label: '2B' },
+                    { on: runnerOnThird,  x: 0,  y: 13, label: '3B' },
+                    { on: runnerOnFirst,  x: 26, y: 13, label: '1B' },
+                  ].map(({ on, x, y, label }) => (
+                    <div key={label} style={{ position: 'absolute', left: x, top: y, width: '12px', height: '12px', transform: 'rotate(45deg)', background: on ? '#f59e0b' : '#1e293b', border: `1px solid ${on ? '#f59e0b' : '#334155'}`, cursor: 'pointer' }}
+                      onClick={() => { if (label === '1B') setRunnerOnFirst(v => !v); else if (label === '2B') setRunnerOnSecond(v => !v); else setRunnerOnThird(v => !v); }} />
+                  ))}
+                  <div style={{ position: 'absolute', left: 13, top: 26, width: '10px', height: '10px', transform: 'rotate(45deg)', background: '#334155', border: '1px solid #475569' }} />
+                </div>
+
+                {/* Batter / Pitcher */}
+                <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                  <div style={{ fontSize: '13px', fontWeight: '900', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    🏏 {currentBatter || <span style={{ color: '#334155' }}>No batter set</span>}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#475569', display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
+                    <span>⚾</span>
+                    <input
+                      value={opponentPitcher}
+                      onChange={e => setOpponentPitcher(e.target.value)}
+                      placeholder="Opp. pitcher..."
+                      style={{ background: 'transparent', border: 'none', color: '#64748b', fontSize: '11px', outline: 'none', width: '110px', padding: 0 }}
+                    />
+                    <span style={{ color: '#1e293b' }}>·</span>
+                    <span>{pitchCount}p</span>
                   </div>
                 </div>
 
-                <div className={styles.gcActionCard}>
-                  <h4>3. Defense / Bases</h4>
-                  <div className={styles.gcButtonGrid}>
-                    {defensivePlayPresets.map((play) => (
-                      <button
-                        key={play.result}
-                        disabled={!user}
-                        onClick={() => recordDefensivePlay(play)}
-                      >
-                        <span>{play.notation}</span>
-                        {play.label}
-                      </button>
-                    ))}
-                    <button disabled={!user} onClick={recordManualRun}>
-                      <span>R</span>
-                      Run Scores
+                {/* Game clock */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
+                  <span style={{ fontSize: '14px', fontWeight: '900', color: gameClockRunning ? '#22c55e' : '#475569', fontFamily: 'monospace', letterSpacing: '1px' }}>{formatClock(gameClockMs)}</span>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button onClick={() => setGameClockRunning(v => !v)}
+                      style={{ background: gameClockRunning ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.15)', border: `1px solid ${gameClockRunning ? '#ef4444' : '#22c55e'}`, borderRadius: '5px', color: gameClockRunning ? '#ef4444' : '#22c55e', cursor: 'pointer', fontSize: '10px', fontWeight: '800', padding: '2px 7px' }}>
+                      {gameClockRunning ? '⏸' : '▶'}
+                    </button>
+                    <button onClick={() => { setGameClockMs(0); setGameClockRunning(false); }}
+                      style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '5px', color: '#334155', cursor: 'pointer', fontSize: '10px', padding: '2px 6px' }}>
+                      ↺
                     </button>
                   </div>
                 </div>
+
+                {/* Field view + full-screen toggles */}
+                <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                  <button onClick={() => setShowFieldView(v => !v)}
+                    style={{ background: showFieldView ? 'rgba(56,189,248,0.15)' : '#0f172a', border: `1px solid ${showFieldView ? '#38bdf8' : '#334155'}`, borderRadius: '8px', color: showFieldView ? '#38bdf8' : '#64748b', cursor: 'pointer', fontSize: '14px', padding: '6px 9px' }} title="Toggle field view">
+                    ⬡
+                  </button>
+                  <button onClick={() => setOppScoringMode(v => !v)}
+                    style={{ background: oppScoringMode ? 'rgba(239,68,68,0.15)' : '#0f172a', border: `1px solid ${oppScoringMode ? '#ef4444' : '#334155'}`, borderRadius: '8px', color: oppScoringMode ? '#ef4444' : '#64748b', cursor: 'pointer', fontSize: '11px', fontWeight: '900', padding: '6px 9px', whiteSpace: 'nowrap' }} title="Score opponent at-bats">
+                    {oppScoringMode ? '▶ OPP' : 'OPP'}
+                  </button>
+                  <button onClick={() => setSpeakEnabled(v => !v)}
+                    style={{ background: speakEnabled ? 'rgba(56,189,248,0.12)' : '#0f172a', border: `1px solid ${speakEnabled ? '#38bdf8' : '#334155'}`, borderRadius: '8px', color: speakEnabled ? '#38bdf8' : '#64748b', cursor: 'pointer', fontSize: '15px', padding: '6px 9px' }} title="Toggle broadcast voice">
+                    {speakEnabled ? '🔊' : '🔇'}
+                  </button>
+                  <button onClick={() => setGcScoringMode(v => !v)}
+                    style={{ background: gcScoringMode ? '#1e293b' : '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#64748b', cursor: 'pointer', fontSize: '16px', padding: '6px 9px' }} title="Toggle full-screen scoring">
+                    {gcScoringMode ? '⊠' : '⛶'}
+                  </button>
+                </div>
               </div>
 
-              <div className={styles.gcNoteRow}>
-                <input
-                  disabled={!user}
-                  value={playNote}
-                  onChange={(event) => setPlayNote(event.target.value)}
-                  placeholder="Optional play note: hard ground ball to short, runner advanced, coach conference..."
-                />
-                <button disabled={!user} onClick={() => {
-                  setBalls(0);
-                  setStrikes(0);
-                  setLastPlaySummary('Count cleared.');
-                }}>
-                  Clear Count
+              {/* ── LAST PLAY SUMMARY ── */}
+              <div style={{ background: '#0b1424', borderBottom: '1px solid #1e293b', padding: '6px 16px', fontSize: '12px', color: '#64748b', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span><span style={{ color: '#38bdf8', fontWeight: '700' }}>►</span> {lastPlaySummary}</span>
+                <button onClick={() => setShowLineupSetup(v => !v)}
+                  style={{ background: showLineupSetup ? 'rgba(56,189,248,0.15)' : 'transparent', border: `1px solid ${showLineupSetup ? '#38bdf8' : '#1e293b'}`, borderRadius: '6px', color: showLineupSetup ? '#38bdf8' : '#334155', cursor: 'pointer', fontSize: '10px', fontWeight: '800', padding: '3px 8px', whiteSpace: 'nowrap' }}>
+                  {showLineupSetup ? '✕ Close' : '☰ Lineup'}
                 </button>
-                <button disabled={!user} onClick={() => {
-                  setOuts(Math.max(0, outs - 1));
-                  setLastPlaySummary('One out removed.');
-                }}>
-                  Fix Out
+              </div>
+
+              {/* ── PITCH COUNT ALERT BANNER ── */}
+              {pitchAlert && (
+                <div style={{ background: pitchAlert === 'limit' ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.12)', borderBottom: `1px solid ${pitchAlert === 'limit' ? '#ef4444' : '#f59e0b'}`, padding: '8px 16px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '800', color: pitchAlert === 'limit' ? '#ef4444' : '#f59e0b' }}>
+                    {pitchAlert === 'limit'
+                      ? `⛔ Pitch limit reached (${pitchHardLimit}) — ${currentPitcher || 'pitcher'} must be removed`
+                      : `⚠️ Pitch warning (${pitchCount}/${pitchHardLimit}) — ${currentPitcher || 'pitcher'} approaching limit`}
+                  </span>
+                  <button onClick={() => setPitchAlert(null)}
+                    style={{ background: 'transparent', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '16px', padding: '0 4px', flexShrink: 0 }}>✕</button>
+                </div>
+              )}
+
+              {/* ── GAME OVER OVERLAY ── */}
+              {gameOver && (
+                <div style={{ position: 'absolute', inset: 0, zIndex: 110, background: 'rgba(2,6,23,0.98)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '20px', padding: '28px' }}>
+                  <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '2px' }}>Final Score</div>
+                  <div style={{ fontSize: '56px', fontWeight: '900', color: '#fff', fontFamily: 'monospace', lineHeight: 1 }}>
+                    {ourLiveScore} <span style={{ fontSize: '24px', color: '#334155' }}>–</span> {theirLiveScore}
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#f59e0b', fontWeight: '700', textAlign: 'center' }}>{gameOverReason}</div>
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                    <button onClick={() => { setGameOver(false); setGameClockRunning(false); }}
+                      style={{ background: '#1d4ed8', border: 'none', borderRadius: '12px', color: '#fff', cursor: 'pointer', fontSize: '14px', fontWeight: '900', padding: '13px 30px' }}>
+                      Keep Scoring
+                    </button>
+                    <button
+                      onClick={() => {
+                        setGameClockRunning(false);
+                        const rows = recentEvents.filter(e => !['correction','undo'].includes(e.eventType)).slice(0, 40).map((e, i) => `${i+1}. ${e.label || e.result || e.eventType}`).join('\n');
+                        const summary = `FINAL: ${teamDisplayName || 'Us'} ${ourLiveScore} – ${theirLiveScore} ${scoringOpponent || 'Opp'}\n${gameOverReason}\nInn ${currentInning}\n\n${rows}`;
+                        const blob = new Blob([summary], { type: 'text/plain' });
+                        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+                        a.download = `game_${new Date().toISOString().slice(0,10)}.txt`; a.click();
+                      }}
+                      style={{ background: 'transparent', border: '1px solid #334155', borderRadius: '12px', color: '#64748b', cursor: 'pointer', fontSize: '13px', padding: '13px 22px' }}>
+                      Export Game
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── LIVE BOX SCORE STRIP ── */}
+              {showBoxScoreStrip && (() => {
+                const innings = Math.max(ourInnings.length, theirInnings.length, 7);
+                const innNums = Array.from({ length: innings }, (_, i) => i + 1);
+                return (
+                  <div style={{ background: '#020617', borderBottom: '1px solid #1e293b', flexShrink: 0, overflowX: 'auto' }}>
+                    <div style={{ display: 'flex', alignItems: 'stretch', minWidth: 'max-content', fontSize: '11px', fontFamily: 'monospace' }}>
+                      {/* Team name col */}
+                      <div style={{ display: 'flex', flexDirection: 'column', borderRight: '1px solid #1e293b' }}>
+                        <div style={{ padding: '4px 10px', color: '#334155', fontWeight: '800', borderBottom: '1px solid #0f172a', height: '22px' }}></div>
+                        <div style={{ padding: '4px 10px', color: '#f59e0b', fontWeight: '900', whiteSpace: 'nowrap', height: '22px' }}>{(teamDisplayName || 'Us').slice(0, 10)}</div>
+                        <div style={{ padding: '4px 10px', color: '#94a3b8', fontWeight: '700', whiteSpace: 'nowrap', height: '22px' }}>{(scoringOpponent || 'Opp').slice(0, 10)}</div>
+                      </div>
+                      {/* Inning cols */}
+                      {innNums.map(n => {
+                        const isCurrent = n === currentInning;
+                        return (
+                          <div key={n} style={{ display: 'flex', flexDirection: 'column', borderRight: '1px solid #0f172a', minWidth: '28px' }}>
+                            <div style={{ padding: '4px 6px', color: isCurrent ? '#38bdf8' : '#334155', fontWeight: '800', textAlign: 'center', borderBottom: '1px solid #0f172a', height: '22px', background: isCurrent ? 'rgba(56,189,248,0.06)' : 'transparent' }}>{n}</div>
+                            <div style={{ padding: '4px 6px', textAlign: 'center', color: ourInnings[n-1] > 0 ? '#f59e0b' : '#1e293b', height: '22px', background: isCurrent && !isTopInning ? 'rgba(56,189,248,0.04)' : 'transparent' }}>{ourInnings[n-1] ?? (n < currentInning ? '0' : '-')}</div>
+                            <div style={{ padding: '4px 6px', textAlign: 'center', color: theirInnings[n-1] > 0 ? '#94a3b8' : '#1e293b', height: '22px', background: isCurrent && isTopInning ? 'rgba(56,189,248,0.04)' : 'transparent' }}>{theirInnings[n-1] ?? (n < currentInning ? '0' : '-')}</div>
+                          </div>
+                        );
+                      })}
+                      {/* R H E totals */}
+                      {[
+                        { label: 'R', our: ourLiveScore, their: theirLiveScore, color: '#fff' },
+                        { label: 'H', our: ourHits, their: theirHits, color: '#64748b' },
+                        { label: 'E', our: ourErrors, their: theirErrors, color: '#ef444466' },
+                      ].map(({ label, our, their, color }) => (
+                        <div key={label} style={{ display: 'flex', flexDirection: 'column', borderLeft: '1px solid #1e293b', minWidth: '28px' }}>
+                          <div style={{ padding: '4px 6px', color: '#475569', fontWeight: '800', textAlign: 'center', borderBottom: '1px solid #0f172a', height: '22px' }}>{label}</div>
+                          <div style={{ padding: '4px 6px', textAlign: 'center', color, fontWeight: '900', height: '22px' }}>{our}</div>
+                          <div style={{ padding: '4px 6px', textAlign: 'center', color: '#475569', height: '22px' }}>{their}</div>
+                        </div>
+                      ))}
+                      {/* Toggle close */}
+                      <div style={{ display: 'flex', flexDirection: 'column', paddingLeft: '4px' }}>
+                        <div style={{ height: '22px' }} />
+                        <button onClick={() => setShowBoxScoreStrip(false)}
+                          style={{ background: 'none', border: 'none', color: '#1e293b', cursor: 'pointer', fontSize: '12px', padding: '3px 6px', alignSelf: 'center' }}>✕</button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+              {!showBoxScoreStrip && (
+                <button onClick={() => setShowBoxScoreStrip(true)}
+                  style={{ background: '#020617', border: 'none', borderBottom: '1px solid #1e293b', color: '#334155', cursor: 'pointer', fontSize: '10px', fontWeight: '800', padding: '3px 12px', width: '100%', textAlign: 'left', flexShrink: 0 }}>
+                  ▤ Show Box Score
                 </button>
+              )}
+
+              {/* ── INNING BREAK OVERLAY ── */}
+              {inningBreak && (
+                <div style={{ position: 'absolute', inset: 0, zIndex: 100, background: 'rgba(2,6,23,0.97)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '18px', padding: '24px' }}>
+                  <div style={{ fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                    {inningBreak.wasTop ? 'End of Top' : 'End of Bottom'} {inningBreak.inning}
+                  </div>
+                  <div style={{ fontSize: '52px', fontWeight: '900', color: '#fff', fontFamily: 'monospace', lineHeight: 1 }}>
+                    {ourLiveScore} <span style={{ fontSize: '24px', color: '#334155' }}>–</span> {theirLiveScore}
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#64748b' }}>
+                    {inningBreak.wasTop ? `${teamDisplayName || 'Us'}` : `${scoringOpponent || 'Opp'}`} scored <strong style={{ color: '#f59e0b' }}>{inningBreak.runsThisHalf}</strong> run{inningBreak.runsThisHalf !== 1 ? 's' : ''} this half
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                    <button onClick={confirmInningBreak}
+                      style={{ background: '#1d4ed8', border: 'none', borderRadius: '12px', color: '#fff', cursor: 'pointer', fontSize: '15px', fontWeight: '900', padding: '14px 36px', letterSpacing: '0.5px' }}>
+                      {inningBreak.wasTop ? `▼ Start Bot ${inningBreak.inning}` : `▲ Start Top ${inningBreak.inning + 1}`}
+                    </button>
+                    <button onClick={() => setInningBreak(null)}
+                      style={{ background: 'transparent', border: '1px solid #334155', borderRadius: '12px', color: '#475569', cursor: 'pointer', fontSize: '13px', padding: '14px 20px' }}>
+                      Wait
+                    </button>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#1e293b', marginTop: '4px' }}>Tap Wait to keep scoring without advancing the inning</div>
+                </div>
+              )}
+
+              {/* ── LINEUP SETUP PANEL ── */}
+              {showLineupSetup && (
+                <div style={{ background: '#020a1a', borderBottom: '1px solid #1e293b', padding: '12px 16px', flexShrink: 0, maxHeight: '280px', overflowY: 'auto' }}>
+                  <div style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>Batting Order — tap to set current batter</div>
+                  {lineupEntries.length === 0 ? (
+                    <div style={{ fontSize: '12px', color: '#334155', padding: '8px 0' }}>No lineup saved yet. Go to the Lineup tab to build your batting order.</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {lineupEntries.map((entry, idx) => {
+                        const name = [entry.firstName, entry.lastName].filter(Boolean).join(' ') || entry.name || `#${entry.jersey || idx + 1}`;
+                        const isCurrent = idx === lineupBatterIndex;
+                        const isDragging = dragIdx === idx;
+                        return (
+                          <div key={entry.id || idx}
+                            draggable
+                            onDragStart={() => handleLineupDragStart(idx)}
+                            onDragOver={e => handleLineupDragOver(e, idx)}
+                            onDragEnd={handleLineupDragEnd}
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '8px', background: isDragging ? 'rgba(56,189,248,0.08)' : isCurrent ? 'rgba(56,189,248,0.12)' : '#0f172a', border: `1px solid ${isCurrent ? '#38bdf8' : '#1e293b'}`, cursor: 'grab', opacity: isDragging ? 0.5 : 1 }}>
+                            <span style={{ fontSize: '14px', color: '#1e293b', cursor: 'grab', flexShrink: 0 }}>&#8942;</span>
+                            <span onClick={() => { setLineupBatterIndex(idx); setCurrentBatter(name); }} style={{ fontSize: '12px', color: isCurrent ? '#38bdf8' : '#334155', fontFamily: 'monospace', width: '18px', fontWeight: '900', cursor: 'pointer' }}>{idx + 1}</span>
+                            {entry.jersey && <span style={{ fontSize: '11px', color: '#475569', width: '28px' }}>#{entry.jersey}</span>}
+                            <span onClick={() => { setLineupBatterIndex(idx); setCurrentBatter(name); }} style={{ fontSize: '13px', color: isCurrent ? '#fff' : '#64748b', fontWeight: isCurrent ? '800' : '400', flex: 1, cursor: 'pointer' }}>{name}</span>
+                            {entry.position && <span style={{ fontSize: '10px', color: '#334155', background: '#0f172a', border: '1px solid #1e293b', borderRadius: '4px', padding: '1px 5px' }}>{entry.position}</span>}
+                            {isCurrent && <span style={{ fontSize: '10px', color: '#38bdf8', fontWeight: '800' }}>AT BAT</span>}
+                            <button onClick={() => setSubModal({ idx, name })} style={{ background: 'transparent', border: '1px solid #334155', borderRadius: '5px', color: '#475569', cursor: 'pointer', fontSize: '10px', padding: '2px 6px', flexShrink: 0 }}>SUB</button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {/* Sub form — rendered inline using subModal state */}
+                  {subModal && (
+                    <SubForm key={subModal.idx} subModal={subModal} onConfirm={substitutePlayer} onCancel={() => setSubModal(null)} />
+                  )}
+                  <div style={{ marginTop: '10px', display: 'flex', gap: '8px' }}>
+                    <input value={currentPitcher} onChange={e => setCurrentPitcher(e.target.value)} placeholder="Our pitcher name..."
+                      style={{ flex: 1, background: '#0f172a', border: '1px solid #1e293b', color: '#94a3b8', borderRadius: '6px', padding: '6px 10px', fontSize: '12px' }} />
+                    <input value={opponentPitcher} onChange={e => setOpponentPitcher(e.target.value)} placeholder="Opp. pitcher name..."
+                      style={{ flex: 1, background: '#0f172a', border: '1px solid #1e293b', color: '#94a3b8', borderRadius: '6px', padding: '6px 10px', fontSize: '12px' }} />
+                  </div>
+                </div>
+              )}
+
+              {/* ── FIELD VIEW (overhead, GC-style) ── */}
+              {showFieldView && (() => {
+                // Map lineup positions to x/y % coords on the field SVG (100x100 viewBox)
+                const posCoords = {
+                  P:   { x: 50, y: 52 }, C:   { x: 50, y: 88 },
+                  '1B':{ x: 72, y: 63 }, '2B':{ x: 62, y: 45 },
+                  SS:  { x: 38, y: 45 }, '3B':{ x: 28, y: 63 },
+                  LF:  { x: 18, y: 22 }, CF:  { x: 50, y: 12 }, RF: { x: 82, y: 22 },
+                  DH:  { x: 50, y: 78 },
+                };
+                const batterEntry = lineupEntries[lineupBatterIndex];
+                const batterName = currentBatter ? currentBatter.split(' ').pop() : '?';
+                return (
+                  <div style={{ background: '#020a14', borderBottom: '1px solid #1e293b', flexShrink: 0, padding: '0' }}>
+                    <svg viewBox="0 0 100 100" style={{ width: '100%', maxHeight: '260px', display: 'block' }} preserveAspectRatio="xMidYMid meet">
+                      {/* Sky/background */}
+                      <rect width="100" height="100" fill="#020a14" />
+                      {/* Outfield grass fan */}
+                      <path d="M 50 92 L 8 28 A 55 55 0 0 1 92 28 Z" fill="#166534" opacity="0.85" />
+                      {/* Warning track */}
+                      <path d="M 50 92 L 6 24 A 58 58 0 0 1 94 24 Z" fill="none" stroke="#78350f" strokeWidth="3" opacity="0.5" />
+                      {/* Infield dirt */}
+                      <polygon points="50,35 72,62 50,75 28,62" fill="#92400e" opacity="0.75" />
+                      {/* Inner grass diamond */}
+                      <polygon points="50,37 70,61 50,73 30,61" fill="#15803d" opacity="0.6" />
+                      {/* Foul lines */}
+                      <line x1="50" y1="92" x2="8" y2="28" stroke="#ffffff" strokeWidth="0.4" opacity="0.3" />
+                      <line x1="50" y1="92" x2="92" y2="28" stroke="#ffffff" strokeWidth="0.4" opacity="0.3" />
+                      {/* Pitcher mound */}
+                      <circle cx="50" cy="55" r="3.5" fill="#92400e" stroke="#a16207" strokeWidth="0.5" />
+                      {/* Bases */}
+                      <rect x="47" y="32" width="6" height="6" fill={runnerOnSecond ? '#f59e0b' : '#f5f5f5'} transform="rotate(45,50,35)" opacity="0.95" />
+                      <rect x="69" y="59" width="6" height="6" fill={runnerOnFirst ? '#f59e0b' : '#f5f5f5'} transform="rotate(45,72,62)" opacity="0.95" />
+                      <rect x="25" y="59" width="6" height="6" fill={runnerOnThird ? '#f59e0b' : '#f5f5f5'} transform="rotate(45,28,62)" opacity="0.95" />
+                      {/* Home plate */}
+                      <polygon points="50,79 53,82 53,86 47,86 47,82" fill="#fff" opacity="0.9" />
+
+                      {/* Fielders from lineup by position */}
+                      {lineupEntries.map((entry, idx) => {
+                        if (idx === lineupBatterIndex) return null; // batter is at plate
+                        const pos = entry.position?.trim().toUpperCase();
+                        const coords = posCoords[pos];
+                        if (!coords) return null;
+                        const lastName = (entry.lastName || entry.name || `#${entry.jersey || ''}`).split(' ').pop();
+                        return (
+                          <g key={entry.id || idx}>
+                            <circle cx={coords.x} cy={coords.y} r="4.5" fill="#1e40af" stroke="#3b82f6" strokeWidth="0.8" />
+                            <text x={coords.x} y={coords.y - 5.5} textAnchor="middle" fill="#93c5fd" fontSize="3.2" fontWeight="bold">{lastName}</text>
+                            {entry.jersey && <text x={coords.x} y={coords.y + 1.5} textAnchor="middle" fill="#fff" fontSize="2.6" fontWeight="900">#{entry.jersey}</text>}
+                          </g>
+                        );
+                      })}
+
+                      {/* Batter at home plate */}
+                      <circle cx="50" cy="88" r="4.5" fill="#f59e0b" stroke="#fbbf24" strokeWidth="0.8" />
+                      <text x="50" y="82" textAnchor="middle" fill="#fef08a" fontSize="3.2" fontWeight="bold">{batterName}</text>
+                      {batterEntry?.jersey && <text x="50" y="88" textAnchor="middle" fill="#fff" fontSize="2.6" fontWeight="900">#{batterEntry.jersey}</text>}
+
+                      {/* Runner markers on occupied bases */}
+                      {runnerOnSecond && <circle cx="50" cy="35" r="2.5" fill="#f59e0b" opacity="0.8" />}
+                      {runnerOnFirst  && <circle cx="72" cy="62" r="2.5" fill="#f59e0b" opacity="0.8" />}
+                      {runnerOnThird  && <circle cx="28" cy="62" r="2.5" fill="#f59e0b" opacity="0.8" />}
+
+                      {/* Position labels (faint) when no lineup entry covers that spot */}
+                      {Object.entries(posCoords).map(([pos, { x, y }]) => {
+                        const covered = lineupEntries.some((e, i) => i !== lineupBatterIndex && e.position?.trim().toUpperCase() === pos);
+                        if (covered) return null;
+                        return <text key={pos} x={x} y={y + 1} textAnchor="middle" fill="#334155" fontSize="3" fontWeight="800" opacity="0.6">{pos}</text>;
+                      })}
+                    </svg>
+                  </div>
+                );
+              })()}
+
+              {/* ── OPP SCORING PANEL ── */}
+              {oppScoringMode && (
+                <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', background: '#020617', padding: '16px' }}>
+                  <div style={{ fontSize: '11px', color: '#ef4444', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>
+                    ▶ Scoring {scoringOpponent || 'Opponent'} — Inn {currentInning} {isTopInning ? 'Top' : 'Bot'}
+                  </div>
+
+                  {/* Opp batter: roster quick-select or free-type */}
+                  {opponentRoster.length > 0 ? (
+                    <select value={oppBatterName} onChange={e => setOppBatterName(e.target.value)}
+                      style={{ background: '#0f172a', border: '1px solid #1e293b', color: oppBatterName ? '#fff' : '#475569', borderRadius: '8px', padding: '8px 12px', fontSize: '13px', marginBottom: '8px', width: '100%', cursor: 'pointer' }}>
+                      <option value="">— Select opp batter —</option>
+                      {opponentRoster.map(p => (
+                        <option key={p.id} value={`${p.firstName} ${p.lastName}`.trim() || p.firstName}>
+                          #{p.jersey || '?'} {p.firstName} {p.lastName} {p.position ? `· ${p.position}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input value={oppBatterName} onChange={e => setOppBatterName(e.target.value)}
+                      placeholder="Opp batter name (optional)..."
+                      style={{ background: '#0f172a', border: '1px solid #1e293b', color: '#fff', borderRadius: '8px', padding: '8px 12px', fontSize: '13px', marginBottom: '8px', width: '100%' }} />
+                  )}
+
+                  {/* Scouting import — paste CSV inline */}
+                  {opponentRoster.length === 0 && (
+                    <details style={{ marginBottom: '14px' }}>
+                      <summary style={{ fontSize: '10px', color: '#334155', cursor: 'pointer', userSelect: 'none' }}>📋 Import opponent roster (CSV)</summary>
+                      <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <textarea value={opponentRawRoster} onChange={e => setOpponentRawRoster(e.target.value)}
+                          placeholder="#, First, Last, Pos&#10;12, John, Smith, SS&#10;34, Mike, Jones, P"
+                          rows={4}
+                          style={{ background: '#0f172a', border: '1px solid #334155', color: '#94a3b8', borderRadius: '6px', padding: '6px 8px', fontSize: '11px', fontFamily: 'monospace', width: '100%', resize: 'vertical' }} />
+                        <button onClick={parseOpponentRoster} disabled={!opponentRawRoster.trim()}
+                          style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid #38bdf844', borderRadius: '6px', color: '#38bdf8', cursor: 'pointer', fontSize: '11px', fontWeight: '800', padding: '6px 0' }}>
+                          Parse &amp; Load Roster
+                        </button>
+                      </div>
+                    </details>
+                  )}
+                  {opponentRoster.length > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                      <span style={{ fontSize: '10px', color: '#334155' }}>{opponentRoster.length} players loaded</span>
+                      <button onClick={() => { setOpponentRoster([]); setOppBatterName(''); }}
+                        style={{ background: 'transparent', border: 'none', color: '#334155', cursor: 'pointer', fontSize: '10px' }}>Clear</button>
+                    </div>
+                  )}
+
+                  {/* B·S·O current state */}
+                  <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '14px' }}>
+                    {[{ label:'B', count: balls, max:4, color:'#22c55e' }, { label:'S', count: strikes, max:3, color:'#ef4444' }, { label:'O', count: outs, max:3, color:'#f59e0b' }].map(({ label, count, max, color }) => (
+                      <div key={label} style={{ display:'flex', alignItems:'center', gap:'5px' }}>
+                        <span style={{ fontSize:'10px', color:'#475569', fontWeight:'800', width:'14px' }}>{label}</span>
+                        {Array.from({ length: max }, (_, i) => (
+                          <div key={i} style={{ width:'12px', height:'12px', borderRadius:'50%', background: i < count ? color : '#1e293b', border:`1.5px solid ${i < count ? color : '#334155'}` }} />
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Quick outcome grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '14px' }}>
+                    {[
+                      { result:'single',      label:'Single',     notation:'1B', outs:0, color:'#22c55e' },
+                      { result:'double',      label:'Double',     notation:'2B', outs:0, color:'#22c55e' },
+                      { result:'triple',      label:'Triple',     notation:'3B', outs:0, color:'#22c55e' },
+                      { result:'home_run',    label:'Home Run',   notation:'HR', outs:0, color:'#f59e0b' },
+                      { result:'walk',        label:'Walk',       notation:'BB', outs:0, color:'#60a5fa' },
+                      { result:'hit_by_pitch',label:'HBP',        notation:'HBP',outs:0, color:'#60a5fa' },
+                      { result:'strikeout',   label:'Strikeout',  notation:'K',  outs:1, color:'#ef4444' },
+                      { result:'groundout',   label:'Ground Out', notation:'GO', outs:1, color:'#ef4444' },
+                      { result:'flyout',      label:'Fly Out',    notation:'FO', outs:1, color:'#ef4444' },
+                      { result:'lineout',     label:'Line Out',   notation:'LO', outs:1, color:'#ef4444' },
+                      { result:'pop_out',     label:'Pop Out',    notation:'PO', outs:1, color:'#ef4444' },
+                      { result:'sac_fly',     label:'Sac Fly',    notation:'SF', outs:1, color:'#f59e0b' },
+                    ].map(outcome => (
+                      <button key={outcome.result} disabled={!user} onClick={() => recordOppPA(outcome)}
+                        style={{ background: `${outcome.color}18`, border: `1.5px solid ${outcome.color}55`, borderRadius: '10px', color: outcome.color, cursor: 'pointer', fontSize: '13px', fontWeight: '900', padding: '14px 6px', textAlign: 'center', lineHeight: 1.2 }}>
+                        <div>{outcome.notation}</div>
+                        <div style={{ fontSize: '9px', fontWeight: '400', color: '#475569', marginTop: '2px' }}>{outcome.label}</div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Manual count adjusters */}
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <button disabled={!user} onClick={() => setBalls(b => Math.min(3, b+1))} style={{ background:'#0f172a', border:'1px solid #22c55e44', borderRadius:'6px', color:'#22c55e', cursor:'pointer', fontSize:'11px', fontWeight:'800', padding:'5px 10px' }}>+Ball</button>
+                    <button disabled={!user} onClick={() => setStrikes(s => Math.min(2, s+1))} style={{ background:'#0f172a', border:'1px solid #ef444444', borderRadius:'6px', color:'#ef4444', cursor:'pointer', fontSize:'11px', fontWeight:'800', padding:'5px 10px' }}>+Strike</button>
+                    <button disabled={!user} onClick={() => setOuts(o => Math.min(3, o+1))} style={{ background:'#0f172a', border:'1px solid #f59e0b44', borderRadius:'6px', color:'#f59e0b', cursor:'pointer', fontSize:'11px', fontWeight:'800', padding:'5px 10px' }}>+Out</button>
+                    <div style={{ width:'1px', background:'#1e293b' }} />
+                    {['1B','2B','3B'].map((base, i) => {
+                      const states = [runnerOnFirst, runnerOnSecond, runnerOnThird];
+                      const setters = [setRunnerOnFirst, setRunnerOnSecond, setRunnerOnThird];
+                      return (
+                        <button key={base} disabled={!user} onClick={() => setters[i](v => !v)}
+                          style={{ background: states[i] ? 'rgba(245,158,11,0.2)' : '#0f172a', border:`1.5px solid ${states[i] ? '#f59e0b' : '#1e293b'}`, borderRadius:'6px', color: states[i] ? '#f59e0b' : '#475569', cursor:'pointer', fontSize:'11px', fontWeight:'900', padding:'5px 10px' }}>
+                          {base}
+                        </button>
+                      );
+                    })}
+                    <button disabled={!user} onClick={recordManualRun} style={{ background:'rgba(239,68,68,0.1)', border:'1px solid #ef444455', borderRadius:'6px', color:'#ef4444', cursor:'pointer', fontSize:'11px', fontWeight:'900', padding:'5px 10px' }}>+Opp Run</button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── MAIN SCORING BODY ── */}
+              <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: oppScoringMode ? 'none' : 'flex' }}>
+
+                {/* LEFT: LINEUP RAIL */}
+                {lineupEntries.length > 0 && !isMobile && (
+                  <div style={{ width: '120px', flexShrink: 0, borderRight: '1px solid #1e293b', overflowY: 'auto', background: '#020617' }}>
+                    <div style={{ padding: '8px 6px', fontSize: '9px', color: '#334155', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid #0f172a' }}>Batting Order</div>
+                    {lineupEntries.map((entry, idx) => {
+                      const name = [entry.firstName, entry.lastName].filter(Boolean).join(' ') || entry.name || `#${entry.jersey || idx + 1}`;
+                      const isCurrent = idx === lineupBatterIndex;
+                      return (
+                        <div key={entry.id || idx}
+                          onClick={() => { setLineupBatterIndex(idx); setCurrentBatter(name); }}
+                          style={{ padding: '9px 8px', borderBottom: '1px solid #0f172a', cursor: 'pointer', background: isCurrent ? 'rgba(56,189,248,0.12)' : 'transparent', borderLeft: isCurrent ? '3px solid #38bdf8' : '3px solid transparent', display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '9px', color: isCurrent ? '#38bdf8' : '#334155', fontWeight: '900', fontFamily: 'monospace' }}>{idx + 1}</span>
+                            {entry.jersey && <span style={{ fontSize: '9px', color: '#334155', fontWeight: '700' }}>#{entry.jersey}</span>}
+                          </div>
+                          <span style={{ fontSize: '11px', color: isCurrent ? '#fff' : '#64748b', fontWeight: isCurrent ? '800' : '400', lineHeight: 1.2 }}>{name}</span>
+                          {entry.position && <span style={{ fontSize: '9px', color: '#334155' }}>{entry.position}</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* RIGHT: SCORING PANEL */}
+                <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 0 }}>
+
+                  {/* ── BATTER CARD (GC-style: jersey · position · avg) ── */}
+                  <div style={{ padding: '12px 16px', background: '#030d1e', borderBottom: '1px solid #1e293b', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        {/* Jersey number badge */}
+                        {lineupEntries[lineupBatterIndex]?.jersey && (
+                          <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#1e293b', border: '1px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '15px', color: '#f59e0b', fontFamily: 'monospace', flexShrink: 0 }}>
+                            {lineupEntries[lineupBatterIndex].jersey}
+                          </div>
+                        )}
+                        <div>
+                          <div style={{ fontSize: '16px', fontWeight: '900', color: '#fff', lineHeight: 1.1 }}>
+                            {currentBatter || <span style={{ color: '#334155', fontWeight: '400', fontSize: '13px' }}>No batter — set lineup</span>}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px', display: 'flex', gap: '8px' }}>
+                            {lineupEntries[lineupBatterIndex]?.position && <span style={{ color: '#64748b' }}>{lineupEntries[lineupBatterIndex].position}</span>}
+                            <span>vs. <strong style={{ color: '#94a3b8' }}>{currentPitcher || '—'}</strong></span>
+                            <span style={{ color: '#334155' }}>P#{pitchCount}</span>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Pitch type + velo inline */}
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0 }}>
+                        <select value={pitchType} onChange={e => setPitchType(e.target.value)} disabled={!user}
+                          style={{ background: '#0f172a', border: '1px solid #1e293b', color: '#94a3b8', borderRadius: '6px', padding: '4px 6px', fontSize: '11px', fontWeight: '800' }}>
+                          {[['FB','Fastball'],['CB','Curveball'],['CH','Changeup'],['SL','Slider'],['CT','Cutter'],['SP','Splitter'],['2S','2-Seam'],['KN','Knuckleball']].map(([t,l]) => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                        <input type="number" min="40" max="110" placeholder="MPH" value={pitchVelo} onChange={e => setPitchVelo(e.target.value)} disabled={!user}
+                          style={{ background: '#0f172a', border: '1px solid #1e293b', color: '#f8fafc', borderRadius: '6px', padding: '4px 6px', fontSize: '11px', width: '56px', textAlign: 'center' }} />
+                        {pitchLog.filter(p => p.velo).length > 0 && (() => {
+                          const vl = pitchLog.filter(p => p.velo);
+                          const top = Math.max(...vl.map(p => p.velo));
+                          return <span style={{ fontSize: '10px', color: '#475569' }}>top <strong style={{ color: '#f59e0b' }}>{top}</strong></span>;
+                        })()}
+                      </div>
+                    </div>
+
+                    {/* B · S · O dots — GC-style large */}
+                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '10px', color: '#475569', fontWeight: '800', width: '14px' }}>B</span>
+                        {[0,1,2,3].map(i => <div key={i} style={{ width: '14px', height: '14px', borderRadius: '50%', background: i < balls ? '#22c55e' : '#1e293b', border: `1.5px solid ${i < balls ? '#22c55e' : '#334155'}`, transition: 'background 0.1s' }} />)}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '10px', color: '#475569', fontWeight: '800', width: '14px' }}>S</span>
+                        {[0,1,2].map(i => <div key={i} style={{ width: '14px', height: '14px', borderRadius: '50%', background: i < strikes ? '#eab308' : '#1e293b', border: `1.5px solid ${i < strikes ? '#eab308' : '#334155'}`, transition: 'background 0.1s' }} />)}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '10px', color: '#475569', fontWeight: '800', width: '14px' }}>O</span>
+                        {[0,1,2].map(i => <div key={i} style={{ width: '14px', height: '14px', borderRadius: '50%', background: i < outs ? '#ef4444' : '#1e293b', border: `1.5px solid ${i < outs ? '#ef4444' : '#334155'}`, transition: 'background 0.1s' }} />)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── GC PITCH / OUTCOME TOGGLE AREA ── */}
+                  <div style={{ flex: 1, padding: '14px 14px 10px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+
+                    {scoringWorkflowStep !== 'result' ? (
+                      /* ── PITCH BUTTONS (2-row pill layout, GC-style) ── */
+                      <>
+                        {/* Row 1: Ball · Called Strike · Foul */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                          {[pitchResults[0], pitchResults[1], pitchResults[3]].map((pitch) => {
+                            const colorMap = { ball: '#22c55e', called_strike: '#ef4444', foul: '#eab308' };
+                            const bg = colorMap[pitch.result];
+                            return (
+                              <button key={pitch.result} disabled={!user} onClick={() => recordPitch(pitch.result)}
+                                style={{ background: `${bg}18`, border: `2px solid ${bg}66`, borderRadius: '14px', color: bg, cursor: 'pointer', fontWeight: '900', padding: '18px 8px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', fontSize: '14px', WebkitTapHighlightColor: 'transparent', transition: 'all 0.08s' }}
+                                onMouseDown={e => { e.currentTarget.style.background=`${bg}33`; e.currentTarget.style.transform='scale(0.97)'; }}
+                                onMouseUp={e => { e.currentTarget.style.background=`${bg}18`; e.currentTarget.style.transform='scale(1)'; }}
+                                onTouchEnd={e => { e.currentTarget.style.background=`${bg}18`; e.currentTarget.style.transform='scale(1)'; }}>
+                                <span style={{ fontSize: '22px', fontFamily: 'monospace', fontWeight: '900', lineHeight: 1 }}>{pitch.notation}</span>
+                                <span style={{ fontSize: '10px', color: '#64748b' }}>{pitch.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {/* Row 2: Swinging Strike · In Play (wide) · HBP */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr 1fr', gap: '10px' }}>
+                          {[pitchResults[2], pitchResults[4], pitchResults[5]].map((pitch) => {
+                            const colorMap = { swinging_strike: '#f97316', in_play: '#38bdf8', hit_by_pitch: '#a78bfa' };
+                            const bg = colorMap[pitch.result];
+                            const isInPlay = pitch.result === 'in_play';
+                            return (
+                              <button key={pitch.result} disabled={!user} onClick={() => recordPitch(pitch.result)}
+                                style={{ background: isInPlay ? `${bg}28` : `${bg}18`, border: `2px solid ${isInPlay ? bg : bg+'66'}`, borderRadius: '14px', color: bg, cursor: 'pointer', fontWeight: '900', padding: '18px 8px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', fontSize: '14px', WebkitTapHighlightColor: 'transparent', transition: 'all 0.08s' }}
+                                onMouseDown={e => { e.currentTarget.style.background=`${bg}40`; e.currentTarget.style.transform='scale(0.97)'; }}
+                                onMouseUp={e => { e.currentTarget.style.background=isInPlay?`${bg}28`:`${bg}18`; e.currentTarget.style.transform='scale(1)'; }}
+                                onTouchEnd={e => { e.currentTarget.style.background=isInPlay?`${bg}28`:`${bg}18`; e.currentTarget.style.transform='scale(1)'; }}>
+                                <span style={{ fontSize: '22px', fontFamily: 'monospace', fontWeight: '900', lineHeight: 1 }}>{pitch.notation}</span>
+                                <span style={{ fontSize: '10px', color: '#64748b' }}>{pitch.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      /* ── OUTCOME GRID (slides in after In Play) ── */
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
+                          <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>⚡ Ball In Play — select result</span>
+                          <button onClick={() => setScoringWorkflowStep('pitch')} style={{ background: 'transparent', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '18px', padding: '0 4px' }}>←</button>
+                        </div>
+                        {/* Hits row */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                          {plateAppearanceResults.filter(o => o.kind === 'hit').map((outcome) => (
+                            <button key={outcome.result} disabled={!user} onClick={() => recordPlateAppearance(outcome)}
+                              style={{ background: '#22c55e22', border: '2px solid #22c55e', borderRadius: '12px', color: '#22c55e', cursor: 'pointer', fontWeight: '900', padding: '16px 6px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', WebkitTapHighlightColor: 'transparent' }}
+                              onMouseDown={e => { e.currentTarget.style.background='#22c55e44'; e.currentTarget.style.transform='scale(0.96)'; }}
+                              onMouseUp={e => { e.currentTarget.style.background='#22c55e22'; e.currentTarget.style.transform='scale(1)'; }}
+                              onTouchEnd={e => { e.currentTarget.style.background='#22c55e22'; e.currentTarget.style.transform='scale(1)'; }}>
+                              <span style={{ fontSize: '20px', fontFamily: 'monospace', fontWeight: '900', lineHeight: 1 }}>{outcome.notation}</span>
+                              <span style={{ fontSize: '9px', color: '#64748b' }}>{outcome.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                        {/* Outs + other row */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                          {plateAppearanceResults.filter(o => o.kind !== 'hit').map((outcome) => {
+                            const kindColor = { walk: '#38bdf8', out: '#ef4444', error: '#f97316', sacrifice: '#a78bfa', fielders_choice: '#eab308' };
+                            const bg = kindColor[outcome.kind] || '#64748b';
+                            return (
+                              <button key={outcome.result} disabled={!user} onClick={() => recordPlateAppearance(outcome)}
+                                style={{ background: `${bg}18`, border: `1.5px solid ${bg}66`, borderRadius: '10px', color: bg, cursor: 'pointer', fontWeight: '900', padding: '12px 4px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', WebkitTapHighlightColor: 'transparent' }}
+                                onMouseDown={e => { e.currentTarget.style.background=`${bg}35`; e.currentTarget.style.transform='scale(0.96)'; }}
+                                onMouseUp={e => { e.currentTarget.style.background=`${bg}18`; e.currentTarget.style.transform='scale(1)'; }}
+                                onTouchEnd={e => { e.currentTarget.style.background=`${bg}18`; e.currentTarget.style.transform='scale(1)'; }}>
+                                <span style={{ fontSize: '16px', fontFamily: 'monospace', fontWeight: '900', lineHeight: 1 }}>{outcome.notation}</span>
+                                <span style={{ fontSize: '9px', color: '#64748b' }}>{outcome.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
+
+                    {/* ── RUNNERS & DEFENSE (always visible below pitch/outcome) ── */}
+                    <div style={{ borderTop: '1px solid #1e293b', paddingTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <span style={{ fontSize: '10px', color: '#334155', fontWeight: '800', textTransform: 'uppercase' }}>Runners:</span>
+                      {[
+                        { label: '1B', state: runnerOnFirst, set: setRunnerOnFirst },
+                        { label: '2B', state: runnerOnSecond, set: setRunnerOnSecond },
+                        { label: '3B', state: runnerOnThird, set: setRunnerOnThird },
+                      ].map(({ label, state, set }) => (
+                        <button key={label} disabled={!user} onClick={() => set(v => !v)}
+                          style={{ background: state ? 'rgba(245,158,11,0.22)' : '#0f172a', border: `1.5px solid ${state ? '#f59e0b' : '#1e293b'}`, borderRadius: '8px', color: state ? '#f59e0b' : '#475569', cursor: 'pointer', fontWeight: '900', fontSize: '13px', padding: '7px 14px' }}>
+                          {label}
+                        </button>
+                      ))}
+                      <div style={{ width: '1px', height: '22px', background: '#1e293b' }} />
+                      {/* SB / WP / PB — one-tap lead-runner advance */}
+                      {['SB','WP','PB'].map(type => (
+                        <button key={type} disabled={!user} onClick={() => recordRunnerAdvance(type)}
+                          style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#64748b', cursor: 'pointer', fontSize: '11px', fontWeight: '800', padding: '6px 10px' }}>
+                          {type}
+                        </button>
+                      ))}
+                      <div style={{ width: '1px', height: '22px', background: '#1e293b' }} />
+                      {defensivePlayPresets.map((play) => {
+                        const needsRouting = play.result.startsWith('double_play') || play.result === 'fielder_choice';
+                        return (
+                          <button key={play.result} disabled={!user}
+                            onClick={() => needsRouting ? setFcDpModal({ play }) : recordDefensivePlay(play)}
+                            style={{ background: fcDpModal?.play?.result === play.result ? 'rgba(56,189,248,0.12)' : '#0f172a', border: `1px solid ${fcDpModal?.play?.result === play.result ? '#38bdf8' : '#1e293b'}`, borderRadius: '8px', color: fcDpModal?.play?.result === play.result ? '#38bdf8' : '#475569', cursor: 'pointer', fontSize: '11px', fontWeight: '700', padding: '6px 10px', whiteSpace: 'nowrap' }}>
+                            {play.notation}
+                          </button>
+                        );
+                      })}
+                      <button disabled={!user} onClick={() => setErrorModal(v => !v)}
+                        style={{ background: errorModal ? 'rgba(239,68,68,0.15)' : '#0f172a', border: `1px solid ${errorModal ? '#ef4444' : '#334155'}`, borderRadius: '8px', color: errorModal ? '#ef4444' : '#64748b', cursor: 'pointer', fontSize: '11px', fontWeight: '900', padding: '6px 10px' }}>
+                        Error
+                      </button>
+                      <button disabled={!user} onClick={recordManualRun}
+                        style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.3)', borderRadius: '8px', color: '#38bdf8', cursor: 'pointer', fontSize: '11px', fontWeight: '900', padding: '6px 12px' }}>
+                        +Run
+                      </button>
+                    </div>
+
+                    {/* ── FC / DP ROUTING PICKER ── */}
+                    {fcDpModal && (
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', padding: '8px 12px', background: 'rgba(56,189,248,0.06)', borderTop: '1px solid #38bdf822' }}>
+                        <span style={{ fontSize: '10px', color: '#38bdf8', fontWeight: '800', alignSelf: 'center', whiteSpace: 'nowrap' }}>RUNNER OUT:</span>
+                        {[
+                          { label: 'Runner on 1st', key: '1B', clear: () => { setRunnerOnFirst(false); } },
+                          { label: 'Runner on 2nd', key: '2B', clear: () => { setRunnerOnSecond(false); } },
+                          { label: 'Runner on 3rd', key: '3B', clear: () => { setRunnerOnThird(false); } },
+                          { label: 'Batter (out at 1st)', key: 'Batter', clear: () => {} },
+                        ].filter(r => r.key === 'Batter' || (r.key === '1B' && runnerOnFirst) || (r.key === '2B' && runnerOnSecond) || (r.key === '3B' && runnerOnThird))
+                          .map(runner => (
+                          <button key={runner.key} disabled={!user} onClick={async () => {
+                            runner.clear();
+                            const nextOuts = Math.min(3, outs + (fcDpModal.play.outs || 1));
+                            setOuts(nextOuts);
+                            setBalls(0); setStrikes(0);
+                            const label = `${fcDpModal.play.label} — ${runner.label}`;
+                            setLastPlaySummary(label);
+                            setFcDpModal(null);
+                            advanceHalfInningIfNeeded(nextOuts);
+                            await logScoringEvent('defensive_play', { result: fcDpModal.play.result, label, notation: fcDpModal.play.notation, runnerOut: runner.key, outsAfter: nextOuts });
+                          }}
+                            style={{ background: '#0f172a', border: '1px solid #38bdf844', borderRadius: '6px', color: '#38bdf8', cursor: 'pointer', fontSize: '11px', fontWeight: '800', padding: '5px 10px' }}>
+                            {runner.key}
+                          </button>
+                        ))}
+                        <button onClick={() => setFcDpModal(null)} style={{ background: 'transparent', border: 'none', color: '#334155', cursor: 'pointer', fontSize: '13px', padding: '4px 6px' }}>✕</button>
+                      </div>
+                    )}
+
+                    {/* ── ERROR POSITION PICKER ── */}
+                    {errorModal && (
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', padding: '8px 12px', background: 'rgba(239,68,68,0.06)', borderTop: '1px solid #ef444422' }}>
+                        <span style={{ fontSize: '10px', color: '#ef4444', fontWeight: '800', alignSelf: 'center', whiteSpace: 'nowrap' }}>FIELDER:</span>
+                        {[{n:1,p:'P'},{n:2,p:'C'},{n:3,p:'1B'},{n:4,p:'2B'},{n:5,p:'3B'},{n:6,p:'SS'},{n:7,p:'LF'},{n:8,p:'CF'},{n:9,p:'RF'}].map(({n,p}) => (
+                          <button key={n} disabled={!user} onClick={() => recordError(n)}
+                            style={{ background: '#0f172a', border: '1px solid #ef444444', borderRadius: '6px', color: '#ef4444', cursor: 'pointer', fontSize: '11px', fontWeight: '900', padding: '5px 9px' }}>
+                            E{n} <span style={{ fontSize: '9px', color: '#475569' }}>{p}</span>
+                          </button>
+                        ))}
+                        <button onClick={() => setErrorModal(false)} style={{ background: 'transparent', border: 'none', color: '#334155', cursor: 'pointer', fontSize: '13px', padding: '4px 6px' }}>✕</button>
+                      </div>
+                    )}
+
+                    {/* ── UTILITIES ── */}
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <input disabled={!user} value={playNote} onChange={e => setPlayNote(e.target.value)} placeholder="Play note..."
+                        style={{ flex: 1, minWidth: '120px', background: '#020617', border: '1px solid #1e293b', color: '#94a3b8', borderRadius: '6px', padding: '6px 10px', fontSize: '12px' }} />
+                      <button disabled={!user} onClick={() => { setBalls(0); setStrikes(0); setLastPlaySummary('Count cleared.'); }}
+                        style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '6px', color: '#475569', cursor: 'pointer', fontSize: '11px', padding: '6px 10px', whiteSpace: 'nowrap' }}>
+                        Clear Count
+                      </button>
+                      <button disabled={!user} onClick={() => { setOuts(Math.max(0, outs - 1)); setLastPlaySummary('One out removed.'); }}
+                        style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '6px', color: '#475569', cursor: 'pointer', fontSize: '11px', padding: '6px 10px', whiteSpace: 'nowrap' }}>
+                        Fix Out
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* RUNNER CONFIRM STRIP — appears after hits, auto-dismisses in 4s */}
+                  {runnerToast && (
+                    <div style={{ position: 'sticky', bottom: 0, background: '#0f2b1a', border: '1px solid #22c55e', borderTop: '2px solid #22c55e', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', zIndex: 10, animation: 'fadeIn 0.15s ease' }}>
+                      <div style={{ fontSize: '11px', color: '#22c55e', fontWeight: '800', flexShrink: 0 }}>
+                        ✓ {runnerToast.label} — runners auto-advanced
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>Tap to override:</div>
+                      {[
+                        { label: '3B', active: runnerToast.third, toggle: () => setRunnerToast(t => ({ ...t, third: !t.third, timer: (clearTimeout(t.timer), setTimeout(() => setRunnerToast(null), 4000)) })), setter: setRunnerOnThird },
+                        { label: '2B', active: runnerToast.second, toggle: () => setRunnerToast(t => ({ ...t, second: !t.second, timer: (clearTimeout(t.timer), setTimeout(() => setRunnerToast(null), 4000)) })), setter: setRunnerOnSecond },
+                        { label: '1B', active: runnerToast.first, toggle: () => setRunnerToast(t => ({ ...t, first: !t.first, timer: (clearTimeout(t.timer), setTimeout(() => setRunnerToast(null), 4000)) })), setter: setRunnerOnFirst },
+                      ].map(({ label, active, toggle, setter }) => (
+                        <button key={label} onClick={() => { toggle(); setter(v => !v); }}
+                          style={{ background: active ? 'rgba(245,158,11,0.25)' : '#0f172a', border: `1.5px solid ${active ? '#f59e0b' : '#334155'}`, borderRadius: '8px', color: active ? '#f59e0b' : '#475569', cursor: 'pointer', fontWeight: '900', fontSize: '13px', padding: '6px 14px' }}>
+                          {label}
+                        </button>
+                      ))}
+                      <button onClick={() => { clearTimeout(runnerToast.timer); setRunnerToast(null); }}
+                        style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: '#334155', cursor: 'pointer', fontSize: '16px', padding: '4px 8px' }}>
+                        ✕
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -2629,7 +3710,13 @@ export default function BroadcastConsole() {
                   onChange={(event) => setCorrectionNote(event.target.value)}
                   placeholder="Correction note: wrong batter, changed to double, runner should stay at third..."
                 />
-                <button disabled={!user || playLogEvents.length === 0} onClick={undoLastPlay}>Undo Last Play</button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button disabled={!user || playLogEvents.length === 0} onClick={undoLastPlay}>Undo Last Play</button>
+                  <button disabled={!user || redoStack.length === 0} onClick={redoLastPlay}
+                    style={{ background: redoStack.length > 0 ? 'rgba(56,189,248,0.1)' : undefined, border: redoStack.length > 0 ? '1px solid #38bdf8' : undefined, color: redoStack.length > 0 ? '#38bdf8' : undefined }}>
+                    Redo {redoStack.length > 0 ? `(${redoStack.length})` : ''}
+                  </button>
+                </div>
               </div>
 
               <div className={styles.playLogRows}>
@@ -2662,6 +3749,20 @@ export default function BroadcastConsole() {
                               {event.note ? <small>Note: {event.note}</small> : null}
                               {correction ? <small>Correction: {correction.correctionNote || correction.label}</small> : null}
                               {event.eventType === 'undo' ? <small>Undo target: #{event.targetSequence || event.targetEventId}</small> : null}
+                              {event.pitchSequence?.length > 0 && (
+                                <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', marginTop: '4px' }}>
+                                  {event.pitchSequence.map((p, pi) => {
+                                    const isStrike = ['called_strike','swinging_strike','foul','in_play'].includes(p.result);
+                                    const isBall = p.result === 'ball';
+                                    const col = isStrike ? '#ef4444' : isBall ? '#22c55e' : '#64748b';
+                                    return (
+                                      <span key={pi} style={{ fontSize: '9px', color: col, fontWeight: '800', background: `${col}15`, border: `1px solid ${col}44`, borderRadius: '4px', padding: '1px 5px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+                                        {p.type} {p.balls}-{p.strikes}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </>
                           )}
                         </div>
@@ -2686,103 +3787,6 @@ export default function BroadcastConsole() {
                     );
                   })
                 )}
-              </div>
-            </div>
-
-            {/* Split Operational Control Panel Layout */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px' }}>
-              
-              {/* Left Column: At-Bat Engine Metrics */}
-              <div style={{ background: '#0f172a', padding: '20px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-                <h4 style={{ margin: '0 0 15px 0', color: '#94a3b8', fontSize: '13px' }}>📋 AT-BAT METRIC LOGS</h4>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '12px', color: '#64748b' }}>Current Pitcher:</span>
-                    <input type="text" placeholder="Name / #" value={currentPitcher} disabled={!user} onChange={e => setCurrentPitcher(e.target.value)} style={{ background: '#0b1329', border: '1px solid #334155', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }} />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '12px', color: '#64748b' }}>Active Batter:</span>
-                    <input type="text" placeholder="Name / #" value={currentBatter} disabled={!user} onChange={e => setCurrentBatter(e.target.value)} style={{ background: '#0b1329', border: '1px solid #334155', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }} />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '12px', color: '#64748b' }}>Pitch Count Tracker:</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <button disabled={!user} onClick={() => setPitchCount(p => Math.max(0, p - 1))} style={{ padding: '2px 8px', background: '#1e293b', border: 'none', color: '#fff', borderRadius: '4px', cursor: 'pointer' }}>-</button>
-                      <strong style={{ color: '#fff', minWidth: '25px', textAlign: 'center' }}>{pitchCount}</strong>
-                      <button disabled={!user} onClick={() => setPitchCount(p => p + 1)} style={{ padding: '2px 8px', background: '#1e293b', border: 'none', color: '#fff', borderRadius: '4px', cursor: 'pointer' }}>+</button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Micro Inning Counts UI Tracker */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingTop: '10px', borderTop: '1px solid #1e293b' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', width: '60px' }}>BALLS</span>
-                    {[1, 2, 3].map(b => (
-                      <div key={b} onClick={user ? () => setBalls(balls === b ? b - 1 : b) : null} style={{ width: '14px', height: '14px', borderRadius: '50%', background: balls >= b ? '#22c55e' : '#1e293b', cursor: user ? 'pointer' : 'default', border: '1px solid #334155' }} />
-                    ))}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', width: '60px' }}>STRIKES</span>
-                    {[1, 2].map(s => (
-                      <div key={s} onClick={user ? () => setStrikes(strikes === s ? s - 1 : s) : null} style={{ width: '14px', height: '14px', borderRadius: '50%', background: strikes >= s ? '#eab308' : '#1e293b', cursor: user ? 'pointer' : 'default', border: '1px solid #334155' }} />
-                    ))}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', width: '60px' }}>OUTS</span>
-                    {[1, 2].map(o => (
-                      <div key={o} onClick={user ? () => setOuts(outs === o ? o - 1 : o) : null} style={{ width: '14px', height: '14px', borderRadius: '50%', background: outs >= o ? '#ef4444' : '#1e293b', cursor: user ? 'pointer' : 'default', border: '1px solid #334155' }} />
-                    ))}
-                  </div>
-                </div>
-
-                <div style={{ borderTop: '1px solid #1e293b', marginTop: '18px', paddingTop: '15px' }}>
-                  <h4 style={{ color: '#94a3b8', fontSize: '12px', margin: '0 0 10px' }}>
-                    PITCH-BY-PITCH
-                  </h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
-                    {pitchResults.map((pitch) => (
-                      <button
-                        key={pitch.result}
-                        disabled={!user}
-                        onClick={() => recordPitch(pitch.result)}
-                        style={{ padding: '7px', background: '#1e293b', color: '#fff', border: '1px solid #334155', borderRadius: '4px', cursor: user ? 'pointer' : 'default', fontSize: '11px' }}
-                      >
-                        {pitch.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Column: Baserunner Diamond Graphic Interface */}
-              <div style={{ background: '#0f172a', padding: '20px', borderRadius: '8px', border: '1px solid #1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                <h4 style={{ margin: '0 0 15px 0', color: '#94a3b8', fontSize: '13px', width: '100%', textAlign: 'left' }}>🏃 ACTIVE BASERUNNERS</h4>
-                
-                <div style={{ position: 'relative', width: '140px', height: '140px', margin: '15px 0' }}>
-                  {/* 2nd Base */}
-                  <div 
-                    onClick={user ? () => setRunnerOnSecond(!runnerOnSecond) : null}
-                    style={{ position: 'absolute', top: 0, left: '60px', width: '22px', height: '22px', transform: 'rotate(45deg)', background: runnerOnSecond ? '#3b82f6' : '#1e293b', border: '2px solid #334155', cursor: user ? 'pointer' : 'default', transition: 'all 0.2s' }} 
-                  />
-                  {/* 3rd Base */}
-                  <div 
-                    onClick={user ? () => setRunnerOnThird(!runnerOnThird) : null}
-                    style={{ position: 'absolute', top: '60px', left: 0, width: '22px', height: '22px', transform: 'rotate(45deg)', background: runnerOnThird ? '#3b82f6' : '#1e293b', border: '2px solid #334155', cursor: user ? 'pointer' : 'default', transition: 'all 0.2s' }} 
-                  />
-                  {/* 1st Base */}
-                  <div 
-                    onClick={user ? () => setRunnerOnFirst(!runnerOnFirst) : null}
-                    style={{ position: 'absolute', top: '60px', right: 0, width: '22px', height: '22px', transform: 'rotate(45deg)', background: runnerOnFirst ? '#3b82f6' : '#1e293b', border: '2px solid #334155', cursor: user ? 'pointer' : 'default', transition: 'all 0.2s' }} 
-                  />
-                  {/* Home Plate Node Indicator */}
-                  <div style={{ position: 'absolute', bottom: 0, left: '62px', width: '18px', height: '18px', background: '#fff', border: '1px solid #94a3b8', clipPath: 'polygon(50% 0%, 100% 50%, 100% 100%, 0% 100%, 0% 50%)' }} />
-                </div>
-
-                <div style={{ display: 'flex', gap: '8px', width: '100%', marginTop: '10px' }}>
-                  <button disabled={!user} onClick={() => { setRunnerOnFirst(false); setRunnerOnSecond(false); setRunnerOnThird(false); }} style={{ width: '100%', padding: '4px 0', fontSize: '11px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }}>Clear All Paths</button>
-                </div>
               </div>
             </div>
 
@@ -2914,7 +3918,10 @@ export default function BroadcastConsole() {
                             <span className={game.status === 'Live' ? styles.liveBadge : styles.scheduledBadge}>{game.status || 'Scheduled'}</span>
                           )}
                           <div className={styles.scheduleCardActions}>
-                            <button disabled={!user} onClick={() => loadScheduledGameForScoring(game)}>Score Game</button>
+                            {game.status === 'Final'
+                              ? <button disabled={!user} onClick={() => reopenFinalGame(game)} style={{ color: '#f59e0b', borderColor: '#f59e0b55' }}>↩ Re-open</button>
+                              : <button disabled={!user} onClick={() => loadScheduledGameForScoring(game)}>Score Game</button>
+                            }
                             <button disabled={!user} onClick={() => editScheduledGame(game)}>Edit</button>
                             <button disabled={!user} onClick={() => deleteScheduledGame(game.id)}>Remove</button>
                           </div>
@@ -2948,621 +3955,23 @@ export default function BroadcastConsole() {
 
       {/* STAT SHEETS TAB SUB-SYSTEM */}
       {activeTab === 'stats' && (
-        <div>
-
-          {/* SEASON LEADERBOARD */}
-          {processedRoster.length > 0 && (() => {
-            const qualified = processedRoster.filter(p => p.ab >= 5);
-            const qualifiedPitchers = processedRoster.filter(p => p.ip >= 1);
-            const top = (arr, key, asc = false) =>
-              [...arr].sort((a, b) => asc ? a[key] - b[key] : b[key] - a[key]).slice(0, 3);
-
-            const categories = [
-              { label: 'Batting Avg', emoji: '🏏', players: top(qualified, 'avg'), fmt: p => p.avg.toFixed(3) },
-              { label: 'Home Runs', emoji: '💣', players: top(processedRoster, 'hr'), fmt: p => p.hr },
-              { label: 'RBI', emoji: '🤝', players: top(processedRoster, 'rbi'), fmt: p => p.rbi },
-              { label: 'ERA', emoji: '🔥', players: top(qualifiedPitchers, 'era', true), fmt: p => p.era.toFixed(2) },
-              { label: 'Strikeouts', emoji: '⚡', players: top(processedRoster, 'strikeouts'), fmt: p => p.strikeouts },
-            ];
-
-            return (
-              <div style={{ marginBottom: '24px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                  <h3 style={{ margin: 0, color: '#94a3b8', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1px' }}>🏆 Season Leaderboard — {selectedSeason}</h3>
-                  <span style={{ fontSize: '12px', color: '#475569' }}>Min 5 AB / 1 IP to qualify</span>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px' }}>
-                  {categories.map(cat => (
-                    <div key={cat.label} style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '10px', padding: '14px 16px' }}>
-                      <div style={{ fontSize: '11px', color: '#475569', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>{cat.emoji} {cat.label}</div>
-                      {cat.players.length === 0 ? (
-                        <div style={{ fontSize: '12px', color: '#334155' }}>No data yet</div>
-                      ) : (
-                        cat.players.map((p, i) => (
-                          <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '7px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                              <span style={{ fontSize: '11px', fontWeight: 'bold', color: i === 0 ? '#f59e0b' : i === 1 ? '#94a3b8' : '#78716c', minWidth: '16px' }}>
-                                {i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}
-                              </span>
-                              <span style={{ fontSize: '12px', color: '#cbd5e1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80px' }}>
-                                {p.firstName} {p.lastName}
-                              </span>
-                            </div>
-                            <strong style={{ fontSize: '13px', color: i === 0 ? '#f59e0b' : '#fff' }}>{cat.fmt(p)}</strong>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
-
-          <div className={styles.subNavigationTabs}>
-            <button className={`${styles.subTabBtn} ${statsSubTab === 'standard-hitting' ? styles.subTabBtnActive : ''}`} onClick={() => setStatsSubTab('standard-hitting')}>🏏 Standard Hitting</button>
-            <button className={`${styles.subTabBtn} ${statsSubTab === 'sabermetrics' ? styles.subTabBtnActive : ''}`} onClick={() => setStatsSubTab('sabermetrics')}>📊 Sabermetrics</button>
-            <button className={`${styles.subTabBtn} ${statsSubTab === 'pitching' ? styles.subTabBtnActive : ''}`} onClick={() => setStatsSubTab('pitching')}>🔥 Pitching Staff</button>
-            <button className={`${styles.subTabBtn} ${statsSubTab === 'fielding' ? styles.subTabBtnActive : ''}`} onClick={() => setStatsSubTab('fielding')}>🧤 Fielding Leather</button>
-            <button className={`${styles.subTabBtn} ${statsSubTab === 'spray' ? styles.subTabBtnActive : ''}`} onClick={() => setStatsSubTab('spray')}>🗺️ Spray Chart</button>
-            <button className={`${styles.subTabBtn} ${statsSubTab === 'win-prob' ? styles.subTabBtnActive : ''}`} onClick={() => setStatsSubTab('win-prob')}>📈 Win Probability</button>
-            <button className={`${styles.subTabBtn} ${statsSubTab === 'heatmap' ? styles.subTabBtnActive : ''}`} onClick={() => setStatsSubTab('heatmap')}>🔥 Pitch Heatmap</button>
-            <button className={`${styles.subTabBtn} ${statsSubTab === 'efficiency' ? styles.subTabBtnActive : ''}`} onClick={() => setStatsSubTab('efficiency')}>⚡ Batting Efficiency</button>
-          </div>
-
-          <div className={styles.statTableWrapper}>
-            <table className={styles.statGridTable}>
-              {statsSubTab === 'standard-hitting' && (
-                <>
-                  <thead>
-                    <tr><th>#</th><th>Player Name</th><th>G</th><th>AB</th><th>H</th><th>2B</th><th>3B</th><th>HR</th><th>RBI</th><th>R</th><th>BB</th><th>SB</th><th>AVG</th></tr>
-                  </thead>
-                  <tbody>
-                    {processedRoster.map(p => (
-                      <tr key={p.id}><td>{p.jersey}</td><td>{p.firstName} {p.lastName}</td><td>{p.gamesPlayed}</td><td>{p.ab}</td><td>{p.hits}</td><td>{p.double}</td><td>{p.triple}</td><td>{p.hr}</td><td>{p.rbi}</td><td>{p.runs}</td><td>{p.bb}</td><td>{p.sb}</td><td><strong>{p.avg.toFixed(3)}</strong></td></tr>
-                    ))}
-                    <tr style={{ background: '#0f172a', fontWeight: 'bold' }}><td>-</td><td>TEAM TOTALS</td><td>{teamTotals.g}</td><td>{teamTotals.ab}</td><td>{teamTotals.hits}</td><td>{teamTotals.double}</td><td>{teamTotals.triple}</td><td>{teamTotals.hr}</td><td>{teamTotals.rbi}</td><td>{teamTotals.runs}</td><td>{teamTotals.bb}</td><td>{teamTotals.sb}</td><td>{teamTotals.avg.toFixed(3)}</td></tr>
-                  </tbody>
-                </>
-              )}
-
-              {statsSubTab === 'sabermetrics' && (
-                <>
-                  <thead>
-                    <tr><th>#</th><th>Player Name</th><th>PA</th><th>AB</th><th>H</th><th>BB</th><th>OBP</th><th>SLG</th><th>OPS</th></tr>
-                  </thead>
-                  <tbody>
-                    {processedRoster.map(p => (
-                      <tr key={p.id}><td>{p.jersey}</td><td>{p.firstName} {p.lastName}</td><td>{p.pa}</td><td>{p.ab}</td><td>{p.hits}</td><td>{p.bb}</td><td>{p.obp.toFixed(3)}</td><td>{p.slg.toFixed(3)}</td><td><strong>{p.ops.toFixed(3)}</strong></td></tr>
-                    ))}
-                    <tr style={{ background: '#0f172a', fontWeight: 'bold' }}><td>-</td><td>TEAM TOTALS</td><td>{teamTotals.ab + teamTotals.bb}</td><td>{teamTotals.ab}</td><td>{teamTotals.hits}</td><td>{teamTotals.bb}</td><td>{teamTotals.obp.toFixed(3)}</td><td>{teamTotals.slg.toFixed(3)}</td><td>{teamTotals.ops.toFixed(3)}</td></tr>
-                  </tbody>
-                </>
-              )}
-
-              {statsSubTab === 'pitching' && (
-                <>
-                  <thead>
-                    <tr><th>#</th><th>Pitcher</th><th>IP</th><th>ER</th><th>H Allowed</th><th>BB Allowed</th><th>SO</th><th>W</th><th>WHIP</th><th>ERA</th></tr>
-                  </thead>
-                  <tbody>
-                    {processedRoster.map(p => (
-                      <tr key={p.id}><td>{p.jersey}</td><td>{p.firstName} {p.lastName}</td><td>{p.ip}</td><td>{p.er}</td><td>{p.hitsAllowed}</td><td>{p.walksAllowed}</td><td>{p.strikeouts}</td><td>{p.wins}</td><td>{p.whip.toFixed(2)}</td><td><strong>{p.era.toFixed(2)}</strong></td></tr>
-                    ))}
-                    <tr style={{ background: '#0f172a', fontWeight: 'bold' }}><td>-</td><td>TEAM TOTALS</td><td>{teamTotals.ip}</td><td>{teamTotals.er}</td><td>{teamTotals.hitsAllowed}</td><td>{teamTotals.walksAllowed}</td><td>{teamTotals.strikeouts}</td><td>{teamTotals.wins}</td><td>{teamTotals.whip.toFixed(2)}</td><td>{teamTotals.era.toFixed(2)}</td></tr>
-                  </tbody>
-                </>
-              )}
-
-              {statsSubTab === 'fielding' && (
-                <>
-                  <thead>
-                    <tr><th>#</th><th>Fielder</th><th>PO</th><th>A</th><th>E</th><th>TC</th><th>FIELD %</th></tr>
-                  </thead>
-                  <tbody>
-                    {processedRoster.map(p => (
-                      <tr key={p.id}><td>{p.jersey}</td><td>{p.firstName} {p.lastName}</td><td>{p.po}</td><td>{p.assists}</td><td>{p.errors}</td><td>{p.totalChances}</td><td><strong>{p.fieldingPct.toFixed(3)}</strong></td></tr>
-                    ))}
-                    <tr style={{ background: '#0f172a', fontWeight: 'bold' }}><td>-</td><td>TEAM TOTALS</td><td>{teamTotals.po}</td><td>{teamTotals.assists}</td><td>{teamTotals.errors}</td><td>{teamTotals.po + teamTotals.assists + teamTotals.errors}</td><td>{teamTotals.fp.toFixed(3)}</td></tr>
-                  </tbody>
-                </>
-              )}
-            </table>
-          </div>
-
-          {/* PITCH MIX & VELOCITY CHART */}
-          {statsSubTab === 'pitching' && pitchLog.length > 0 && (() => {
-            const pitchTypes = ['FB','CB','CH','SL','CT','SP','2S','KN'];
-            const typeColors = { FB: '#ef4444', CB: '#3b82f6', CH: '#22c55e', SL: '#f59e0b', CT: '#a855f7', SP: '#06b6d4', '2S': '#f97316', KN: '#6b7280' };
-            const pitcherNames = [...new Set(pitchLog.map(p => p.pitcher))];
-            const total = pitchLog.length;
-            return (
-              <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                {/* Pitch Mix % */}
-                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '10px', padding: '18px' }}>
-                  <div style={{ fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '14px' }}>⚾ Pitch Mix — {total} pitches</div>
-                  {pitchTypes.map(t => {
-                    const count = pitchLog.filter(p => p.type === t).length;
-                    if (!count) return null;
-                    const pct = ((count / total) * 100).toFixed(1);
-                    const veloEntries = pitchLog.filter(p => p.type === t && p.velo);
-                    const avgVelo = veloEntries.length ? (veloEntries.reduce((s,p) => s + p.velo, 0) / veloEntries.length).toFixed(1) : null;
-                    return (
-                      <div key={t} style={{ marginBottom: '10px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
-                          <span style={{ color: typeColors[t] || '#94a3b8', fontWeight: '800' }}>{t}</span>
-                          <span style={{ color: '#94a3b8' }}>{count}x · {pct}%{avgVelo ? ` · avg ${avgVelo} mph` : ''}</span>
-                        </div>
-                        <div style={{ background: '#1e293b', borderRadius: '4px', height: '8px', overflow: 'hidden' }}>
-                          <div style={{ width: `${pct}%`, height: '100%', background: typeColors[t] || '#475569', borderRadius: '4px', transition: 'width 0.3s' }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                {/* Velo by pitcher */}
-                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '10px', padding: '18px' }}>
-                  <div style={{ fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '14px' }}>📊 Velocity by Pitcher</div>
-                  {pitcherNames.map(name => {
-                    const entries = pitchLog.filter(p => p.pitcher === name && p.velo);
-                    if (!entries.length) return (
-                      <div key={name} style={{ fontSize: '12px', color: '#334155', marginBottom: '8px' }}>{name} — no velo logged</div>
-                    );
-                    const avg = (entries.reduce((s, p) => s + p.velo, 0) / entries.length).toFixed(1);
-                    const top = Math.max(...entries.map(p => p.velo));
-                    const low = Math.min(...entries.map(p => p.velo));
-                    return (
-                      <div key={name} style={{ marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid #1e293b' }}>
-                        <div style={{ fontSize: '13px', fontWeight: '700', color: '#fff', marginBottom: '6px' }}>{name}</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '6px' }}>
-                          {[['AVG', avg, '#38bdf8'], ['TOP', top, '#f59e0b'], ['LOW', low, '#64748b']].map(([lbl, val, c]) => (
-                            <div key={lbl} style={{ background: '#020617', border: '1px solid #1e293b', borderRadius: '6px', padding: '6px', textAlign: 'center' }}>
-                              <div style={{ fontSize: '9px', color: '#475569', fontWeight: '800', textTransform: 'uppercase' }}>{lbl}</div>
-                              <div style={{ fontSize: '16px', fontWeight: '900', color: c, fontFamily: 'monospace' }}>{val}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {pitcherNames.every(n => !pitchLog.filter(p => p.pitcher === n && p.velo).length) && (
-                    <div style={{ fontSize: '12px', color: '#334155' }}>Enter MPH in the pitch panel to see velocity data.</div>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* SPRAY CHART */}
-          {statsSubTab === 'spray' && (() => {
-            const hitColors = { single: '#22c55e', double: '#3b82f6', triple: '#a855f7', home_run: '#f59e0b', out: '#475569' };
-            const filteredDots = sprayChartPlayer === 'team'
-              ? sprayDots
-              : sprayDots.filter(d => d.batter === sprayChartPlayer);
-            const canvasW = 340, canvasH = 320;
-            const addDot = (e) => {
-              if (!user) return;
-              const rect = e.currentTarget.getBoundingClientRect();
-              const x = ((e.clientX - rect.left) / rect.width * 100).toFixed(1);
-              const y = ((e.clientY - rect.top) / rect.height * 100).toFixed(1);
-              const result = window.prompt('Hit result? (single/double/triple/home_run/groundout/flyout)', 'single');
-              if (!result) return;
-              const batter = sprayChartPlayer === 'team' ? (currentBatter || 'Unknown') : sprayChartPlayer;
-              setSprayDots(prev => [...prev, { x, y, result: result.trim().toLowerCase(), batter, id: Date.now() }]);
-            };
-            return (
-              <div style={{ padding: '20px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
-                  <h3 style={{ margin: 0, color: '#94a3b8', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1px' }}>🗺️ Spray Chart — Hit Location Tracker</h3>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <select value={sprayChartPlayer} onChange={e => setSprayChartPlayer(e.target.value)} style={{ background: '#1e293b', border: '1px solid #334155', color: '#fff', borderRadius: '6px', padding: '6px 10px', fontSize: '12px' }}>
-                      <option value="team">All Players</option>
-                      {processedRoster.map(p => <option key={p.id} value={`${p.firstName} ${p.lastName}`}>{p.firstName} {p.lastName}</option>)}
-                    </select>
-                    <button onClick={() => setSprayDots([])} disabled={!user || sprayDots.length === 0} style={{ background: '#7f1d1d', border: '1px solid #ef4444', color: '#fca5a5', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', cursor: 'pointer' }}>Clear</button>
-                  </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '24px', alignItems: 'start' }}>
-                  <div>
-                    <p style={{ color: '#475569', fontSize: '12px', margin: '0 0 10px' }}>{user ? 'Click anywhere on the field to log a hit location.' : 'Log in to add hits to the spray chart.'}</p>
-                    <div
-                      onClick={addDot}
-                      style={{ position: 'relative', width: '100%', maxWidth: `${canvasW}px`, aspectRatio: `${canvasW}/${canvasH}`, background: '#0b1a0b', border: '1px solid #1e293b', borderRadius: '8px', cursor: user ? 'crosshair' : 'default', overflow: 'hidden' }}
-                    >
-                      {/* Field outline — SVG */}
-                      <svg viewBox={`0 0 ${canvasW} ${canvasH}`} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
-                        {/* Outfield arc */}
-                        <path d={`M 170 ${canvasH} A 220 220 0 0 1 ${canvasW - 30} 80`} fill="none" stroke="#1a3a1a" strokeWidth="60" />
-                        <path d={`M 170 ${canvasH} A 220 220 0 0 1 ${canvasW - 30} 80`} fill="none" stroke="#166534" strokeWidth="2" />
-                        {/* Infield dirt */}
-                        <polygon points={`170,${canvasH - 30} 90,200 170,120 250,200`} fill="#2a1a0a" stroke="#3d2b10" strokeWidth="1" />
-                        {/* Foul lines */}
-                        <line x1="170" y1={canvasH} x2="10" y2="30" stroke="#334155" strokeWidth="1" strokeDasharray="4,4" />
-                        <line x1="170" y1={canvasH} x2={canvasW - 10} y2="30" stroke="#334155" strokeWidth="1" strokeDasharray="4,4" />
-                        {/* Bases */}
-                        {[[170,120],[250,200],[170,canvasH-30],[90,200]].map(([bx,by],i) => (
-                          <rect key={i} x={bx-6} y={by-6} width="12" height="12" fill={i===2?'#fff':'#f59e0b'} transform={`rotate(45,${bx},${by})`} />
-                        ))}
-                        {/* Pitcher mound */}
-                        <circle cx="170" cy="175" r="8" fill="#2a1a0a" stroke="#3d2b10" strokeWidth="1" />
-                      </svg>
-                      {/* Hit dots */}
-                      {filteredDots.map(dot => (
-                        <div
-                          key={dot.id}
-                          title={`${dot.batter} — ${dot.result}`}
-                          style={{
-                            position: 'absolute',
-                            left: `${dot.x}%`, top: `${dot.y}%`,
-                            width: '10px', height: '10px',
-                            borderRadius: '50%',
-                            background: hitColors[dot.result] || '#64748b',
-                            border: '1.5px solid rgba(255,255,255,0.3)',
-                            transform: 'translate(-50%,-50%)',
-                            pointerEvents: 'none'
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  {/* Legend + summary */}
-                  <div style={{ minWidth: '140px' }}>
-                    <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '14px', marginBottom: '12px' }}>
-                      <div style={{ fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', marginBottom: '10px' }}>Legend</div>
-                      {Object.entries(hitColors).map(([k, c]) => (
-                        <div key={k} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                          <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: c, flexShrink: 0 }} />
-                          <span style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'capitalize' }}>{k.replace('_', ' ')}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '14px' }}>
-                      <div style={{ fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', marginBottom: '10px' }}>Summary</div>
-                      {Object.entries(hitColors).map(([k, c]) => {
-                        const count = filteredDots.filter(d => d.result === k).length;
-                        if (!count) return null;
-                        return (
-                          <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>
-                            <span style={{ textTransform: 'capitalize' }}>{k.replace('_',' ')}</span>
-                            <strong style={{ color: c }}>{count}</strong>
-                          </div>
-                        );
-                      })}
-                      {filteredDots.length === 0 && <div style={{ fontSize: '12px', color: '#334155' }}>No data yet</div>}
-                      <div style={{ borderTop: '1px solid #1e293b', marginTop: '8px', paddingTop: '8px', fontSize: '12px', color: '#64748b', display: 'flex', justifyContent: 'space-between' }}>
-                        <span>Total</span><strong style={{ color: '#fff' }}>{filteredDots.length}</strong>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* ── WIN PROBABILITY CHART ── */}
-          {statsSubTab === 'win-prob' && (() => {
-            const W = 700, H = 260, PAD = { t: 24, r: 24, b: 40, l: 52 };
-            const iW = W - PAD.l - PAD.r, iH = H - PAD.t - PAD.b;
-
-            // Build WP series from scoring events using run-expectancy delta
-            // Each scoring event shifts win probability based on run differential and inning
-            const scoringEvts = recentEvents.filter(e => ['home_run','single','double','triple','run','walk','strikeout','hit_by_pitch','groundout','flyout','pop_out','out'].includes(e.result || e.eventType));
-            const wpSeries = [{ seq: 0, wp: 50, label: 'Start' }];
-
-            let ourR = 0, theirR = 0;
-            scoringEvts.forEach((e, i) => {
-              const result = e.result || e.eventType || '';
-              const runDelta = result.includes('home_run') ? 1 : result === 'run' ? 1 : 0;
-              const isOurs = isOurTeamBatting();
-              if (runDelta) isOurs ? (ourR += runDelta) : (theirR += runDelta);
-              const diff = ourR - theirR;
-              const inning = e.stateBefore?.inning || currentInning;
-              const inningsLeft = Math.max(1, 9 - inning);
-              // Logistic model: WP = 1 / (1 + exp(-k * diff)) where k scales with inning
-              const k = 0.4 + (9 - inningsLeft) * 0.08;
-              const raw = 1 / (1 + Math.exp(-k * diff));
-              const wp = Math.round(raw * 100);
-              wpSeries.push({ seq: i + 1, wp, label: (e.correctedLabel || e.label || result).replace(/_/g, ' ').slice(0, 22) });
-            });
-
-            // If no live events, show season W-L trend
-            const useSeasonMode = wpSeries.length < 3;
-            const seasonGames = seasonSchedule.filter(g => g.status === 'Final');
-            const seasonSeries = seasonGames.map((g, i) => {
-              const wins = seasonGames.slice(0, i + 1).filter(x => x.result === 'W').length;
-              const total = i + 1;
-              return { seq: i + 1, wp: Math.round((wins / total) * 100), label: `vs ${g.opponent || 'Opp'}` };
-            });
-            const series = useSeasonMode ? [{ seq: 0, wp: 50, label: 'Season Start' }, ...seasonSeries] : wpSeries;
-
-            if (series.length < 2) return (
-              <div style={{ padding: '40px', textAlign: 'center', color: '#334155', fontSize: '13px' }}>
-                <div style={{ fontSize: '32px', marginBottom: '12px' }}>📈</div>
-                Start scoring a game or add final results in the schedule to see win probability data.
-              </div>
-            );
-
-            const maxSeq = series[series.length - 1].seq;
-            const toX = seq => PAD.l + (seq / maxSeq) * iW;
-            const toY = wp => PAD.t + iH - (wp / 100) * iH;
-
-            const pathD = series.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(p.seq)} ${toY(p.wp)}`).join(' ');
-            const fillD = `${pathD} L ${toX(series[series.length - 1].seq)} ${PAD.t + iH} L ${toX(0)} ${PAD.t + iH} Z`;
-            const lastWp = series[series.length - 1].wp;
-            const wpColor = lastWp >= 60 ? '#22c55e' : lastWp <= 40 ? '#ef4444' : '#f59e0b';
-
-            return (
-              <div style={{ padding: '20px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
-                  <div>
-                    <div style={{ fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                      {useSeasonMode ? '📅 Season Win Rate Trend' : '📈 Live Win Probability'}
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
-                      {useSeasonMode ? `${seasonWins}W – ${seasonLosses}L season record` : `${recentEvents.length} events tracked`}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '11px', color: '#475569', textTransform: 'uppercase', fontWeight: '800' }}>Current WP</div>
-                    <div style={{ fontSize: '28px', fontWeight: '900', color: wpColor, fontFamily: 'monospace' }}>{lastWp}%</div>
-                  </div>
-                </div>
-                <div style={{ background: '#070f1e', border: '1px solid #1e293b', borderRadius: '12px', overflow: 'hidden' }}>
-                  <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxHeight: '280px', display: 'block' }}>
-                    {/* Grid lines */}
-                    {[0, 25, 50, 75, 100].map(pct => (
-                      <g key={pct}>
-                        <line x1={PAD.l} y1={toY(pct)} x2={PAD.l + iW} y2={toY(pct)} stroke="#1e293b" strokeWidth="1" strokeDasharray={pct === 50 ? '0' : '4,4'} />
-                        <text x={PAD.l - 6} y={toY(pct) + 4} fill="#334155" fontSize="10" textAnchor="end" fontFamily="monospace">{pct}%</text>
-                      </g>
-                    ))}
-                    {/* 50% line emphasis */}
-                    <line x1={PAD.l} y1={toY(50)} x2={PAD.l + iW} y2={toY(50)} stroke="#334155" strokeWidth="1.5" />
-                    {/* Fill */}
-                    <path d={fillD} fill={`${wpColor}18`} />
-                    {/* Line */}
-                    <path d={pathD} fill="none" stroke={wpColor} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-                    {/* Dots */}
-                    {series.map((p, i) => (
-                      <g key={i}>
-                        <circle cx={toX(p.seq)} cy={toY(p.wp)} r="4" fill={wpColor} stroke="#07101f" strokeWidth="2" />
-                        {i === series.length - 1 && (
-                          <circle cx={toX(p.seq)} cy={toY(p.wp)} r="7" fill="none" stroke={wpColor} strokeWidth="1.5" opacity="0.5" />
-                        )}
-                      </g>
-                    ))}
-                    {/* Labels */}
-                    <text x={PAD.l + iW / 2} y={H - 6} fill="#334155" fontSize="10" textAnchor="middle">{useSeasonMode ? 'Game #' : 'Play #'}</text>
-                  </svg>
-                </div>
-                {/* Last 5 plays */}
-                {!useSeasonMode && series.length > 1 && (
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '14px', flexWrap: 'wrap' }}>
-                    {series.slice(-5).map((p, i) => (
-                      <div key={i} style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '8px 12px', flex: '1 1 100px' }}>
-                        <div style={{ fontSize: '10px', color: '#334155', textTransform: 'uppercase', fontWeight: '800' }}>#{p.seq}</div>
-                        <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.label}</div>
-                        <div style={{ fontSize: '18px', fontWeight: '900', color: p.wp >= 60 ? '#22c55e' : p.wp <= 40 ? '#ef4444' : '#f59e0b', fontFamily: 'monospace' }}>{p.wp}%</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* ── PITCH HEATMAP ── */}
-          {statsSubTab === 'heatmap' && (() => {
-            const PITCH_COLORS = { FB: '#ef4444', CB: '#3b82f6', CH: '#22c55e', SL: '#f59e0b', CT: '#a855f7', SP: '#06b6d4', '2S': '#f97316', KN: '#6b7280' };
-            const pitcherNames = [...new Set(pitchLog.map(p => p.pitcher))];
-
-            const filtered = pitchLog.filter(p =>
-              (hmPitcher === 'all' || p.pitcher === hmPitcher) &&
-              (hmType === 'all' || p.type === hmType)
-            );
-
-            // Map result → zone position (0-8) via simple heuristic
-            const resultToZone = (result) => {
-              if (!result) return 4;
-              const r = result.toLowerCase();
-              if (r.includes('strikeout')) return Math.floor(Math.random() * 4); // corners
-              if (r.includes('ball')) return [0, 2, 6, 8][Math.floor(Math.random() * 4)]; // outside
-              if (r.includes('home_run') || r.includes('single')) return 4; // heart
-              if (r.includes('ground')) return [3, 5][Math.floor(Math.random() * 2)];
-              if (r.includes('fly') || r.includes('pop')) return [1, 7][Math.floor(Math.random() * 2)];
-              return Math.floor(Math.random() * 9);
-            };
-
-            // Accumulate pitch counts per zone
-            const zoneCounts = Array(9).fill(0);
-            filtered.forEach(p => { zoneCounts[resultToZone(p.result)] += 1; });
-            const maxCount = Math.max(...zoneCounts, 1);
-
-            const ZONE_LABELS = ['High-In', 'High', 'High-Out', 'Mid-In', 'Heart', 'Mid-Out', 'Low-In', 'Low', 'Low-Out'];
-
-            if (pitchLog.length === 0) return (
-              <div style={{ padding: '40px', textAlign: 'center', color: '#334155', fontSize: '13px' }}>
-                <div style={{ fontSize: '32px', marginBottom: '12px' }}>🔥</div>
-                Log pitches during a live game to populate the strike zone heatmap.
-              </div>
-            );
-
-            return (
-              <div style={{ padding: '20px' }}>
-                <div style={{ display: 'flex', gap: '10px', marginBottom: '18px', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <div style={{ fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px', marginRight: '4px' }}>🔥 Strike Zone Heatmap</div>
-                  <select value={hmPitcher} onChange={e => setHmPitcher(e.target.value)} style={{ background: '#1e293b', border: '1px solid #334155', color: '#fff', borderRadius: '6px', padding: '6px 10px', fontSize: '12px' }}>
-                    <option value="all">All Pitchers</option>
-                    {pitcherNames.map(n => <option key={n} value={n}>{n}</option>)}
-                  </select>
-                  <select value={hmType} onChange={e => setHmType(e.target.value)} style={{ background: '#1e293b', border: '1px solid #334155', color: '#fff', borderRadius: '6px', padding: '6px 10px', fontSize: '12px' }}>
-                    <option value="all">All Types</option>
-                    {Object.keys(PITCH_COLORS).map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                  <span style={{ fontSize: '12px', color: '#475569', marginLeft: 'auto' }}>{filtered.length} pitches</span>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '28px', alignItems: 'start' }}>
-                  {/* Heatmap grid */}
-                  <div>
-                    <div style={{ fontSize: '11px', color: '#334155', textTransform: 'uppercase', fontWeight: '800', marginBottom: '8px', textAlign: 'center' }}>Catcher's View</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '4px', maxWidth: '320px', margin: '0 auto', border: '2px solid #334155', borderRadius: '6px', padding: '8px', background: '#07101f' }}>
-                      {zoneCounts.map((count, idx) => {
-                        const intensity = count / maxCount;
-                        const r = Math.round(239 * intensity);
-                        const g = Math.round(68 * intensity);
-                        const b = Math.round(68 * intensity);
-                        const bg = count > 0 ? `rgba(${r},${g},${b},${0.2 + intensity * 0.7})` : '#0f172a';
-                        const border = count > 0 ? `1px solid rgba(${r},${g},${b},0.4)` : '1px solid #1e293b';
-                        return (
-                          <div key={idx} title={ZONE_LABELS[idx]} style={{ background: bg, border, borderRadius: '6px', height: '80px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
-                            <div style={{ fontSize: '20px', fontWeight: '900', color: count > 0 ? '#fff' : '#1e293b', fontFamily: 'monospace' }}>{count}</div>
-                            <div style={{ fontSize: '9px', color: count > 0 ? 'rgba(255,255,255,0.5)' : '#1e293b', textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.2 }}>{ZONE_LABELS[idx]}</div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', maxWidth: '320px', margin: '6px auto 0', fontSize: '10px', color: '#334155' }}>
-                      <span>← Inside</span><span>Outside →</span>
-                    </div>
-                  </div>
-                  {/* Pitch type breakdown */}
-                  <div style={{ minWidth: '160px' }}>
-                    <div style={{ fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', marginBottom: '12px' }}>Mix Breakdown</div>
-                    {Object.entries(PITCH_COLORS).map(([t, c]) => {
-                      const n = filtered.filter(p => p.type === t).length;
-                      if (!n) return null;
-                      const pct = ((n / filtered.length) * 100).toFixed(0);
-                      return (
-                        <div key={t} style={{ marginBottom: '10px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '3px' }}>
-                            <span style={{ color: c, fontWeight: '800' }}>{t}</span>
-                            <span style={{ color: '#475569' }}>{n}× {pct}%</span>
-                          </div>
-                          <div style={{ background: '#1e293b', borderRadius: '3px', height: '5px' }}>
-                            <div style={{ width: `${pct}%`, height: '100%', background: c, borderRadius: '3px' }} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                    <div style={{ marginTop: '16px', fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', marginBottom: '8px' }}>Outcome Split</div>
-                    {[['Strikes', filtered.filter(p => ['strikeout','called_strike','swinging_strike','foul'].includes(p.result)).length, '#22c55e'],
-                      ['Balls',   filtered.filter(p => p.result === 'ball').length, '#ef4444'],
-                      ['In Play', filtered.filter(p => !['strikeout','called_strike','swinging_strike','foul','ball'].includes(p.result)).length, '#38bdf8'],
-                    ].map(([lbl, n, c]) => (
-                      <div key={lbl} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>
-                        <span>{lbl}</span><strong style={{ color: c }}>{n}</strong>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* ── BATTING EFFICIENCY ── */}
-          {statsSubTab === 'efficiency' && (() => {
-            // League-average context for wRC+ (rough amateur baselines)
-            const lgAVG = 0.270, lgOBP = 0.330, lgSLG = 0.400, lgWOBA = 0.320;
-            const wOBAWeights = { bb: 0.69, hbp: 0.72, single: 0.88, double: 1.24, triple: 1.56, hr: 2.00 };
-
-            const effRoster = processedRoster.map(p => {
-              const singles = p.hits - (p.double + p.triple + p.hr);
-              const pa = p.ab + p.bb;
-              const woba = pa > 0
-                ? ((p.bb * wOBAWeights.bb) + (singles * wOBAWeights.single) + (p.double * wOBAWeights.double) + (p.triple * wOBAWeights.triple) + (p.hr * wOBAWeights.hr)) / pa
-                : 0;
-              const wrcPlus = lgWOBA > 0 ? Math.round(((woba - lgWOBA) / lgWOBA + 1) * 100) : 100;
-              const iso = p.slg - p.avg;
-              const bbPct = pa > 0 ? (p.bb / pa) * 100 : 0;
-              const kPct = pa > 0 ? ((p.strikeouts || 0) / pa) * 100 : 0;
-              const babip = (p.ab - (p.strikeouts || 0) - p.hr) > 0
-                ? (p.hits - p.hr) / (p.ab - (p.strikeouts || 0) - p.hr)
-                : 0;
-              return { ...p, woba, wrcPlus, iso, bbPct, kPct, babip };
-            }).sort((a, b) => b.wrcPlus - a.wrcPlus);
-
-            const barCell = (val, max, color, fmt) => (
-              <td style={{ padding: '10px 12px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: '700', color: '#e2e8f0' }}>{fmt(val)}</span>
-                  <div style={{ background: '#1e293b', borderRadius: '3px', height: '4px', width: '80px' }}>
-                    <div style={{ width: `${Math.min(100, (val / max) * 100).toFixed(0)}%`, height: '100%', background: color, borderRadius: '3px' }} />
-                  </div>
-                </div>
-              </td>
-            );
-
-            const maxWrc = Math.max(...effRoster.map(p => p.wrcPlus), 100);
-            const maxIso = Math.max(...effRoster.map(p => p.iso), 0.3);
-            const maxBb  = Math.max(...effRoster.map(p => p.bbPct), 15);
-            const maxK   = Math.max(...effRoster.map(p => p.kPct), 30);
-
-            if (effRoster.length === 0) return (
-              <div style={{ padding: '40px', textAlign: 'center', color: '#334155', fontSize: '13px' }}>
-                <div style={{ fontSize: '32px', marginBottom: '12px' }}>⚡</div>
-                Add players to the roster with at-bat data to see batting efficiency metrics.
-              </div>
-            );
-
-            return (
-              <div style={{ padding: '0' }}>
-                <div style={{ padding: '16px 20px 0', marginBottom: '0' }}>
-                  <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '14px' }}>
-                    {[
-                      ['wRC+', 'Weighted Runs Created Plus. 100 = league avg. Higher is better.', '#38bdf8'],
-                      ['wOBA', 'Weighted On-Base Average. Weights each outcome by run value.', '#a78bfa'],
-                      ['ISO', 'Isolated Power = SLG − AVG. Pure extra-base hit power.', '#f59e0b'],
-                      ['BB%', 'Walk rate. Higher = better plate discipline.', '#22c55e'],
-                      ['K%', 'Strikeout rate. Lower is generally better.', '#ef4444'],
-                      ['BABIP', 'Batting avg on balls in play. ~.300 is typical.', '#64748b'],
-                    ].map(([lbl, tip, c]) => (
-                      <div key={lbl} title={tip} style={{ fontSize: '11px', color: c, fontWeight: '800', cursor: 'help', borderBottom: `1px dotted ${c}`, paddingBottom: '1px' }}>{lbl}</div>
-                    ))}
-                  </div>
-                </div>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                    <thead>
-                      <tr style={{ background: '#07101f' }}>
-                        {['#', 'Player', 'wRC+', 'wOBA', 'ISO', 'BB%', 'K%', 'BABIP'].map(h => (
-                          <th key={h} style={{ padding: '10px 12px', color: '#475569', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'left', borderBottom: '1px solid #1e293b', whiteSpace: 'nowrap' }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {effRoster.map((p, i) => (
-                        <tr key={p.id} style={{ borderBottom: '1px solid #0f172a', background: i % 2 === 0 ? 'transparent' : 'rgba(15,23,42,0.3)' }}>
-                          <td style={{ padding: '10px 12px', color: '#475569', fontSize: '12px' }}>{p.jersey}</td>
-                          <td style={{ padding: '10px 12px', color: '#e2e8f0', fontWeight: '700', whiteSpace: 'nowrap' }}>{p.firstName} {p.lastName}</td>
-                          {/* wRC+ with context color */}
-                          <td style={{ padding: '10px 12px' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                              <span style={{ fontSize: '14px', fontWeight: '900', color: p.wrcPlus >= 120 ? '#22c55e' : p.wrcPlus >= 100 ? '#38bdf8' : p.wrcPlus >= 80 ? '#f59e0b' : '#ef4444', fontFamily: 'monospace' }}>{p.wrcPlus}</span>
-                              <div style={{ background: '#1e293b', borderRadius: '3px', height: '4px', width: '72px' }}>
-                                <div style={{ width: `${Math.min(100, (p.wrcPlus / maxWrc) * 100).toFixed(0)}%`, height: '100%', background: p.wrcPlus >= 100 ? '#38bdf8' : '#ef4444', borderRadius: '3px' }} />
-                              </div>
-                            </div>
-                          </td>
-                          {barCell(p.woba, 0.5, '#a78bfa', v => v.toFixed(3))}
-                          {barCell(p.iso, maxIso, '#f59e0b', v => v.toFixed(3))}
-                          {barCell(p.bbPct, maxBb, '#22c55e', v => `${v.toFixed(1)}%`)}
-                          {barCell(p.kPct, maxK, '#ef4444', v => `${v.toFixed(1)}%`)}
-                          {barCell(p.babip, 0.5, '#64748b', v => v.toFixed(3))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div style={{ padding: '10px 20px 16px', fontSize: '11px', color: '#1e293b', lineHeight: '1.6' }}>
-                  wRC+ uses lgWOBA = .320 · lgAVG = .270 as amateur baselines. Values update in real time as roster stats change.
-                </div>
-              </div>
-            );
-          })()}
-
-        </div>
+        <StatsPanel
+          processedRoster={processedRoster} recentEvents={recentEvents} pitchLog={pitchLog}
+          sprayDots={sprayDots} setSprayDots={setSprayDots}
+          sprayChartPlayer={sprayChartPlayer} setSprayChartPlayer={setSprayChartPlayer}
+          sprayPending={sprayPending} setSprayPending={setSprayPending}
+          editingSprayDot={editingSprayDot} setEditingSprayDot={setEditingSprayDot}
+          showHotZones={showHotZones} setShowHotZones={setShowHotZones}
+          currentBatter={currentBatter} user={user}
+          selectedSeason={selectedSeason} statsSubTab={statsSubTab} setStatsSubTab={setStatsSubTab}
+          seasonSchedule={seasonSchedule} seasonWins={seasonWins} seasonLosses={seasonLosses}
+          teamDisplayName={teamDisplayName} scoringOpponent={scoringOpponent}
+          ourInnings={ourInnings} theirInnings={theirInnings}
+          ourLiveScore={ourLiveScore} theirLiveScore={theirLiveScore}
+          ourHits={ourHits} theirHits={theirHits} ourErrors={ourErrors} theirErrors={theirErrors}
+          currentInning={currentInning} styles={styles}
+        />
       )}
-
       {/* SCOUTING REPORT TAB */}
       {activeTab === 'scouting' && (
         <ScoutingReportTab
@@ -4142,7 +4551,7 @@ export default function BroadcastConsole() {
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <button
                   onClick={() => {
-                    const fanUrl = `${window.location.origin}/fan?game=${encodeURIComponent(defaultLiveGameId)}`;
+                    const fanUrl = `${window.location.origin}/fan?game=${encodeURIComponent(liveGameId)}`;
                     navigator.clipboard?.writeText(fanUrl).catch(() => {});
                     localStorage.setItem('gt_fan_shared', 'true');
                     alert('Fan link copied! Send it to parents so they can follow along live next game.');
@@ -4154,7 +4563,7 @@ export default function BroadcastConsole() {
                 <button
                   onClick={() => {
                     const result = lastBoxScore?.result === 'W' ? `W ${lastBoxScore.ourScore}–${lastBoxScore.theirScore}` : `L ${lastBoxScore.ourScore}–${lastBoxScore.theirScore}`;
-                    const fanUrl = `${window.location.origin}/fan?game=${encodeURIComponent(defaultLiveGameId)}`;
+                    const fanUrl = `${window.location.origin}/fan?game=${encodeURIComponent(liveGameId)}`;
                     const text = `${teamDisplayName} ${result} vs ${lastBoxScore?.opponent}. Live stats & box score: ${fanUrl}`;
                     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank');
                     localStorage.setItem('gt_fan_shared', 'true');

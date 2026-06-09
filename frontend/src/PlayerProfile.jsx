@@ -189,10 +189,11 @@ export default function PlayerProfile() {
         <div>
           {/* Stat tabs */}
           <div className="playerStatTabs">
-            {['hitting','pitching','fielding'].map(t => (
+            {['hitting','pitching','fielding','gamelog','chart'].map(t => (
               <button key={t} onClick={() => setActiveTab(t)}
                 className={`playerStatTabBtn${activeTab === t ? ' playerStatTabActive' : ''}`}>
-                {t === 'hitting' ? '🏏' : t === 'pitching' ? '⚾' : '🧤'} {t.charAt(0).toUpperCase() + t.slice(1)}
+                {t === 'hitting' ? '🏏' : t === 'pitching' ? '⚾' : t === 'fielding' ? '🧤' : t === 'gamelog' ? '📅' : '📊'}{' '}
+                {t === 'gamelog' ? 'Game Log' : t === 'chart' ? 'Career Chart' : t.charAt(0).toUpperCase() + t.slice(1)}
               </button>
             ))}
           </div>
@@ -234,6 +235,55 @@ export default function PlayerProfile() {
                 <span>FPCT</span><strong>{dec(stats.fp)}</strong>
               </div>
             )}
+
+            {activeTab === 'gamelog' && (() => {
+              if (finalGames.length === 0) return (
+                <p style={{ color: '#475569', fontSize: '13px', padding: '8px 0' }}>No completed games in this season yet.</p>
+              );
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {finalGames.map((g, gi) => {
+                    const isWin = g.result === 'W';
+                    return (
+                      <div key={gi} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', background: '#0f172a', borderRadius: '8px', border: `1px solid ${isWin ? '#22c55e33' : '#ef444433'}` }}>
+                        <span style={{ fontSize: '11px', fontWeight: '900', color: isWin ? '#22c55e' : '#ef4444', minWidth: '16px' }}>{isWin ? 'W' : 'L'}</span>
+                        <span style={{ fontSize: '12px', color: '#94a3b8', flex: 1 }}>{g.date} <strong style={{ color: '#cbd5e1' }}>vs {g.opponent}</strong></span>
+                        <span style={{ fontSize: '13px', fontWeight: '900', color: '#fff', fontFamily: 'monospace' }}>{g.ourScore}–{g.theirScore}</span>
+                      </div>
+                    );
+                  })}
+                  <p style={{ fontSize: '11px', color: '#334155', marginTop: '4px' }}>Per-at-bat breakdowns available after integrating live event logs.</p>
+                </div>
+              );
+            })()}
+
+            {activeTab === 'chart' && (() => {
+              const metrics = [
+                { label: 'AVG', value: stats.avg, max: 0.5, fmt: v => v.toFixed(3).replace(/^0/,''), color: '#22c55e' },
+                { label: 'OBP', value: stats.obp, max: 0.6, fmt: v => v.toFixed(3).replace(/^0/,''), color: '#38bdf8' },
+                { label: 'SLG', value: stats.slg, max: 1.0, fmt: v => v.toFixed(3).replace(/^0/,''), color: '#f59e0b' },
+                { label: 'HR',  value: nv(player.hr),  max: Math.max(20, nv(player.hr)+1), fmt: v => v, color: '#ef4444' },
+                { label: 'RBI', value: nv(player.rbi), max: Math.max(60, nv(player.rbi)+1), fmt: v => v, color: '#a855f7' },
+                { label: 'SB',  value: nv(player.sb),  max: Math.max(20, nv(player.sb)+1),  fmt: v => v, color: '#06b6d4' },
+              ];
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '4px 0' }}>
+                  {metrics.map(m => {
+                    const pct = Math.min(1, m.value / m.max);
+                    return (
+                      <div key={m.label} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontSize: '10px', fontWeight: '800', color: '#475569', width: '28px', textAlign: 'right' }}>{m.label}</span>
+                        <div style={{ flex: 1, height: '10px', background: '#1e293b', borderRadius: '5px', overflow: 'hidden' }}>
+                          <div style={{ width: `${pct * 100}%`, height: '100%', background: m.color, borderRadius: '5px', transition: 'width 0.6s ease' }} />
+                        </div>
+                        <span style={{ fontSize: '11px', fontWeight: '900', color: m.color, width: '36px', fontFamily: 'monospace' }}>{m.fmt(m.value)}</span>
+                      </div>
+                    );
+                  })}
+                  <p style={{ fontSize: '11px', color: '#334155', marginTop: '6px' }}>Bar width = relative to typical ceiling for that stat.</p>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Video / Highlights */}

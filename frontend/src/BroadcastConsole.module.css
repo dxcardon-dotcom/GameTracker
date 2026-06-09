@@ -2550,3 +2550,52 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================
+   📱 GC SCORING PANEL — PHONE (≤480px)
+   Fixes for inline-styled scoring engine
+   ========================================== */
+@media (max-width: 480px) {
+  /* Scoreboard bar: stack score block and controls */
+  .gcScoringPanel {
+    min-width: 0 !important;
+  }
+
+  /* Force the GC engine container to full viewport height */
+  .gcEngineContainer {
+    height: calc(100dvh - 48px) !important;
+    min-height: 0 !important;
+  }
+
+  /* Lineup rail: hide on very small screens to give scoring room */
+  .lineupRail {
+    display: none !important;
+  }
+}
+
+/* ==========================================
+   📱 EXTRA COMPACT (≤390px — iPhone 14 portrait)
+   ========================================== */
+@media (max-width: 390px) {
+  .tabBarBtn {
+    padding: 6px 8px;
+    font-size: 10px;
+  }
+
+  .subTabBtn {
+    font-size: 10px;
+    padding: 4px 8px;
+  }
+
+  .scoreDigit {
+    font-size: 22px;
+  }
+
+  .playLogRows {
+    max-height: 200px;
+  }
+
+  .statGridTable {
+    min-width: 480px;
+  }
+}

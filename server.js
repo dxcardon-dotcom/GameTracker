@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import http from "node:http";
 import Stripe from "stripe";
+import webpush from "web-push";
 import { cert, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
@@ -8,6 +9,14 @@ import { FieldValue, getFirestore } from "firebase-admin/firestore";
 loadDotEnv();
 
 const port = Number(process.env.PORT || 4000);
+
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    process.env.VAPID_EMAIL || 'mailto:admin@gametracker.app',
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+}
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripePriceId = process.env.STRIPE_PRICE_ID;
@@ -237,6 +246,27 @@ async function appendGameEvent(req, res, gameId) {
         updatedBy: user.uid,
       });
     });
+
+    // Fire push notifications for notable events (non-blocking)
+    const evtType = event.eventType;
+    const runsScored = Number(event.runsScored || 0);
+    if (evtType === 'plate_appearance' && runsScored > 0) {
+      const teamName = event.teamProfile?.name || 'Your team';
+      sendPushToGameSubscribers(gameId, {
+        title: `${teamName} scores!`,
+        body: `${event.label || 'Run scored'} — ${runsScored} run${runsScored > 1 ? 's' : ''}`,
+        tag: `run-${gameId}`,
+        url: `/fan?game=${encodeURIComponent(gameId)}`,
+      }).catch(() => {});
+    }
+    if (evtType === 'game_over') {
+      sendPushToGameSubscribers(gameId, {
+        title: 'Final Score',
+        body: event.label || 'The game has ended.',
+        tag: `gameover-${gameId}`,
+        url: `/fan?game=${encodeURIComponent(gameId)}`,
+      }).catch(() => {});
+    }
 
     return sendJson(res, 201, { id: eventId });
   } catch (error) {
@@ -814,8 +844,41 @@ const server = http.createServer(async (req, res) => {
     return removeCoach(req, res, decodeURIComponent(removeCoachMatch[1]));
   }
 
+  // Push subscription endpoints
+  const pushSubMatch = requestUrl.pathname.match(/^\/api\/games\/([^/]+)\/push-subscribe$/);
+  if (req.method === "POST" && pushSubMatch) {
+    const gameId = decodeURIComponent(pushSubMatch[1]);
+    try {
+      const body = await readBody(req);
+      const subscription = JSON.parse(body);
+      await getDb().collection("games").doc(gameId)
+        .collection("pushSubscriptions").add({ subscription, createdAt: FieldValue.serverTimestamp() });
+      return sendJson(res, 200, { ok: true });
+    } catch (e) { return sendJson(res, 400, { error: "Bad subscription" }); }
+  }
+
+  if (req.method === "GET" && requestUrl.pathname === "/api/vapid-public-key") {
+    return sendJson(res, 200, { publicKey: process.env.VAPID_PUBLIC_KEY || null });
+  }
+
   return sendJson(res, 404, { error: "Not found" });
 });
+
+async function sendPushToGameSubscribers(gameId, payload) {
+  if (!process.env.VAPID_PUBLIC_KEY) return;
+  try {
+    const snap = await getDb().collection("games").doc(gameId)
+      .collection("pushSubscriptions").limit(200).get();
+    const sends = snap.docs.map(async (d) => {
+      try {
+        await webpush.sendNotification(d.data().subscription, JSON.stringify(payload));
+      } catch (e) {
+        if (e.statusCode === 410 || e.statusCode === 404) await d.ref.delete();
+      }
+    });
+    await Promise.allSettled(sends);
+  } catch (e) { console.error('Push error:', e.message); }
+}
 
 server.listen(port, () => {
   console.log(`GameTracker backend running on http://localhost:${port}`);

@@ -12,6 +12,7 @@
   "dependencies": {
     "firebase": "^12.14.0",
     "firebase-admin": "^13.10.0",
-    "stripe": "^22.2.0"
+    "stripe": "^22.2.0",
+    "web-push": "^3.6.7"
   }
 }
