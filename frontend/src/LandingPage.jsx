@@ -15,7 +15,7 @@ const features = [
 ];
 
 const testimonials = [
-  { name: 'Coach Rivera', team: 'El Paso Longhorns 14U', quote: 'GameTracker replaced three different apps for me. Scoring, stats, and recruiting all in one place.' },
+  { name: 'Coach Rivera', team: 'El Paso Longhorns 14U', quote: 'DiamondConnectPro replaced three different apps for me. Scoring, stats, and recruiting all in one place.' },
   { name: 'Coach Martinez', team: 'Desert Heat Softball', quote: 'My parents love the push notifications. They get a buzz every time we score — they go crazy in the stands.' },
   { name: 'Coach Thompson', team: 'West Texas Varsity Baseball', quote: 'The PDF game report at the end of each game is something I print and review with my staff every Sunday.' },
 ];
@@ -45,7 +45,7 @@ export default function LandingPage() {
 
       {/* ── NAV ── */}
       <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 32px', borderBottom: '1px solid #1e293b', position: 'sticky', top: 0, background: '#020617', zIndex: 100 }}>
-        <div style={{ fontSize: '20px', fontWeight: '900', color: '#38bdf8' }}>⚾ GameTracker</div>
+        <div style={{ fontSize: '20px', fontWeight: '900', color: '#38bdf8' }}>⚾ DiamondConnectPro</div>
         <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
           <a href="#features" style={{ color: '#94a3b8', textDecoration: 'none', fontSize: '14px' }}>Features</a>
           <a href="#pricing" style={{ color: '#94a3b8', textDecoration: 'none', fontSize: '14px' }}>Pricing</a>
@@ -125,8 +125,8 @@ export default function LandingPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
           {[
             { name: 'Free', price: '$0', sub: 'forever', color: '#64748b', border: '#1e293b', features: ['1 team', 'Live scoring', 'Fan GameStream', 'Season schedule', 'Basic stats'], cta: 'Get Started', href: '/', highlight: false },
-            { name: 'Pro Coach', price: '$6.99', sub: '/mo', color: '#38bdf8', border: '#38bdf8', features: ['Everything in Free', 'Unlimited teams', 'Recruiting profiles', 'Advanced stats', 'PDF game reports', 'Push notifications', 'Broadcast voice', 'Priority support'], cta: 'Upgrade to Pro', href: '/?tab=upgrade', highlight: true },
-            { name: 'Organization', price: '$39', sub: '/mo', color: '#a78bfa', border: '#7c3aed', features: ['Everything in Pro', 'Multi-team management', 'Staff accounts', 'Bulk roster import', 'League standings', 'Custom branding', 'Dedicated support'], cta: 'Upgrade to Org', href: '/?tab=upgrade', highlight: false },
+            { name: 'DCP Coach', price: '$6.99', sub: '/mo', color: '#38bdf8', border: '#38bdf8', features: ['Everything in Free', 'Unlimited teams', 'Recruiting profiles', 'Advanced stats', 'PDF game reports', 'Push notifications', 'Broadcast voice', 'Priority support'], cta: 'Upgrade to Pro', href: '/?tab=upgrade', highlight: true },
+            { name: 'DCP Organization', price: '$39', sub: '/mo', color: '#a78bfa', border: '#7c3aed', features: ['Everything in Pro', 'Multi-team management', 'Staff accounts', 'Bulk roster import', 'League standings', 'Custom branding', 'Dedicated support'], cta: 'Upgrade to Org', href: '/?tab=upgrade', highlight: false },
           ].map(p => (
             <div key={p.name} style={{ background: '#0f172a', border: `2px solid ${p.border}`, borderRadius: '14px', padding: '28px 24px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
               {p.highlight && <div style={{ position: 'absolute', top: '-13px', left: '50%', transform: 'translateX(-50%)', background: '#38bdf8', color: '#020617', fontSize: '11px', fontWeight: '900', padding: '4px 14px', borderRadius: '20px', whiteSpace: 'nowrap' }}>MOST POPULAR</div>}
@@ -152,7 +152,7 @@ export default function LandingPage() {
               <thead>
                 <tr style={{ background: '#0f172a' }}>
                   <th style={{ padding: '12px 16px', color: '#475569', textAlign: 'left', borderBottom: '1px solid #1e293b', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase' }}>Feature</th>
-                  {[['GameTracker', '#38bdf8'], ['GameChanger', '#475569'], ['iScore', '#334155']].map(([n, c]) => (
+                  {[['DiamondConnectPro', '#38bdf8'], ['GameChanger', '#475569'], ['iScore', '#334155']].map(([n, c]) => (
                     <th key={n} style={{ padding: '12px 16px', color: c, textAlign: 'center', borderBottom: '1px solid #1e293b', fontWeight: '900', fontSize: '12px' }}>{n}</th>
                   ))}
                 </tr>
@@ -175,7 +175,7 @@ export default function LandingPage() {
       <section style={{ padding: '80px 24px', textAlign: 'center' }}>
         <div style={{ maxWidth: '560px', margin: '0 auto' }}>
           <h2 style={{ fontSize: '36px', fontWeight: '900', margin: '0 0 16px' }}>Ready to coach smarter?</h2>
-          <p style={{ color: '#64748b', fontSize: '16px', margin: '0 0 32px' }}>Join 1,200+ coaches using GameTracker. Free to start, no credit card required.</p>
+          <p style={{ color: '#64748b', fontSize: '16px', margin: '0 0 32px' }}>Join 1,200+ coaches using DiamondConnectPro. Free to start, no credit card required.</p>
           {submitted ? (
             <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid #22c55e', borderRadius: '12px', padding: '16px 24px', color: '#86efac', fontWeight: '700' }}>✅ You're on the list! We'll be in touch.</div>
           ) : (
@@ -193,8 +193,8 @@ export default function LandingPage() {
 
       {/* ── FOOTER ── */}
       <footer style={{ borderTop: '1px solid #1e293b', padding: '32px 24px', textAlign: 'center' }}>
-        <div style={{ fontSize: '18px', fontWeight: '900', color: '#38bdf8', marginBottom: '8px' }}>⚾ GameTracker</div>
-        <div style={{ fontSize: '12px', color: '#334155' }}>Built for coaches. © {new Date().getFullYear()} GameTracker. All rights reserved.</div>
+        <div style={{ fontSize: '18px', fontWeight: '900', color: '#38bdf8', marginBottom: '8px' }}>⚾ DiamondConnectPro</div>
+        <div style={{ fontSize: '12px', color: '#334155' }}>Built for coaches. © {new Date().getFullYear()} DiamondConnectPro. All rights reserved.</div>
         <div style={{ display: 'flex', gap: '24px', justifyContent: 'center', marginTop: '16px' }}>
           <a href="/" style={{ color: '#334155', fontSize: '12px', textDecoration: 'none' }}>App</a>
           <a href="#pricing" style={{ color: '#334155', fontSize: '12px', textDecoration: 'none' }}>Pricing</a>

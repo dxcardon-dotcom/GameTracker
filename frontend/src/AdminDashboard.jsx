@@ -69,7 +69,7 @@ export default function AdminDashboard() {
 
       {/* NAV */}
       <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 28px', borderBottom: '1px solid #1e293b', background: '#07101f' }}>
-        <div style={{ fontSize: '16px', fontWeight: '900', color: '#38bdf8' }}>⚾ GameTracker <span style={{ color: '#475569', fontWeight: '400', fontSize: '12px' }}>/ Admin</span></div>
+        <div style={{ fontSize: '16px', fontWeight: '900', color: '#38bdf8' }}>⚾ DiamondConnectPro <span style={{ color: '#475569', fontWeight: '400', fontSize: '12px' }}>/ Admin</span></div>
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
           <span style={{ fontSize: '12px', color: '#475569' }}>{user.email}</span>
           <a href="/" style={{ color: '#64748b', fontSize: '12px', textDecoration: 'none' }}>← Back to app</a>
