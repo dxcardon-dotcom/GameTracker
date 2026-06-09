@@ -2082,11 +2082,12 @@ export default function BroadcastConsole() {
                               <button disabled={!user} onClick={() => editRosterPlayer(player)}>Edit</button>
                               <button disabled={!user} onClick={() => deleteRosterPlayer(player.id)}>Remove</button>
                               <a
-                                href={`/player?game=${encodeURIComponent(defaultLiveGameId)}&player=${encodeURIComponent(player.id)}`}
+                                href={`/player?season=${encodeURIComponent(selectedSeason)}&player=${encodeURIComponent(player.id)}`}
                                 target="_blank"
                                 rel="noreferrer"
+                                title="View public recruiting profile"
                               >
-                                Profile
+                                🎓 Profile
                               </a>
                               <button onClick={() => copyFanLink(player)} title="Copy fan/family share link" style={{ background: '#0f172a', border: '1px solid #334155', color: '#94a3b8', cursor: 'pointer' }}>📣 Share</button>
                             </span>

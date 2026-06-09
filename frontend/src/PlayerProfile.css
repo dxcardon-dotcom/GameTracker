@@ -117,12 +117,196 @@
   color: #fecaca !important;
 }
 
+.playerAvatarPhoto {
+  width: 82px;
+  height: 82px;
+  border-radius: 18px;
+  object-fit: cover;
+  border: 1px solid rgba(147, 197, 253, 0.6);
+  flex-shrink: 0;
+}
+
+.recruitingStatusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.contactBtn,
+.contactBtnSecondary {
+  background: rgba(37, 99, 235, 0.18);
+  border: 1px solid rgba(96, 165, 250, 0.5);
+  border-radius: 999px;
+  color: #dbeafe;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
+  padding: 10px 14px;
+  text-decoration: none;
+}
+
+.contactBtnSecondary {
+  background: rgba(148, 163, 184, 0.1);
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #cbd5e1;
+}
+
+.playerStatTabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.playerStatTabBtn {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 8px 16px;
+  text-transform: capitalize;
+}
+
+.playerStatTabActive {
+  background: #1e40af;
+  border-color: #3b82f6;
+  color: #fff;
+}
+
+.coachNoteText {
+  color: #93c5fd;
+  font-size: 13px;
+  font-style: italic;
+  margin: 0 0 14px;
+  line-height: 1.5;
+}
+
+.playerVideoSection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.videoEmbedWrapper {
+  position: relative;
+  width: 100%;
+  padding-top: 56.25%;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.videoEmbedWrapper iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.videoLinkBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(37, 99, 235, 0.12);
+  border: 1px solid rgba(96, 165, 250, 0.35);
+  border-radius: 8px;
+  color: #93c5fd;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 14px;
+  text-decoration: none;
+}
+
+.recruitContactCTA {
+  display: block;
+  margin-top: 16px;
+  background: #2563eb;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 12px;
+  text-align: center;
+  text-decoration: none;
+}
+
+.recruitContactCTA:hover {
+  background: #1d4ed8;
+}
+
+.rosterSwitcher {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.rosterSwitcherRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: #94a3b8;
+  font-size: 13px;
+  transition: background 0.15s;
+}
+
+.rosterSwitcherRow:hover { background: rgba(30, 41, 59, 0.7); color: #fff; }
+
+.rosterSwitcherActive {
+  background: rgba(37, 99, 235, 0.15);
+  color: #93c5fd;
+  font-weight: 700;
+}
+
+.rosterSwitcherJersey {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 900;
+  min-width: 32px;
+  padding: 3px 6px;
+  text-align: center;
+}
+
+.rosterSwitcherName { flex: 1; font-weight: 600; }
+
+.rosterSwitcherPos {
+  font-size: 11px;
+  color: #475569;
+  font-weight: 700;
+}
+
+.playerSeoFooter {
+  text-align: center;
+  padding: 24px;
+  color: #334155;
+  font-size: 12px;
+  border-top: 1px solid #1e293b;
+  margin-top: 24px;
+  max-width: 1180px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .playerSummaryGrid {
   background: rgba(8, 15, 30, 0.88);
   border-radius: 18px;
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   margin: 0 auto 18px;
   max-width: 1180px;
   padding: 16px;

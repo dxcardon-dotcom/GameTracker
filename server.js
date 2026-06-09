@@ -295,6 +295,27 @@ async function getPublicSeasonPage(res, seasonId) {
   }
 }
 
+async function getPublicPlayerProfile(res, seasonId, playerId) {
+  try {
+    const seasonSnap = await getDb().collection("seasons").doc(seasonId).get();
+    if (!seasonSnap.exists) return sendJson(res, 404, { error: "Season not found" });
+    const season = serializeFirestoreValue(seasonSnap.data());
+    if (season.visibility === "private") return sendJson(res, 403, { error: "Private team" });
+    const roster = season.roster || [];
+    const player = roster.find(p => String(p.id) === String(playerId));
+    if (!player) return sendJson(res, 404, { error: "Player not found" });
+    return sendJson(res, 200, {
+      player,
+      teamProfile: season.teamProfile || {},
+      schedule: season.schedule || [],
+      roster: roster.map(p => ({ id: p.id, firstName: p.firstName, lastName: p.lastName, jersey: p.jersey, primaryPosition: p.primaryPosition })),
+    });
+  } catch (err) {
+    console.error("Player profile error:", err);
+    return sendJson(res, 500, { error: "Could not load player profile" });
+  }
+}
+
 async function getPublicGameStream(res, gameId) {
   try {
     const gameRef = getDb().collection("games").doc(gameId);
@@ -538,6 +559,11 @@ const server = http.createServer(async (req, res) => {
   const publicSeasonMatch = requestUrl.pathname.match(/^\/api\/public\/seasons\/([^/]+)$/);
   if (req.method === "GET" && publicSeasonMatch) {
     return getPublicSeasonPage(res, decodeURIComponent(publicSeasonMatch[1]));
+  }
+
+  const publicPlayerMatch = requestUrl.pathname.match(/^\/api\/public\/seasons\/([^/]+)\/players\/([^/]+)$/);
+  if (req.method === "GET" && publicPlayerMatch) {
+    return getPublicPlayerProfile(res, decodeURIComponent(publicPlayerMatch[1]), decodeURIComponent(publicPlayerMatch[2]));
   }
 
   const publicGameStreamMatch = requestUrl.pathname.match(/^\/api\/public\/games\/([^/]+)\/stream$/);
