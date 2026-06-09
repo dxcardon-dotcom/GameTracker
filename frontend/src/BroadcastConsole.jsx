@@ -90,6 +90,25 @@ export default function BroadcastConsole() {
   const [sprayChartPlayer, setSprayChartPlayer] = useState('team');
   const [sprayDots, setSprayDots] = useState([]);
 
+  // ⚾ Pitch Velocity & Type
+  const [pitchVelo, setPitchVelo] = useState('');
+  const [pitchType, setPitchType] = useState('FB');
+  const [pitchLog, setPitchLog] = useState([]);
+
+  // 📋 Game Day Checklist
+  const [checklistItems, setChecklistItems] = useState([
+    { id: 1, label: 'Equipment packed (bats, helmets, catchers gear)', done: false },
+    { id: 2, label: 'Lineup card printed', done: false },
+    { id: 3, label: 'Field setup confirmed (bases, chalk)', done: false },
+    { id: 4, label: 'Umpires confirmed', done: false },
+    { id: 5, label: 'Bus / transportation arranged', done: false },
+    { id: 6, label: 'Uniforms distributed', done: false },
+    { id: 7, label: 'Scorebook ready', done: false },
+    { id: 8, label: 'Medical kit on site', done: false },
+  ]);
+  const [newChecklistItem, setNewChecklistItem] = useState('');
+  const [checklistAlertSent, setChecklistAlertSent] = useState(false);
+
   // Live Score Modifier Tracker States
   const [scoringOpponent, setScoringOpponent] = useState('Fabens High School');
   const [scoringLocation, setScoringLocation] = useState('Home');
@@ -563,6 +582,16 @@ export default function BroadcastConsole() {
     setLastPlaySummary(`${pitch?.label || result} recorded for ${currentBatter || 'current batter'}.`);
     advanceHalfInningIfNeeded(nextOuts);
 
+    const veloNum = pitchVelo ? Number(pitchVelo) : null;
+    setPitchLog(prev => [...prev, {
+      pitcher: currentPitcher || 'Unknown',
+      type: pitchType,
+      velo: veloNum,
+      result,
+      inning: currentInning,
+      id: Date.now()
+    }]);
+
     await logScoringEvent('pitch', {
       result,
       label: pitch?.label || result,
@@ -572,7 +601,9 @@ export default function BroadcastConsole() {
       outsBefore: before.outs,
       ballsAfter: nextBalls,
       strikesAfter: nextStrikes,
-      outsAfter: nextOuts
+      outsAfter: nextOuts,
+      pitchType,
+      pitchVelo: veloNum
     });
   };
 
@@ -1693,6 +1724,7 @@ export default function BroadcastConsole() {
         <button className={`${styles.tabBarBtn} ${activeTab === 'stats' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('stats')}>📈 Stat Sheets</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'scouting' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('scouting')}>🔍 Scouting</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'bracket' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('bracket')}>🏆 Bracket</button>
+        <button className={`${styles.tabBarBtn} ${activeTab === 'gameday' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('gameday')}>📋 Game Day</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'upgrade' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('upgrade')} style={{ marginLeft: 'auto', color: '#f59e0b', borderColor: '#f59e0b' }}>⭐ Upgrade</button>
       </div>
 
@@ -2291,6 +2323,23 @@ export default function BroadcastConsole() {
               <div className={styles.gcActionGrid}>
                 <div className={styles.gcActionCard}>
                   <h4>1. Pitch</h4>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <select value={pitchType} onChange={e => setPitchType(e.target.value)} disabled={!user}
+                      style={{ background: '#0b1329', border: '1px solid #334155', color: '#f8fafc', borderRadius: '6px', padding: '6px 10px', fontSize: '12px', fontWeight: '800' }}>
+                      {['FB','CB','CH','SL','CT','SP','2S','KN'].map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <input type="number" min="40" max="110" placeholder="MPH" value={pitchVelo} onChange={e => setPitchVelo(e.target.value)} disabled={!user}
+                        style={{ background: '#0b1329', border: '1px solid #334155', color: '#f8fafc', borderRadius: '6px', padding: '6px 8px', fontSize: '12px', width: '72px', textAlign: 'center' }} />
+                      <span style={{ fontSize: '11px', color: '#475569' }}>mph</span>
+                    </div>
+                    {pitchLog.filter(p => p.velo).length > 0 && (() => {
+                      const vl = pitchLog.filter(p => p.velo);
+                      const avg = (vl.reduce((s, p) => s + p.velo, 0) / vl.length).toFixed(1);
+                      const top = Math.max(...vl.map(p => p.velo));
+                      return <span style={{ fontSize: '11px', color: '#64748b' }}>avg <strong style={{ color: '#38bdf8' }}>{avg}</strong> · top <strong style={{ color: '#f59e0b' }}>{top}</strong></span>;
+                    })()}
+                  </div>
                   <div className={styles.gcButtonGrid}>
                     {pitchResults.map((pitch) => (
                       <button
@@ -2819,6 +2868,69 @@ export default function BroadcastConsole() {
             </table>
           </div>
 
+          {/* PITCH MIX & VELOCITY CHART */}
+          {statsSubTab === 'pitching' && pitchLog.length > 0 && (() => {
+            const pitchTypes = ['FB','CB','CH','SL','CT','SP','2S','KN'];
+            const typeColors = { FB: '#ef4444', CB: '#3b82f6', CH: '#22c55e', SL: '#f59e0b', CT: '#a855f7', SP: '#06b6d4', '2S': '#f97316', KN: '#6b7280' };
+            const pitcherNames = [...new Set(pitchLog.map(p => p.pitcher))];
+            const total = pitchLog.length;
+            return (
+              <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                {/* Pitch Mix % */}
+                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '10px', padding: '18px' }}>
+                  <div style={{ fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '14px' }}>⚾ Pitch Mix — {total} pitches</div>
+                  {pitchTypes.map(t => {
+                    const count = pitchLog.filter(p => p.type === t).length;
+                    if (!count) return null;
+                    const pct = ((count / total) * 100).toFixed(1);
+                    const veloEntries = pitchLog.filter(p => p.type === t && p.velo);
+                    const avgVelo = veloEntries.length ? (veloEntries.reduce((s,p) => s + p.velo, 0) / veloEntries.length).toFixed(1) : null;
+                    return (
+                      <div key={t} style={{ marginBottom: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
+                          <span style={{ color: typeColors[t] || '#94a3b8', fontWeight: '800' }}>{t}</span>
+                          <span style={{ color: '#94a3b8' }}>{count}x · {pct}%{avgVelo ? ` · avg ${avgVelo} mph` : ''}</span>
+                        </div>
+                        <div style={{ background: '#1e293b', borderRadius: '4px', height: '8px', overflow: 'hidden' }}>
+                          <div style={{ width: `${pct}%`, height: '100%', background: typeColors[t] || '#475569', borderRadius: '4px', transition: 'width 0.3s' }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* Velo by pitcher */}
+                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '10px', padding: '18px' }}>
+                  <div style={{ fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '14px' }}>📊 Velocity by Pitcher</div>
+                  {pitcherNames.map(name => {
+                    const entries = pitchLog.filter(p => p.pitcher === name && p.velo);
+                    if (!entries.length) return (
+                      <div key={name} style={{ fontSize: '12px', color: '#334155', marginBottom: '8px' }}>{name} — no velo logged</div>
+                    );
+                    const avg = (entries.reduce((s, p) => s + p.velo, 0) / entries.length).toFixed(1);
+                    const top = Math.max(...entries.map(p => p.velo));
+                    const low = Math.min(...entries.map(p => p.velo));
+                    return (
+                      <div key={name} style={{ marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid #1e293b' }}>
+                        <div style={{ fontSize: '13px', fontWeight: '700', color: '#fff', marginBottom: '6px' }}>{name}</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '6px' }}>
+                          {[['AVG', avg, '#38bdf8'], ['TOP', top, '#f59e0b'], ['LOW', low, '#64748b']].map(([lbl, val, c]) => (
+                            <div key={lbl} style={{ background: '#020617', border: '1px solid #1e293b', borderRadius: '6px', padding: '6px', textAlign: 'center' }}>
+                              <div style={{ fontSize: '9px', color: '#475569', fontWeight: '800', textTransform: 'uppercase' }}>{lbl}</div>
+                              <div style={{ fontSize: '16px', fontWeight: '900', color: c, fontFamily: 'monospace' }}>{val}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {pitcherNames.every(n => !pitchLog.filter(p => p.pitcher === n && p.velo).length) && (
+                    <div style={{ fontSize: '12px', color: '#334155' }}>Enter MPH in the pitch panel to see velocity data.</div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* SPRAY CHART */}
           {statsSubTab === 'spray' && (() => {
             const hitColors = { single: '#22c55e', double: '#3b82f6', triple: '#a855f7', home_run: '#f59e0b', out: '#475569' };
@@ -2949,6 +3061,101 @@ export default function BroadcastConsole() {
           teamSport={teamSport}
         />
       )}
+
+      {/* GAME DAY CHECKLIST TAB */}
+      {activeTab === 'gameday' && (() => {
+        const done = checklistItems.filter(i => i.done).length;
+        const total = checklistItems.length;
+        const pct = total ? Math.round((done / total) * 100) : 0;
+        const allDone = done === total;
+
+        const toggle = (id) => setChecklistItems(prev => prev.map(i => i.id === id ? { ...i, done: !i.done } : i));
+        const removeItem = (id) => setChecklistItems(prev => prev.filter(i => i.id !== id));
+        const addItem = () => {
+          if (!newChecklistItem.trim()) return;
+          setChecklistItems(prev => [...prev, { id: Date.now(), label: newChecklistItem.trim(), done: false }]);
+          setNewChecklistItem('');
+        };
+        const resetAll = () => { setChecklistItems(prev => prev.map(i => ({ ...i, done: false }))); setChecklistAlertSent(false); };
+        const sendAlert = () => {
+          sendGameNotif('📋 Game Day Ready!', `${teamDisplayName || homeTeamName} checklist complete — ${done}/${total} items done. Let's go!`);
+          setChecklistAlertSent(true);
+        };
+
+        const nextGame = (currentSeasonData.schedule || [])
+          .filter(g => g.status === 'Scheduled' || g.status === 'Live')
+          .sort((a, b) => new Date(a.date) - new Date(b.date))[0];
+
+        return (
+          <div style={{ maxWidth: '680px', margin: '24px auto', padding: '0 20px' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <h2 style={{ margin: '0 0 4px', color: '#fff', fontSize: '18px' }}>📋 Game Day Checklist</h2>
+                {nextGame && (
+                  <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>
+                    Next: <strong style={{ color: '#94a3b8' }}>{nextGame.opponent}</strong> · {nextGame.date} · {nextGame.location === 'Away' ? '@ Away' : 'Home'}
+                  </p>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={resetAll} style={{ background: '#1e293b', border: '1px solid #334155', color: '#94a3b8', borderRadius: '8px', padding: '8px 14px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}>↺ Reset</button>
+                <button onClick={sendAlert} disabled={!allDone || checklistAlertSent || notifPermission !== 'granted'}
+                  style={{ background: allDone && !checklistAlertSent ? '#22c55e' : '#1e293b', border: `1px solid ${allDone && !checklistAlertSent ? '#22c55e' : '#334155'}`, color: allDone && !checklistAlertSent ? '#020617' : '#475569', borderRadius: '8px', padding: '8px 14px', fontSize: '12px', fontWeight: '800', cursor: allDone && !checklistAlertSent ? 'pointer' : 'default' }}>
+                  {checklistAlertSent ? '✓ Alert Sent' : '🔔 Send Alert'}
+                </button>
+              </div>
+            </div>
+
+            {/* Progress bar */}
+            <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '16px 20px', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#64748b', marginBottom: '8px' }}>
+                <span>{done} of {total} complete</span>
+                <strong style={{ color: allDone ? '#22c55e' : '#f59e0b' }}>{pct}%</strong>
+              </div>
+              <div style={{ background: '#1e293b', borderRadius: '999px', height: '10px', overflow: 'hidden' }}>
+                <div style={{ width: `${pct}%`, height: '100%', background: allDone ? '#22c55e' : '#3b82f6', borderRadius: '999px', transition: 'width 0.3s' }} />
+              </div>
+              {allDone && <div style={{ marginTop: '10px', color: '#22c55e', fontSize: '13px', fontWeight: '700', textAlign: 'center' }}>✅ All items complete — ready to play!</div>}
+            </div>
+
+            {/* Checklist items */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
+              {checklistItems.map(item => (
+                <div key={item.id} onClick={() => toggle(item.id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px', background: item.done ? 'rgba(34,197,94,0.08)' : '#0f172a', border: `1px solid ${item.done ? 'rgba(34,197,94,0.3)' : '#1e293b'}`, borderRadius: '10px', cursor: 'pointer', transition: 'all 0.15s' }}>
+                  <div style={{ width: '22px', height: '22px', borderRadius: '6px', border: `2px solid ${item.done ? '#22c55e' : '#334155'}`, background: item.done ? '#22c55e' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
+                    {item.done && <span style={{ color: '#020617', fontSize: '14px', fontWeight: '900' }}>✓</span>}
+                  </div>
+                  <span style={{ flex: 1, fontSize: '14px', color: item.done ? '#475569' : '#e2e8f0', textDecoration: item.done ? 'line-through' : 'none', transition: 'all 0.15s' }}>{item.label}</span>
+                  <button onClick={e => { e.stopPropagation(); removeItem(item.id); }}
+                    style={{ background: 'none', border: 'none', color: '#334155', cursor: 'pointer', fontSize: '16px', padding: '0 4px', lineHeight: 1 }}>×</button>
+                </div>
+              ))}
+            </div>
+
+            {/* Add item */}
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                value={newChecklistItem}
+                onChange={e => setNewChecklistItem(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addItem()}
+                placeholder="Add a checklist item…"
+                style={{ flex: 1, background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '10px 14px', fontSize: '13px' }}
+              />
+              <button onClick={addItem} disabled={!newChecklistItem.trim()}
+                style={{ background: '#2563eb', border: 'none', borderRadius: '8px', color: '#fff', padding: '10px 18px', fontSize: '13px', fontWeight: '800', cursor: 'pointer' }}>
+                + Add
+              </button>
+            </div>
+            {notifPermission !== 'granted' && (
+              <p style={{ marginTop: '14px', fontSize: '12px', color: '#475569', textAlign: 'center' }}>
+                Enable notifications in the header banner to send game-day push alerts.
+              </p>
+            )}
+          </div>
+        );
+      })()}
 
       {/* UPGRADE / PRICING TAB */}
       {activeTab === 'upgrade' && (
