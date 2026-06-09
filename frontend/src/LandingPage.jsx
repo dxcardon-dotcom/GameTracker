@@ -42,27 +42,42 @@ export default function LandingPage() {
 
   return (
     <div style={{ background: '#020617', color: '#fff', fontFamily: 'system-ui, -apple-system, sans-serif', minHeight: '100vh' }}>
+      <style>{`
+        .dcp-nav-links { display: flex; gap: 24px; align-items: center; }
+        .dcp-hero-h1 { font-size: 52px; }
+        .dcp-hero-p { font-size: 18px; }
+        .dcp-pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+        .dcp-social-proof { display: flex; gap: 32px; justify-content: center; margin-top: 48px; flex-wrap: wrap; }
+        @media (max-width: 768px) {
+          .dcp-nav-links a:not(:last-child) { display: none; }
+          .dcp-nav-links { gap: 12px; }
+          .dcp-hero-h1 { font-size: 32px !important; }
+          .dcp-hero-p { font-size: 15px !important; }
+          .dcp-pricing-grid { grid-template-columns: 1fr !important; }
+          .dcp-social-proof { gap: 20px; }
+        }
+      `}</style>
 
       {/* ── NAV ── */}
-      <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 32px', borderBottom: '1px solid #1e293b', position: 'sticky', top: 0, background: '#020617', zIndex: 100 }}>
-        <div style={{ fontSize: '20px', fontWeight: '900', color: '#38bdf8' }}>⚾ DiamondConnectPro</div>
-        <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+      <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid #1e293b', position: 'sticky', top: 0, background: '#020617', zIndex: 100 }}>
+        <div style={{ fontSize: '17px', fontWeight: '900', color: '#38bdf8' }}>⚾ DiamondConnectPro</div>
+        <div className="dcp-nav-links">
           <a href="#features" style={{ color: '#94a3b8', textDecoration: 'none', fontSize: '14px' }}>Features</a>
           <a href="#pricing" style={{ color: '#94a3b8', textDecoration: 'none', fontSize: '14px' }}>Pricing</a>
           <a href="#compare" style={{ color: '#94a3b8', textDecoration: 'none', fontSize: '14px' }}>Compare</a>
-          <a href="/" style={{ background: '#38bdf8', color: '#020617', borderRadius: '8px', padding: '8px 18px', fontWeight: '800', fontSize: '14px', textDecoration: 'none' }}>Open App →</a>
+          <a href="/" style={{ background: '#38bdf8', color: '#020617', borderRadius: '8px', padding: '8px 16px', fontWeight: '800', fontSize: '13px', textDecoration: 'none', whiteSpace: 'nowrap' }}>Open App →</a>
         </div>
       </nav>
 
       {/* ── HERO ── */}
-      <section style={{ textAlign: 'center', padding: '80px 24px 60px', maxWidth: '800px', margin: '0 auto' }}>
+      <section style={{ textAlign: 'center', padding: '60px 20px 48px', maxWidth: '800px', margin: '0 auto' }}>
         <div style={{ display: 'inline-block', background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.3)', borderRadius: '20px', padding: '6px 18px', fontSize: '12px', color: '#38bdf8', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '24px' }}>
           Built for Baseball &amp; Softball Coaches
         </div>
-        <h1 style={{ fontSize: '52px', fontWeight: '900', lineHeight: 1.1, margin: '0 0 20px', background: 'linear-gradient(135deg, #fff 0%, #38bdf8 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-          The Scoring App<br />Coaches Actually Use
+        <h1 className="dcp-hero-h1" style={{ fontWeight: '900', lineHeight: 1.1, margin: '0 0 20px', background: 'linear-gradient(135deg, #fff 0%, #38bdf8 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          Connecting Coaches,<br />Players, and Performance.
         </h1>
-        <p style={{ fontSize: '18px', color: '#64748b', margin: '0 0 40px', lineHeight: 1.6 }}>
+        <p className="dcp-hero-p" style={{ color: '#64748b', margin: '0 0 40px', lineHeight: 1.6, padding: '0 8px' }}>
           Live pitch-by-pitch scoring, advanced stats, recruiting profiles, and fan push notifications — all in one place. Free to start.
         </p>
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -71,7 +86,7 @@ export default function LandingPage() {
         </div>
 
         {/* Social proof */}
-        <div style={{ display: 'flex', gap: '32px', justifyContent: 'center', marginTop: '48px', flexWrap: 'wrap' }}>
+        <div className="dcp-social-proof">
           {[['1,200+', 'Coaches'], ['18,000+', 'Games Scored'], ['340K+', 'At-Bats Tracked']].map(([n, l]) => (
             <div key={l} style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '28px', fontWeight: '900', color: '#38bdf8', fontFamily: 'monospace' }}>{n}</div>
@@ -122,7 +137,7 @@ export default function LandingPage() {
           <div style={{ fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '12px' }}>Simple pricing</div>
           <h2 style={{ fontSize: '36px', fontWeight: '900', margin: 0 }}>Start free. Upgrade when ready.</h2>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
+        <div className="dcp-pricing-grid">
           {[
             { name: 'Free', price: '$0', sub: 'forever', color: '#64748b', border: '#1e293b', features: ['1 team', 'Live scoring', 'Fan GameStream', 'Season schedule', 'Basic stats'], cta: 'Get Started', href: '/', highlight: false },
             { name: 'DCP Coach', price: '$6.99', sub: '/mo', color: '#38bdf8', border: '#38bdf8', features: ['Everything in Free', 'Unlimited teams', 'Recruiting profiles', 'Advanced stats', 'PDF game reports', 'Push notifications', 'Broadcast voice', 'Priority support'], cta: 'Upgrade to Pro', href: '/?tab=upgrade', highlight: true },
@@ -142,18 +157,19 @@ export default function LandingPage() {
       </section>
 
       {/* ── COMPARE ── */}
-      <section id="compare" style={{ padding: '80px 24px', background: '#07101f' }}>
+      <section id="compare" style={{ padding: '60px 16px', background: '#07101f' }}>
         <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-            <h2 style={{ fontSize: '32px', fontWeight: '900', margin: 0 }}>How we compare</h2>
+          <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+            <h2 style={{ fontSize: '28px', fontWeight: '900', margin: '0 0 8px' }}>How we compare</h2>
+            <p style={{ fontSize: '12px', color: '#334155', margin: 0 }}>← Scroll to compare →</p>
           </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', borderRadius: '12px', border: '1px solid #1e293b' }}>
+            <table style={{ minWidth: '520px', width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
               <thead>
                 <tr style={{ background: '#0f172a' }}>
-                  <th style={{ padding: '12px 16px', color: '#475569', textAlign: 'left', borderBottom: '1px solid #1e293b', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase' }}>Feature</th>
-                  {[['DiamondConnectPro', '#38bdf8'], ['GameChanger', '#475569'], ['iScore', '#334155']].map(([n, c]) => (
-                    <th key={n} style={{ padding: '12px 16px', color: c, textAlign: 'center', borderBottom: '1px solid #1e293b', fontWeight: '900', fontSize: '12px' }}>{n}</th>
+                  <th style={{ padding: '12px 14px', color: '#475569', textAlign: 'left', borderBottom: '1px solid #1e293b', fontWeight: '800', fontSize: '10px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Feature</th>
+                  {[['DCP', '#38bdf8'], ['GameChanger', '#475569'], ['iScore', '#334155']].map(([n, c]) => (
+                    <th key={n} style={{ padding: '12px 14px', color: c, textAlign: 'center', borderBottom: '1px solid #1e293b', fontWeight: '900', fontSize: '11px', whiteSpace: 'nowrap' }}>{n}</th>
                   ))}
                 </tr>
               </thead>
@@ -161,7 +177,7 @@ export default function LandingPage() {
                 {compRows.map((row, i) => (
                   <tr key={i} style={{ background: i % 2 === 0 ? '#0a1628' : '#0f172a' }}>
                     {row.map((cell, j) => (
-                      <td key={j} style={{ padding: '11px 16px', color: j === 0 ? '#94a3b8' : j === 1 ? '#fff' : '#475569', textAlign: j === 0 ? 'left' : 'center', borderBottom: '1px solid #1e293b', fontWeight: j === 1 ? '700' : '400' }}>{cell}</td>
+                      <td key={j} style={{ padding: '10px 14px', color: j === 0 ? '#94a3b8' : j === 1 ? '#fff' : '#475569', textAlign: j === 0 ? 'left' : 'center', borderBottom: '1px solid #1e293b', fontWeight: j === 1 ? '700' : '400', fontSize: '12px', whiteSpace: j === 0 ? 'normal' : 'nowrap' }}>{cell}</td>
                     ))}
                   </tr>
                 ))}

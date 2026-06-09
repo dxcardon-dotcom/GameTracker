@@ -2167,6 +2167,24 @@ export default function BroadcastConsole() {
     }
   };
 
+  const openCustomerPortal = async () => {
+    if (!user) { setShowAuthModal(true); return; }
+    setCheckoutStatus('loading');
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`${apiBaseUrl}/create-portal`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not open portal');
+      window.location.href = data.url;
+    } catch (err) {
+      console.error(err);
+      setCheckoutStatus('error');
+    }
+  };
+
   const handleCreateTeam = async () => {
     if (!user || !newTeamName.trim()) return;
     setNewTeamStatus('Creating…');
@@ -4395,7 +4413,10 @@ export default function BroadcastConsole() {
                 ))}
               </ul>
               {userPlan === 'pro' ? (
-                <div style={{ padding: '10px', background: '#1d4ed8', borderRadius: '8px', textAlign: 'center', color: '#fff', fontSize: '13px', fontWeight: 'bold' }}>✓ Current Plan</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ padding: '10px', background: '#1d4ed8', borderRadius: '8px', textAlign: 'center', color: '#fff', fontSize: '13px', fontWeight: 'bold' }}>✓ Current Plan</div>
+                  <button onClick={openCustomerPortal} disabled={checkoutStatus === 'loading'} style={{ padding: '10px', background: 'transparent', border: '1px solid #334155', borderRadius: '8px', color: '#64748b', fontSize: '12px', cursor: 'pointer' }}>⚙️ Manage / Cancel Subscription</button>
+                </div>
               ) : (
                 <button
                   onClick={() => startCheckout('pro')}
@@ -4420,7 +4441,10 @@ export default function BroadcastConsole() {
                 ))}
               </ul>
               {userPlan === 'org' ? (
-                <div style={{ padding: '10px', background: '#7c3aed', borderRadius: '8px', textAlign: 'center', color: '#fff', fontSize: '13px', fontWeight: 'bold' }}>✓ Current Plan</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ padding: '10px', background: '#7c3aed', borderRadius: '8px', textAlign: 'center', color: '#fff', fontSize: '13px', fontWeight: 'bold' }}>✓ Current Plan</div>
+                  <button onClick={openCustomerPortal} disabled={checkoutStatus === 'loading'} style={{ padding: '10px', background: 'transparent', border: '1px solid #334155', borderRadius: '8px', color: '#64748b', fontSize: '12px', cursor: 'pointer' }}>⚙️ Manage / Cancel Subscription</button>
+                </div>
               ) : (
                 <button
                   onClick={() => startCheckout('org')}
@@ -4441,7 +4465,7 @@ export default function BroadcastConsole() {
               <thead>
                 <tr style={{ background: '#07101f' }}>
                   <th style={{ padding: '12px 16px', color: '#475569', textAlign: 'left', borderBottom: '1px solid #1e293b', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase' }}>Feature</th>
-                  {[['GameTracker', '#38bdf8'], ['GameChanger', '#475569'], ['iScore', '#334155']].map(([name, c]) => (
+                  {[['DiamondConnectPro', '#38bdf8'], ['GameChanger', '#475569'], ['iScore', '#334155']].map(([name, c]) => (
                     <th key={name} style={{ padding: '12px 16px', color: c, textAlign: 'center', borderBottom: '1px solid #1e293b', fontWeight: '900', fontSize: '12px' }}>{name}</th>
                   ))}
                 </tr>

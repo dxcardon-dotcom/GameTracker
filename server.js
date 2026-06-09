@@ -802,6 +802,25 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  if (req.method === "POST" && requestUrl.pathname === "/create-portal") {
+    try {
+      const user = await requireUser(req);
+      const userDoc = await getDb().collection("users").doc(user.uid).get();
+      const customerId = userDoc.exists ? userDoc.data().stripeCustomerId : null;
+      if (!customerId) {
+        return sendJson(res, 400, { error: "No Stripe customer found. Please upgrade first." });
+      }
+      const session = await stripe.billingPortal.sessions.create({
+        customer: customerId,
+        return_url: `${clientUrl}/?tab=upgrade`,
+      });
+      return sendJson(res, 200, { url: session.url });
+    } catch (error) {
+      console.error("Portal error:", error);
+      return sendJson(res, 500, { error: error.message });
+    }
+  }
+
   if (req.method === "POST" && requestUrl.pathname === "/stripe-webhook") {
     return handleStripeWebhook(req, res);
   }
