@@ -1725,7 +1725,7 @@ export default function BroadcastConsole() {
         <button className={`${styles.tabBarBtn} ${activeTab === 'scouting' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('scouting')}>🔍 Scouting</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'bracket' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('bracket')}>🏆 Bracket</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'gameday' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('gameday')}>📋 Game Day</button>
-        <button className={`${styles.tabBarBtn} ${activeTab === 'upgrade' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('upgrade')} style={{ marginLeft: 'auto', color: '#f59e0b', borderColor: '#f59e0b' }}>⭐ Upgrade</button>
+        <button className={`${styles.tabBarBtn} ${activeTab === 'upgrade' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('upgrade')} style={{ marginLeft: 'auto', color: activeTab === 'upgrade' ? '#fff' : '#f59e0b', background: activeTab === 'upgrade' ? '#854d0e' : 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.4)' }}>⭐ Upgrade</button>
       </div>
 
       {/* TOP MEDIA BANNER */}
@@ -2325,8 +2325,9 @@ export default function BroadcastConsole() {
                   <h4>1. Pitch</h4>
                   <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <select value={pitchType} onChange={e => setPitchType(e.target.value)} disabled={!user}
+                      title="FB=Fastball CB=Curveball CH=Changeup SL=Slider CT=Cutter SP=Splitter 2S=2-Seam KN=Knuckleball"
                       style={{ background: '#0b1329', border: '1px solid #334155', color: '#f8fafc', borderRadius: '6px', padding: '6px 10px', fontSize: '12px', fontWeight: '800' }}>
-                      {['FB','CB','CH','SL','CT','SP','2S','KN'].map(t => <option key={t} value={t}>{t}</option>)}
+                      {[['FB','Fastball'],['CB','Curveball'],['CH','Changeup'],['SL','Slider'],['CT','Cutter'],['SP','Splitter'],['2S','2-Seam'],['KN','Knuckleball']].map(([t,l]) => <option key={t} value={t}>{t} — {l}</option>)}
                     </select>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <input type="number" min="40" max="110" placeholder="MPH" value={pitchVelo} onChange={e => setPitchVelo(e.target.value)} disabled={!user}

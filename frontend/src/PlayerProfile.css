@@ -330,17 +330,23 @@
 .playerContentGrid {
   display: grid;
   gap: 18px;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
   margin: 0 auto 18px;
   max-width: 1180px;
+  align-items: start;
 }
 
 .playerCard,
 .playerMediaPlaceholder,
 .playerEmptyState {
   background: rgba(8, 15, 30, 0.88);
+  border: 1px solid #1e293b;
   border-radius: 18px;
   padding: 18px;
+  transition: border-color 0.15s;
+}
+.playerCard:hover {
+  border-color: #334155;
 }
 
 .playerCardHeader {
@@ -467,7 +473,10 @@
     justify-content: flex-start;
   }
 
-  .playerSummaryGrid,
+  .playerSummaryGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
   .playerContentGrid {
     grid-template-columns: 1fr;
   }
@@ -477,6 +486,40 @@
   }
 
   .playerHeroActions {
+    flex-direction: row;
+    flex-wrap: wrap;
     justify-content: flex-start;
+  }
+
+  .recruitingStatusBadge {
+    font-size: 11px;
+    padding: 4px 10px;
+  }
+
+  .rosterSwitcher {
+    max-height: 220px;
+  }
+}
+
+@media (max-width: 480px) {
+  .playerSummaryGrid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .playerSummaryGrid div strong {
+    font-size: 20px;
+  }
+
+  .playerHero {
+    padding: 16px;
+  }
+
+  .playerAvatar {
+    width: 56px;
+    height: 56px;
+    font-size: 18px;
+    border-radius: 12px;
   }
 }
