@@ -295,6 +295,78 @@ async function getPublicSeasonPage(res, seasonId) {
   }
 }
 
+async function getDiscoveryFeed(res, requestUrl) {
+  try {
+    const params = requestUrl.searchParams;
+    const position = params.get('position') || '';
+    const classYear = params.get('classYear') || '';
+    const sport = params.get('sport') || '';
+    const status = params.get('status') || '';
+
+    const snap = await getDb().collection('seasons')
+      .where('teamProfile.privacy', '!=', 'Private')
+      .limit(200)
+      .get();
+
+    const players = [];
+    snap.forEach(doc => {
+      const season = serializeFirestoreValue(doc.data());
+      if (season.visibility === 'private') return;
+      const tp = season.teamProfile || {};
+      const roster = season.roster || [];
+      roster.forEach(p => {
+        if (!p.firstName && !p.lastName) return;
+        if (position && p.primaryPosition !== position) return;
+        if (classYear && String(p.classYear) !== String(classYear)) return;
+        if (sport && tp.sport !== sport) return;
+        if (status && p.recruitingStatus !== status) return;
+
+        const ab = Number(p.ab || 0);
+        const hits = Number(p.hits || 0);
+        const hr = Number(p.hr || 0);
+        const rbi = Number(p.rbi || 0);
+        const ip = Number(p.ip || 0);
+        const er = Number(p.er || 0);
+        const so = Number(p.strikeouts || 0);
+        players.push({
+          id: p.id,
+          seasonId: doc.id,
+          firstName: p.firstName || '',
+          lastName: p.lastName || '',
+          jersey: p.jersey || '',
+          primaryPosition: p.primaryPosition || '',
+          classYear: p.classYear || '',
+          height: p.height || '',
+          weight: p.weight || '',
+          gpa: p.gpa || '',
+          bats: p.bats || '',
+          throws: p.throws || '',
+          recruitingStatus: p.recruitingStatus || 'Open',
+          committedSchool: p.committedSchool || '',
+          highlightUrl: p.highlightUrl || '',
+          playerEmail: p.playerEmail || '',
+          coachNotes: p.coachNotes || '',
+          teamName: tp.name || '',
+          teamSport: tp.sport || 'Baseball',
+          teamLocation: tp.location || '',
+          teamAgeGroup: tp.ageGroup || '',
+          season: doc.id,
+          avg: ab ? hits / ab : 0,
+          hr, rbi, so,
+          era: ip ? (er * 9) / ip : null,
+          ab, hits, ip,
+        });
+      });
+    });
+
+    players.sort((a, b) => b.avg - a.avg);
+    return sendJson(res, 200, { players: players.slice(0, 150) });
+  } catch (err) {
+    console.error('Discovery feed error:', err);
+    return sendJson(res, 500, { error: 'Could not load discovery feed' });
+  }
+}
+
 async function getPublicPlayerProfile(res, seasonId, playerId) {
   try {
     const seasonSnap = await getDb().collection("seasons").doc(seasonId).get();
@@ -564,6 +636,10 @@ const server = http.createServer(async (req, res) => {
   const publicPlayerMatch = requestUrl.pathname.match(/^\/api\/public\/seasons\/([^/]+)\/players\/([^/]+)$/);
   if (req.method === "GET" && publicPlayerMatch) {
     return getPublicPlayerProfile(res, decodeURIComponent(publicPlayerMatch[1]), decodeURIComponent(publicPlayerMatch[2]));
+  }
+
+  if (req.method === "GET" && requestUrl.pathname === "/api/public/discover") {
+    return getDiscoveryFeed(res, requestUrl);
   }
 
   const publicGameStreamMatch = requestUrl.pathname.match(/^\/api\/public\/games\/([^/]+)\/stream$/);

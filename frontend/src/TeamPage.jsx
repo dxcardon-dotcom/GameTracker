@@ -201,9 +201,12 @@ export default function TeamPage() {
             <p style={{ margin: '0 0 6px' }}>
               {sportEmoji(sport)} {profile.teamName || 'This team'} is tracked live on <strong style={{ color: '#94a3b8' }}>GameTracker</strong> — pitch-by-pitch scoring, stats, and recruiting for baseball &amp; softball.
             </p>
-            <p style={{ margin: 0 }}>
+            <p style={{ margin: '0 0 12px' }}>
               Coaches, players, and families follow along in real time.
             </p>
+            <a href="/discover" style={{ display: 'block', background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.3)', borderRadius: '8px', color: '#a78bfa', fontSize: '12px', fontWeight: '700', padding: '8px 12px', textAlign: 'center', textDecoration: 'none' }}>
+              🎓 College Coach Discovery Feed ↗
+            </a>
           </div>
 
         </div>

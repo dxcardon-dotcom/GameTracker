@@ -1760,6 +1760,14 @@ export default function BroadcastConsole() {
                 🌐 Public Team Page ↗
               </a>
             )}
+            <a
+              href="/discover"
+              target="_blank"
+              rel="noreferrer"
+              style={{ fontSize: '11px', color: '#a78bfa', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.3)', padding: '4px 12px', borderRadius: '999px' }}
+            >
+              🎓 Coach Discovery ↗
+            </a>
           </div>
         </div>
       </div>
