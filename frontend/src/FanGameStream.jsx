@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import './FanGameStream.css';
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
@@ -38,10 +38,35 @@ function statAverage(player) {
   return (Number(player.hits || 0) / atBats).toFixed(3).replace(/^0/, '');
 }
 
+const EVENT_COLORS = {
+  home_run:       { bg: 'rgba(245,158,11,0.15)',  border: 'rgba(245,158,11,0.5)',  label: '💥 HOME RUN',   color: '#f59e0b' },
+  single:         { bg: 'rgba(34,197,94,0.1)',    border: 'rgba(34,197,94,0.4)',   label: '✔ Single',      color: '#22c55e' },
+  double:         { bg: 'rgba(56,189,248,0.1)',   border: 'rgba(56,189,248,0.4)',  label: '✔ Double',      color: '#38bdf8' },
+  triple:         { bg: 'rgba(167,139,250,0.1)',  border: 'rgba(167,139,250,0.4)', label: '✔ Triple',      color: '#a78bfa' },
+  strikeout:      { bg: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.35)',  label: '✗ Strikeout',   color: '#ef4444' },
+  walk:           { bg: 'rgba(96,165,250,0.08)',  border: 'rgba(96,165,250,0.3)',  label: '🚶 Walk',       color: '#60a5fa' },
+  hit_by_pitch:   { bg: 'rgba(96,165,250,0.08)',  border: 'rgba(96,165,250,0.3)',  label: '🩹 HBP',        color: '#60a5fa' },
+  run:            { bg: 'rgba(251,191,36,0.12)',  border: 'rgba(251,191,36,0.45)', label: '🏃 Run Scores', color: '#fbbf24' },
+  correction:     { bg: 'rgba(250,204,21,0.07)',  border: 'rgba(250,204,21,0.4)',  label: '✏ Correction',  color: '#facc15' },
+};
+
+function eventStyle(event) {
+  const result = event.result || event.eventType || '';
+  for (const [key, val] of Object.entries(EVENT_COLORS)) {
+    if (result.includes(key)) return val;
+  }
+  return { bg: 'rgba(2,6,23,0.6)', border: '#1e293b', label: null, color: '#94a3b8' };
+}
+
 export default function FanGameStream() {
   const [stream, setStream] = useState(null);
   const [status, setStatus] = useState('Loading live stream');
   const [copied, setCopied] = useState(false);
+  const [mobileTab, setMobileTab] = useState('game');
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [notifStatus, setNotifStatus] = useState(() =>
+    typeof Notification !== 'undefined' ? Notification.permission : 'default'
+  );
 
   const gameId = new URLSearchParams(window.location.search).get('game') || defaultLiveGameId;
   const shareUrl = `${window.location.origin}/fan?game=${encodeURIComponent(gameId)}`;
@@ -127,8 +152,73 @@ export default function FanGameStream() {
     }
   };
 
+  const copyPlayerCard = useCallback(async (player) => {
+    const url = `${window.location.origin}${playerProfileUrl(player)}`;
+    const text = `Check out ${formatPlayerName(player)} — AVG ${statAverage(player)} · ${Number(player.hr || 0)} HR · ${Number(player.rbi || 0)} RBI. GameTracker Live: ${url}`;
+    try { await navigator.clipboard.writeText(text); } catch {}
+  }, [gameId]);
+
+  const subscribeNotifs = async () => {
+    if (typeof Notification === 'undefined') return;
+    const result = await Notification.requestPermission();
+    setNotifStatus(result);
+    if (result === 'granted') {
+      new Notification(`📲 Subscribed to ${teamName}!`, { body: `You'll get alerts for big plays and score changes.`, icon: '/favicon.ico' });
+    }
+  };
+
+  const recentPitches = useMemo(() => {
+    return events.filter(e => e.eventType === 'pitch' && e.pitchType).slice(-8).reverse();
+  }, [events]);
+
+  const PITCH_COLORS = { FB: '#ef4444', CB: '#3b82f6', CH: '#22c55e', SL: '#f59e0b', CT: '#a855f7', SP: '#06b6d4', '2S': '#f97316', KN: '#6b7280' };
+
+  const innings = game.ourInnings || [];
+  const theirInnings2 = game.theirInnings || [];
+  const maxInnings = Math.max(innings.length, theirInnings2.length, 7);
+
   return (
     <main className="fanStreamShell">
+
+      {/* PLAYER STAT CARD OVERLAY */}
+      {selectedPlayer && (
+        <div className="fanCardOverlay" onClick={() => setSelectedPlayer(null)}>
+          <div className="fanStatCard" onClick={e => e.stopPropagation()}>
+            <button className="fanStatCardClose" onClick={() => setSelectedPlayer(null)}>×</button>
+            <div className="fanStatCardHero">
+              <div className="fanStatCardAvatar">#{selectedPlayer.jersey || '?'}</div>
+              <div>
+                <div className="fanStatCardName">{formatPlayerName(selectedPlayer)}</div>
+                <div className="fanStatCardMeta">{selectedPlayer.primaryPosition || 'Player'} · {selectedPlayer.classYear ? `Class of ${selectedPlayer.classYear}` : teamName}</div>
+              </div>
+            </div>
+            <div className="fanStatCardGrid">
+              {[['AVG', statAverage(selectedPlayer)], ['HR', selectedPlayer.hr || 0], ['RBI', selectedPlayer.rbi || 0], ['H', selectedPlayer.hits || 0], ['BB', selectedPlayer.bb || 0], ['SB', selectedPlayer.sb || 0]].map(([lbl, val]) => (
+                <div key={lbl} className="fanStatCardStat">
+                  <span>{lbl}</span>
+                  <strong>{val}</strong>
+                </div>
+              ))}
+            </div>
+            {(selectedPlayer.ip > 0) && (
+              <div className="fanStatCardGrid" style={{ marginTop: '8px' }}>
+                {[['IP', selectedPlayer.ip], ['ERA', selectedPlayer.ip ? ((selectedPlayer.er * 9) / selectedPlayer.ip).toFixed(2) : '—'], ['K', selectedPlayer.strikeouts || 0]].map(([lbl, val]) => (
+                  <div key={lbl} className="fanStatCardStat">
+                    <span>{lbl}</span>
+                    <strong>{val}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="fanStatCardActions">
+              <a href={playerProfileUrl(selectedPlayer)} className="fanStatCardBtn fanStatCardBtnPrimary">🎓 Recruiting Profile</a>
+              <button className="fanStatCardBtn" onClick={() => copyPlayerCard(selectedPlayer)}>📋 Copy Share Card</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HEADER */}
       <header className="fanHero">
         <div className="fanBrand">
           {stream?.brandingLogo ? (
@@ -142,12 +232,18 @@ export default function FanGameStream() {
           </div>
         </div>
         <div className="fanHeroActions">
-          <span className={status === 'Live' ? 'fanLivePill' : 'fanOfflinePill'}>{status}</span>
-          <button onClick={copyShareLink}>{copied ? 'Copied' : 'Copy Share Link'}</button>
+          <span className={status === 'Live' ? 'fanLivePill' : 'fanOfflinePill'}>{status === 'Live' ? '🔴 LIVE' : status}</span>
+          {notifStatus !== 'granted' ? (
+            <button onClick={subscribeNotifs} className="fanSubBtn">🔔 Subscribe</button>
+          ) : (
+            <span className="fanSubbedPill">🔔 Subscribed</span>
+          )}
+          <button onClick={copyShareLink}>{copied ? '✓ Copied!' : '🔗 Share'}</button>
           <a href="/">Coach Console</a>
         </div>
       </header>
 
+      {/* SCOREBOARD */}
       <section className="fanScoreboard">
         <div className="fanTeamScore">
           <span>Away</span>
@@ -156,8 +252,17 @@ export default function FanGameStream() {
         </div>
         <div className="fanGameState">
           <span>{formatRecord(game.gameType)} · {game.gameDate || 'Today'}</span>
-          <strong>{game.half === 'bottom' ? 'Bottom' : 'Top'} {game.inning || 1}</strong>
+          <strong>{game.half === 'bottom' ? '▼' : '▲'} {game.inning || 1}</strong>
           <small>{battingTeam} batting</small>
+          <div className="fanBasesRow">
+            <div className={`fanBase fanBase2B ${game.runners?.second ? 'fanBaseOn' : ''}`} />
+            <div className={`fanBase fanBase3B ${game.runners?.third ? 'fanBaseOn' : ''}`} />
+            <div className={`fanBase fanBase1B ${game.runners?.first ? 'fanBaseOn' : ''}`} />
+          </div>
+          <div className="fanCountRow">
+            <span>{game.balls || 0}-{game.strikes || 0} <small>B-S</small></span>
+            <span>{game.outs || 0} <small>OUT{game.outs !== 1 ? 'S' : ''}</small></span>
+          </div>
         </div>
         <div className="fanTeamScore fanTeamScoreHome">
           <span>Home</span>
@@ -166,89 +271,144 @@ export default function FanGameStream() {
         </div>
       </section>
 
-      <section className="fanLiveGrid">
-        <div className="fanGameCard fanFieldCard">
+      {/* INNING BOX SCORE */}
+      <div className="fanBoxScoreWrap">
+        <table className="fanBoxScore">
+          <thead>
+            <tr>
+              <th>Team</th>
+              {Array.from({ length: maxInnings }, (_, i) => <th key={i}>{i + 1}</th>)}
+              <th className="fanBoxR">R</th>
+              <th>H</th>
+              <th>E</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className="fanBoxTeam">{awayName}</td>
+              {Array.from({ length: maxInnings }, (_, i) => <td key={i}>{isHome ? (theirInnings2[i] ?? '') : (innings[i] ?? '')}</td>)}
+              <td className="fanBoxR">{awayRuns}</td>
+              <td>{isHome ? (game.theirHits || 0) : (game.ourHits || 0)}</td>
+              <td>{isHome ? (game.theirErrors || 0) : (game.ourErrors || 0)}</td>
+            </tr>
+            <tr>
+              <td className="fanBoxTeam">{homeName}</td>
+              {Array.from({ length: maxInnings }, (_, i) => <td key={i}>{isHome ? (innings[i] ?? '') : (theirInnings2[i] ?? '')}</td>)}
+              <td className="fanBoxR">{homeRuns}</td>
+              <td>{isHome ? (game.ourHits || 0) : (game.theirHits || 0)}</td>
+              <td>{isHome ? (game.ourErrors || 0) : (game.theirErrors || 0)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* MOBILE TAB BAR */}
+      <div className="fanMobileTabs">
+        {[['game','⚾ Game'],['feed','📡 Feed'],['lineup','📋 Lineup'],['stats','📊 Stats']].map(([id, label]) => (
+          <button key={id} className={mobileTab === id ? 'fanMobileTabActive' : ''} onClick={() => setMobileTab(id)}>{label}</button>
+        ))}
+      </div>
+
+      {/* MAIN GRID */}
+      <section className={`fanLiveGrid ${mobileTab !== 'game' && mobileTab !== 'feed' ? 'fanHideOnMobile' : ''}`}>
+
+        {/* GAME STATE CARD */}
+        <div className={`fanGameCard fanFieldCard ${mobileTab === 'feed' ? 'fanHideOnMobile' : ''}`}>
           <div className="fanCardHeader">
             <h2>Game State</h2>
-            <span>{game.status || 'live'}</span>
-          </div>
-          <div className="fanCountGrid">
-            <div><span>Balls</span><strong>{game.balls || 0}</strong></div>
-            <div><span>Strikes</span><strong>{game.strikes || 0}</strong></div>
-            <div><span>Outs</span><strong>{game.outs || 0}</strong></div>
-            <div><span>Pitches</span><strong>{game.pitchCount || 0}</strong></div>
-          </div>
-          <div className="fanDiamond">
-            <span className={game.runners?.second ? 'occupied' : ''}>2B</span>
-            <span className={game.runners?.third ? 'occupied' : ''}>3B</span>
-            <span className={game.runners?.first ? 'occupied' : ''}>1B</span>
-            <span>HP</span>
+            <span>{game.pitchCount || 0} pitches</span>
           </div>
           <div className="fanMatchup">
-            <div><span>Batter</span><strong>{game.currentBatter || 'Not set'}</strong></div>
-            <div><span>Pitcher</span><strong>{game.currentPitcher || 'Not set'}</strong></div>
+            <div><span>Batter</span><strong>{game.currentBatter || '—'}</strong></div>
+            <div><span>Pitcher</span><strong>{game.currentPitcher || '—'}</strong></div>
           </div>
+          {recentPitches.length > 0 && (
+            <div className="fanPitchStrip">
+              <div className="fanPitchStripLabel">Recent pitches</div>
+              <div className="fanPitchDots">
+                {recentPitches.map((p, i) => (
+                  <div key={p.id || i} className="fanPitchDot" style={{ background: PITCH_COLORS[p.pitchType] || '#475569' }} title={`${p.pitchType}${p.pitchVelo ? ` ${p.pitchVelo}mph` : ''} — ${p.result?.replace(/_/g,' ')}`}>
+                    <span>{p.pitchType}</span>
+                    {p.pitchVelo && <small>{p.pitchVelo}</small>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="fanGameCard fanFeedCard">
+        {/* PLAY FEED CARD */}
+        <div className={`fanGameCard fanFeedCard ${mobileTab === 'game' ? 'fanHideOnMobile' : ''}`}>
           <div className="fanCardHeader">
             <h2>Live Play Feed</h2>
-            <span>{events.length} updates</span>
+            <span>{events.filter(e => e.eventType !== 'pitch').length} plays</span>
           </div>
           <div className="fanFeedList">
             {events.length === 0 ? (
-              <p>No plays recorded yet. The feed will update once scoring begins.</p>
+              <p className="fanEmptyState">No plays recorded yet. Feed updates live as scoring begins.</p>
             ) : (
-              events.map((event) => (
-                <article key={event.id} className={event.eventType === 'correction' ? 'fanFeedCorrection' : ''}>
-                  <div>
-                    <strong>{formatEventLabel(event)}</strong>
-                    <span>{event.batterLabel || 'Current batter'} vs {event.pitcherLabel || 'current pitcher'}</span>
-                    {event.note ? <small>{event.note}</small> : null}
-                    {event.correctionNote ? <small>Correction: {event.correctionNote}</small> : null}
-                  </div>
-                  <time>{eventTimestamp(event) || `#${event.sequence || '-'}`}</time>
-                </article>
-              ))
+              events.filter(e => e.eventType !== 'pitch').map((event) => {
+                const style = eventStyle(event);
+                return (
+                  <article key={event.id} style={{ background: style.bg, borderColor: style.border }}>
+                    <div>
+                      {style.label && <div className="fanEventBadge" style={{ color: style.color }}>{style.label}</div>}
+                      <strong>{formatEventLabel(event)}</strong>
+                      <span>{event.batterLabel || 'Current batter'} vs {event.pitcherLabel || 'current pitcher'}</span>
+                      {event.note ? <small>📝 {event.note}</small> : null}
+                      {event.correctionNote ? <small>✏ {event.correctionNote}</small> : null}
+                    </div>
+                    <time>{eventTimestamp(event) || `#${event.sequence || '-'}`}</time>
+                  </article>
+                );
+              })
             )}
           </div>
         </div>
       </section>
 
+      {/* BOTTOM GRID */}
       <section className="fanBottomGrid">
-        <div className="fanGameCard">
+        <div className={`fanGameCard ${mobileTab !== 'lineup' && mobileTab !== 'game' ? 'fanHideOnMobile' : ''}`}>
           <div className="fanCardHeader">
             <h2>Lineup</h2>
             <span>{lineup.length} players</span>
           </div>
           <div className="fanLineupList">
             {lineup.length === 0 ? (
-              <p>No lineup posted yet.</p>
+              <p className="fanEmptyState">No lineup posted yet.</p>
             ) : (
               lineup.map((entry) => (
-                <div key={`${entry.order}-${entry.player?.id || entry.playerId}`}>
+                <div key={`${entry.order}-${entry.player?.id || entry.playerId}`} className="fanLineupRow" onClick={() => entry.player && setSelectedPlayer(entry.player)}>
                   <b>{entry.order}</b>
-                  <a href={playerProfileUrl(entry.player)}>{formatPlayerName(entry.player)}</a>
-                  <span>#{entry.player?.jersey || '-'} · {entry.position || entry.player?.primaryPosition || 'UTIL'}</span>
+                  <div>
+                    <span className="fanLineupName">{formatPlayerName(entry.player)}</span>
+                    <span className="fanLineupMeta">#{entry.player?.jersey || '-'} · {entry.position || entry.player?.primaryPosition || 'UTIL'}</span>
+                  </div>
+                  <span className="fanLineupAvg">{statAverage(entry.player)}</span>
                 </div>
               ))
             )}
           </div>
         </div>
 
-        <div className="fanGameCard">
+        <div className={`fanGameCard ${mobileTab !== 'stats' && mobileTab !== 'game' ? 'fanHideOnMobile' : ''}`}>
           <div className="fanCardHeader">
             <h2>Player Leaders</h2>
-            <span>Season</span>
+            <span>Tap for stat card</span>
           </div>
           <div className="fanLeaderList">
             {leaders.length === 0 ? (
-              <p>No roster stats yet.</p>
+              <p className="fanEmptyState">No roster stats yet.</p>
             ) : (
               leaders.map((player) => (
-                <div key={player.id || formatPlayerName(player)}>
-                  <a href={playerProfileUrl(player)}>{formatPlayerName(player)}</a>
-                  <span>AVG {statAverage(player)} · H {Number(player.hits || 0)} · RBI {Number(player.rbi || 0)}</span>
+                <div key={player.id || formatPlayerName(player)} className="fanLeaderRow" onClick={() => setSelectedPlayer(player)}>
+                  <div className="fanLeaderAvatar">#{player.jersey || '?'}</div>
+                  <div>
+                    <span className="fanLeaderName">{formatPlayerName(player)}</span>
+                    <span className="fanLeaderStats">AVG {statAverage(player)} · {Number(player.hr || 0)} HR · {Number(player.rbi || 0)} RBI</span>
+                  </div>
+                  <span className="fanLeaderArrow">›</span>
                 </div>
               ))
             )}
