@@ -1,0 +1,424 @@
+.fanStreamShell {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(37, 99, 235, 0.22), transparent 32%),
+    linear-gradient(180deg, #07101f 0%, #020617 100%);
+  color: #f8fafc;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  min-height: 100vh;
+  padding: 28px;
+}
+
+.fanHero,
+.fanScoreboard,
+.fanGameCard {
+  border: 1px solid rgba(96, 165, 250, 0.25);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.25);
+}
+
+.fanHero {
+  align-items: center;
+  background: rgba(8, 15, 30, 0.86);
+  border-radius: 18px;
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+  margin: 0 auto 22px;
+  max-width: 1180px;
+  padding: 18px;
+}
+
+.fanBrand {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+}
+
+.fanBrand img,
+.fanLogoMark {
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  border-radius: 14px;
+  height: 58px;
+  width: 58px;
+}
+
+.fanBrand img {
+  object-fit: cover;
+}
+
+.fanLogoMark {
+  align-items: center;
+  background: linear-gradient(135deg, #1d4ed8, #020617);
+  display: flex;
+  font-size: 18px;
+  font-weight: 950;
+  justify-content: center;
+}
+
+.fanBrand p,
+.fanGameState span,
+.fanTeamScore span,
+.fanCardHeader span,
+.fanCountGrid span,
+.fanMatchup span {
+  color: #93a4bd;
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.fanBrand h1 {
+  color: #fff;
+  font-size: clamp(24px, 5vw, 38px);
+  line-height: 1;
+  margin: 4px 0 0;
+}
+
+.fanHeroActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.fanHeroActions button,
+.fanHeroActions a {
+  background: rgba(37, 99, 235, 0.18);
+  border: 1px solid rgba(96, 165, 250, 0.5);
+  border-radius: 999px;
+  color: #dbeafe;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
+  padding: 10px 14px;
+  text-decoration: none;
+}
+
+.fanLivePill,
+.fanOfflinePill {
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 950;
+  padding: 10px 13px;
+}
+
+.fanLivePill {
+  background: rgba(34, 197, 94, 0.14);
+  border: 1px solid rgba(74, 222, 128, 0.42);
+  color: #bbf7d0;
+}
+
+.fanOfflinePill {
+  background: rgba(248, 113, 113, 0.12);
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  color: #fecaca;
+}
+
+.fanScoreboard {
+  align-items: stretch;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(7, 16, 31, 0.96));
+  border-radius: 22px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 1fr 0.8fr 1fr;
+  margin: 0 auto 22px;
+  max-width: 1180px;
+  padding: 18px;
+}
+
+.fanTeamScore,
+.fanGameState {
+  background: rgba(2, 6, 23, 0.65);
+  border: 1px solid rgba(51, 65, 85, 0.9);
+  border-radius: 16px;
+  padding: 18px;
+}
+
+.fanTeamScore {
+  display: grid;
+  gap: 8px;
+}
+
+.fanTeamScore strong {
+  color: #e5edff;
+  font-size: clamp(18px, 4vw, 30px);
+  line-height: 1.05;
+}
+
+.fanTeamScore b {
+  color: #60a5fa;
+  font-size: clamp(48px, 11vw, 84px);
+  font-weight: 950;
+  line-height: 0.95;
+}
+
+.fanTeamScoreHome b {
+  color: #facc15;
+}
+
+.fanGameState {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+}
+
+.fanGameState strong {
+  color: #fff;
+  font-size: clamp(24px, 5vw, 46px);
+  margin: 8px 0;
+}
+
+.fanGameState small {
+  color: #bfdbfe;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.fanLiveGrid,
+.fanBottomGrid {
+  display: grid;
+  gap: 18px;
+  margin: 0 auto 18px;
+  max-width: 1180px;
+}
+
+.fanLiveGrid {
+  grid-template-columns: 0.82fr 1.18fr;
+}
+
+.fanBottomGrid {
+  grid-template-columns: 1fr 1fr;
+}
+
+.fanGameCard {
+  background: rgba(8, 15, 30, 0.88);
+  border-radius: 18px;
+  padding: 18px;
+}
+
+.fanCardHeader {
+  align-items: center;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.78);
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+}
+
+.fanCardHeader h2 {
+  color: #fff;
+  font-size: 18px;
+  margin: 0;
+}
+
+.fanCountGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.fanCountGrid div,
+.fanMatchup div {
+  background: #020617;
+  border: 1px solid #1e3a5f;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.fanCountGrid strong {
+  color: #f8fafc;
+  display: block;
+  font-size: 30px;
+  margin-top: 4px;
+}
+
+.fanDiamond {
+  display: grid;
+  grid-template-columns: repeat(3, 62px);
+  grid-template-rows: repeat(3, 48px);
+  justify-content: center;
+  margin: 26px auto;
+}
+
+.fanDiamond span {
+  align-items: center;
+  background: #0f172a;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  display: flex;
+  font-size: 11px;
+  font-weight: 950;
+  height: 42px;
+  justify-content: center;
+  transform: rotate(45deg);
+  width: 42px;
+}
+
+.fanDiamond span:nth-child(1) { grid-column: 2; grid-row: 1; }
+.fanDiamond span:nth-child(2) { grid-column: 1; grid-row: 2; }
+.fanDiamond span:nth-child(3) { grid-column: 3; grid-row: 2; }
+.fanDiamond span:nth-child(4) { grid-column: 2; grid-row: 3; }
+.fanDiamond .occupied {
+  background: #2563eb;
+  border-color: #93c5fd;
+  color: #fff;
+}
+
+.fanMatchup {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.fanMatchup strong {
+  color: #fff;
+  display: block;
+  font-size: 16px;
+  margin-top: 5px;
+}
+
+.fanFeedList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 540px;
+  overflow: auto;
+}
+
+.fanFeedList article {
+  align-items: flex-start;
+  background: #020617;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 13px;
+}
+
+.fanFeedList article:first-of-type {
+  border-color: rgba(96, 165, 250, 0.65);
+}
+
+.fanFeedCorrection {
+  border-color: rgba(250, 204, 21, 0.5) !important;
+}
+
+.fanFeedList strong {
+  color: #fff;
+  display: block;
+  font-size: 15px;
+  text-transform: capitalize;
+}
+
+.fanFeedList span,
+.fanFeedList small,
+.fanFeedList p {
+  color: #9fb0ca;
+  display: block;
+  font-size: 13px;
+  margin-top: 3px;
+}
+
+.fanFeedList time {
+  color: #60a5fa;
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.fanLineupList,
+.fanLeaderList {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.fanLineupList div,
+.fanLeaderList div {
+  align-items: center;
+  background: #020617;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.fanLineupList div {
+  grid-template-columns: 34px 1fr auto;
+}
+
+.fanLineupList b {
+  align-items: center;
+  background: rgba(37, 99, 235, 0.2);
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  border-radius: 10px;
+  color: #bfdbfe;
+  display: flex;
+  font-size: 14px;
+  height: 34px;
+  justify-content: center;
+}
+
+.fanLineupList strong,
+.fanLeaderList strong,
+.fanLineupList a,
+.fanLeaderList a {
+  color: #fff;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.fanLineupList a:hover,
+.fanLeaderList a:hover {
+  color: #93c5fd;
+  text-decoration: underline;
+}
+
+.fanLineupList span,
+.fanLeaderList span,
+.fanLineupList p,
+.fanLeaderList p {
+  color: #9fb0ca;
+  font-size: 13px;
+}
+
+@media (max-width: 860px) {
+  .fanStreamShell {
+    padding: 14px;
+  }
+
+  .fanHero,
+  .fanScoreboard,
+  .fanLiveGrid,
+  .fanBottomGrid,
+  .fanMatchup {
+    grid-template-columns: 1fr;
+  }
+
+  .fanHero {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .fanHeroActions {
+    justify-content: flex-start;
+  }
+
+  .fanCountGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .fanLineupList div {
+    grid-template-columns: 34px 1fr;
+  }
+
+  .fanLineupList span {
+    grid-column: 2;
+  }
+}

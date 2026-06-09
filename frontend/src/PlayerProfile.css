@@ -1,0 +1,298 @@
+.playerProfileShell {
+  background:
+    radial-gradient(circle at 15% 0%, rgba(37, 99, 235, 0.2), transparent 30%),
+    linear-gradient(180deg, #07101f 0%, #020617 100%);
+  color: #f8fafc;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  min-height: 100vh;
+  padding: 28px;
+}
+
+.playerHero,
+.playerSummaryGrid,
+.playerCard,
+.playerMediaPlaceholder,
+.playerEmptyState {
+  border: 1px solid rgba(96, 165, 250, 0.25);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.25);
+}
+
+.playerHero {
+  align-items: center;
+  background: rgba(8, 15, 30, 0.88);
+  border-radius: 18px;
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+  margin: 0 auto 20px;
+  max-width: 1180px;
+  padding: 20px;
+}
+
+.playerIdentity {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+}
+
+.playerAvatar {
+  align-items: center;
+  background: linear-gradient(135deg, #2563eb, #020617);
+  border: 1px solid rgba(147, 197, 253, 0.6);
+  border-radius: 18px;
+  color: #fff;
+  display: flex;
+  font-size: 24px;
+  font-weight: 950;
+  height: 82px;
+  justify-content: center;
+  width: 82px;
+}
+
+.playerIdentity p,
+.playerIdentity span,
+.playerHeroActions span,
+.playerCardHeader span,
+.playerSummaryGrid span,
+.playerStatTable span,
+.playerRecruitingCard dt {
+  color: #93a4bd;
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.playerIdentity h1 {
+  color: #fff;
+  font-size: clamp(34px, 7vw, 64px);
+  line-height: 0.95;
+  margin: 5px 0 10px;
+}
+
+.playerHeroActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.playerHeroActions button,
+.playerHeroActions a,
+.playerMediaPlaceholder button,
+.playerEmptyState a {
+  background: rgba(37, 99, 235, 0.18);
+  border: 1px solid rgba(96, 165, 250, 0.5);
+  border-radius: 999px;
+  color: #dbeafe;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
+  padding: 10px 14px;
+  text-decoration: none;
+}
+
+.playerMediaPlaceholder button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.playerLivePill,
+.playerOfflinePill {
+  border-radius: 999px;
+  padding: 10px 13px;
+}
+
+.playerLivePill {
+  background: rgba(34, 197, 94, 0.14);
+  border: 1px solid rgba(74, 222, 128, 0.42);
+  color: #bbf7d0 !important;
+}
+
+.playerOfflinePill {
+  background: rgba(248, 113, 113, 0.12);
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  color: #fecaca !important;
+}
+
+.playerSummaryGrid {
+  background: rgba(8, 15, 30, 0.88);
+  border-radius: 18px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, 1fr);
+  margin: 0 auto 18px;
+  max-width: 1180px;
+  padding: 16px;
+}
+
+.playerSummaryGrid div {
+  background: #020617;
+  border: 1px solid #1e3a5f;
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.playerSummaryGrid strong {
+  color: #60a5fa;
+  display: block;
+  font-size: clamp(30px, 7vw, 54px);
+  line-height: 0.95;
+  margin-top: 8px;
+}
+
+.playerContentGrid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(2, 1fr);
+  margin: 0 auto 18px;
+  max-width: 1180px;
+}
+
+.playerCard,
+.playerMediaPlaceholder,
+.playerEmptyState {
+  background: rgba(8, 15, 30, 0.88);
+  border-radius: 18px;
+  padding: 18px;
+}
+
+.playerCardHeader {
+  align-items: center;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.78);
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+}
+
+.playerCardHeader h2,
+.playerMediaPlaceholder h2,
+.playerEmptyState h1 {
+  color: #fff;
+  font-size: 19px;
+  margin: 0;
+}
+
+.playerStatTable {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.playerStatTable span,
+.playerStatTable strong {
+  background: #020617;
+  border: 1px solid #1e293b;
+  padding: 10px;
+}
+
+.playerStatTable span {
+  border-radius: 10px 0 0 10px;
+}
+
+.playerStatTable strong {
+  border-radius: 0 10px 10px 0;
+  color: #fff;
+  font-size: 18px;
+}
+
+.playerRecruitingCard dl {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.playerRecruitingCard dl div {
+  background: #020617;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.playerRecruitingCard dd {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 850;
+  margin: 5px 0 0;
+}
+
+.playerMediaPlaceholder {
+  align-items: center;
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+  margin: 0 auto;
+  max-width: 1180px;
+}
+
+.playerVideoLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.playerVideoLinks a {
+  background: rgba(37, 99, 235, 0.18);
+  border: 1px solid rgba(96, 165, 250, 0.5);
+  border-radius: 999px;
+  color: #dbeafe;
+  font-size: 13px;
+  font-weight: 900;
+  padding: 10px 14px;
+  text-decoration: none;
+}
+
+.playerVideoLinks a:hover {
+  color: #fff;
+  border-color: rgba(147, 197, 253, 0.8);
+}
+
+.playerMediaPlaceholder p,
+.playerEmptyState p {
+  color: #9fb0ca;
+  line-height: 1.5;
+  margin: 8px 0 0;
+}
+
+.playerEmptyState {
+  margin: 0 auto;
+  max-width: 760px;
+}
+
+.playerEmptyState a {
+  display: inline-flex;
+  margin-top: 18px;
+}
+
+@media (max-width: 860px) {
+  .playerProfileShell {
+    padding: 14px;
+  }
+
+  .playerHero,
+  .playerMediaPlaceholder {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .playerVideoLinks {
+    justify-content: flex-start;
+  }
+
+  .playerSummaryGrid,
+  .playerContentGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .playerStatTable {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .playerHeroActions {
+    justify-content: flex-start;
+  }
+}

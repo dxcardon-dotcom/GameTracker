@@ -1,16 +1,30 @@
-# React + Vite
+# GameTracker Backend Starter
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is the small Node server your React app calls here:
 
-Currently, two official plugins are available:
+```js
+fetch("http://localhost:4000/create-checkout")
+```
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Setup
 
-## React Compiler
+1. Copy `.env.example` to `.env`.
+2. Put your Stripe secret key in `STRIPE_SECRET_KEY`.
+3. Put your Stripe recurring Price ID in `STRIPE_PRICE_ID`.
+4. Put your Stripe webhook signing secret in `STRIPE_WEBHOOK_SECRET`.
+5. Put your Firebase Admin service account JSON path in `FIREBASE_SERVICE_ACCOUNT_PATH`.
+6. Run `npm start`.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Then test this URL in your browser:
 
-## Expanding the ESLint configuration
+```txt
+http://localhost:4000/health
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+You should see:
+
+```json
+{ "ok": true }
+```
+
+Important: do not put your Stripe secret key in your React app.

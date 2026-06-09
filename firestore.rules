@@ -1,0 +1,156 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function team(teamId) {
+      return get(/databases/$(database)/documents/teams/$(teamId));
+    }
+
+    function game(gameId) {
+      return get(/databases/$(database)/documents/games/$(gameId));
+    }
+
+    function isTeamMemberById(teamId) {
+      return signedIn()
+        && team(teamId).data.memberIds is list
+        && request.auth.uid in team(teamId).data.memberIds;
+    }
+
+    function isTeamCoachById(teamId) {
+      return signedIn() && team(teamId).data.owner == request.auth.uid;
+    }
+
+    function isGameMember(gameId) {
+      return isTeamMemberById(game(gameId).data.teamId);
+    }
+
+    function isGameCoach(gameId) {
+      return isTeamCoachById(game(gameId).data.teamId);
+    }
+
+    function isPublic(data) {
+      return data.visibility == "public" || data.published == true;
+    }
+
+    function createsOwnFreeUser(uid) {
+      return isSelf(uid)
+        && request.resource.data.keys().hasOnly(["plan"])
+        && request.resource.data.plan == "free";
+    }
+
+    function validTeamCreate() {
+      return signedIn()
+        && request.resource.data.owner == request.auth.uid
+        && request.resource.data.memberIds == [request.auth.uid]
+        && request.resource.data.members.size() == 1
+        && request.resource.data.members[0].uid == request.auth.uid
+        && request.resource.data.members[0].role == "coach"
+        && request.resource.data.name is string;
+    }
+
+    function validJoinOnlyUpdate() {
+      return signedIn()
+        && !(request.auth.uid in resource.data.memberIds)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["memberIds", "members"])
+        && request.auth.uid in request.resource.data.memberIds
+        && request.resource.data.memberIds.hasAll(resource.data.memberIds)
+        && request.resource.data.members.size() == resource.data.members.size() + 1;
+    }
+
+    match /users/{uid} {
+      allow create: if createsOwnFreeUser(uid);
+      allow read: if isSelf(uid);
+      allow update, delete: if false;
+    }
+
+    match /organizations/{organizationId} {
+      allow read: if isPublic(resource.data) || signedIn();
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+    }
+
+    match /teams/{teamId} {
+      allow create: if validTeamCreate();
+      allow get: if isPublic(resource.data) || isTeamMemberById(teamId);
+      allow list: if signedIn();
+      allow update: if signedIn() || isTeamCoachById(teamId) || validJoinOnlyUpdate();
+      allow delete: if isTeamCoachById(teamId);
+    }
+
+    match /teamMembers/{membershipId} {
+      allow read: if isSelf(resource.data.uid) || isTeamCoachById(resource.data.teamId);
+      allow create: if isTeamCoachById(request.resource.data.teamId);
+      allow update, delete: if isTeamCoachById(resource.data.teamId);
+    }
+
+    match /seasons/{seasonId} {
+      allow read: if signedIn() || isPublic(resource.data);
+      allow create, update: if signedIn();
+      allow delete: if false;
+    }
+
+    match /athletes/{athleteId} {
+      allow read: if isPublic(resource.data) || isTeamMemberById(resource.data.teamId);
+      allow create: if isTeamCoachById(request.resource.data.teamId);
+      allow update, delete: if isTeamCoachById(resource.data.teamId);
+    }
+
+    match /games/{gameId} {
+      allow read: if isPublic(resource.data) || isTeamMemberById(resource.data.teamId);
+      allow create: if isTeamCoachById(request.resource.data.teamId);
+      allow update, delete: if isTeamCoachById(resource.data.teamId);
+
+      match /events/{eventId} {
+        allow read: if isPublic(game(gameId).data) || isGameMember(gameId);
+        allow create: if isTeamCoachById(request.resource.data.teamId);
+        allow update, delete: if isTeamCoachById(resource.data.teamId);
+      }
+
+      match /lineups/{lineupId} {
+        allow read: if isGameMember(gameId);
+        allow write: if isGameCoach(gameId);
+      }
+    }
+
+    match /posts/{postId} {
+      allow read: if isPublic(resource.data) || isTeamMemberById(resource.data.teamId);
+      allow create: if isTeamMemberById(request.resource.data.teamId);
+      allow update, delete: if signedIn() && resource.data.authorId == request.auth.uid;
+    }
+
+    match /messages/{messageId} {
+      allow read: if isTeamMemberById(resource.data.teamId);
+      allow create: if isTeamMemberById(request.resource.data.teamId)
+        && request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.authorId == request.auth.uid;
+    }
+
+    match /media/{mediaId} {
+      allow read: if isPublic(resource.data) || isTeamMemberById(resource.data.teamId);
+      allow create: if isTeamMemberById(request.resource.data.teamId);
+      allow update, delete: if isTeamCoachById(resource.data.teamId);
+    }
+
+    match /recruitingProfiles/{profileId} {
+      allow read: if isPublic(resource.data) || isTeamMemberById(resource.data.teamId);
+      allow create, update: if signedIn()
+        && (request.resource.data.ownerId == request.auth.uid
+          || isTeamCoachById(request.resource.data.teamId));
+      allow delete: if signedIn()
+        && (resource.data.ownerId == request.auth.uid
+          || isTeamCoachById(resource.data.teamId));
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

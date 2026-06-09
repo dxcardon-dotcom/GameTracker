@@ -1,0 +1,2275 @@
+/* ==========================================
+   GLOBAL STRUCTURE SETUP
+   ========================================== */
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #f8fafc;
+  background-color: #020617;
+  min-height: 100vh;
+}
+
+.appTabBarNav {
+  display: flex;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  padding: 6px;
+  margin-bottom: 28px;
+  gap: 8px;
+}
+
+.tabBarBtn {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  padding: 12px 24px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tabBarBtn:hover {
+  color: #f8fafc;
+  background: rgba(30, 41, 59, 0.4);
+}
+
+.tabBarBtnActive {
+  background: #1e293b !important;
+  color: #38bdf8 !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+/* ==========================================
+   MAXPREPS STYLED BANNER & CARD MEDIA
+   ========================================== */
+.scheduleDashboardView {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.scheduleHeaderBanner {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border: 1px solid #334155;
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+}
+
+.bannerLeftSection h2 {
+  margin: 0 0 6px 0;
+  font-size: 26px;
+  color: #ffffff;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.bannerLeftSection p {
+  margin: 0;
+  font-size: 14px;
+  color: #38bdf8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.bannerRecordsRibbon {
+  display: flex;
+  background: #020617;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  padding: 10px 18px;
+  gap: 24px;
+}
+
+.ribbonStatBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.ribbonStatBox small {
+  font-size: 10px;
+  color: #475569;
+  font-weight: 800;
+  margin-bottom: 2px;
+}
+
+.ribbonStatBox strong {
+  font-size: 18px;
+  color: #ffffff;
+  font-weight: 900;
+  font-family: monospace;
+}
+
+/* Split content workspace layout */
+.scheduleWorkspaceSplit {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 1000px) {
+  .scheduleWorkspaceSplit {
+    grid-template-columns: 1fr;
+  }
+}
+
+.schedulePlannerPanel,
+.scheduleListPanel {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  padding: 18px;
+}
+
+.schedulePlannerHeader,
+.scheduleListHeader {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.schedulePlannerHeader h3,
+.scheduleListHeader h3 {
+  color: #f8fafc;
+  font-size: 17px;
+  margin: 0 0 4px;
+}
+
+.schedulePlannerHeader p {
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.schedulePlannerHeader span,
+.scheduleListHeader span {
+  background: rgba(37, 99, 235, 0.15);
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  border-radius: 999px;
+  color: #bfdbfe;
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 7px 10px;
+}
+
+.schedulePlannerGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.schedulePlannerGrid label {
+  color: #93c5fd;
+  display: grid;
+  font-size: 10px;
+  font-weight: 900;
+  gap: 5px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.schedulePlannerGrid input,
+.schedulePlannerGrid select {
+  background: #020617;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #f8fafc;
+  min-height: 38px;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.schedulePlannerActions {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr 110px;
+  margin-top: 12px;
+}
+
+.schedulePlannerActions button,
+.scheduleCardActions button {
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 8px 10px;
+}
+
+.schedulePlannerActions button:first-child,
+.scheduleCardActions button:first-child {
+  background: #2563eb;
+  border: 1px solid #60a5fa;
+  color: #fff;
+}
+
+.schedulePlannerActions button:last-child,
+.scheduleCardActions button {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #e2e8f0;
+}
+
+.schedulePlannerActions button:disabled,
+.scheduleCardActions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* Schedule List Card Rows */
+.scheduleCardsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gameMediaCard {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.gameMediaCard:hover {
+  transform: translateY(-2px);
+  border-color: #334155;
+  background: #111a2e;
+}
+
+.cardLeftMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 110px;
+}
+
+.cardDateText {
+  font-size: 15px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.typeBadge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  width: fit-content;
+  letter-spacing: 0.02em;
+}
+
+.typeDistrict { background: rgba(56, 189, 248, 0.1); color: #38bdf8; }
+.typeTournament { background: rgba(168, 85, 247, 0.1); color: #a855f7; }
+.typePlayoff { background: rgba(234, 179, 8, 0.1); color: #eab308; }
+.typeNon-District { background: rgba(100, 116, 139, 0.1); color: #94a3b8; }
+
+.cardCenterMatchup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  padding-left: 10px;
+}
+
+.locationIndicatorPrefix {
+  font-size: 14px;
+  color: #475569;
+  font-weight: 600;
+  width: 20px;
+}
+
+.opponentBoldTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.cardRightStatus {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 140px;
+}
+
+/* Results Formatting Box */
+.resultScoreContainer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mpOutcomeSquareBadge {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 14px;
+}
+
+.badgeWin { background: #22c55e; color: #020617; }
+.badgeLoss { background: #ef4444; color: #ffffff; }
+
+.finalScoreDisplay {
+  font-size: 16px;
+  font-weight: 800;
+  color: #ffffff;
+  font-family: monospace;
+}
+
+.mpScoreGameActionBtn {
+  background: #38bdf8;
+  color: #020617;
+  border: none;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 6px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  transition: background 0.2s;
+}
+
+.mpScoreGameActionBtn:hover {
+  background: #7dd3fc;
+}
+
+.gameMediaCard small {
+  color: #94a3b8;
+  display: block;
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.scheduleNote {
+  color: #64748b;
+  font-size: 11px;
+  margin: 5px 0 0;
+}
+
+.liveBadge,
+.scheduledBadge {
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 6px 9px;
+  text-transform: uppercase;
+}
+
+.liveBadge {
+  background: rgba(239, 68, 68, 0.16);
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  color: #fecaca;
+}
+
+.scheduledBadge {
+  background: rgba(59, 130, 246, 0.14);
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  color: #bfdbfe;
+}
+
+.scheduleCardActions {
+  display: flex;
+  gap: 6px;
+  margin-left: 10px;
+}
+
+.scheduleCardActions button {
+  font-size: 10px;
+  padding: 6px 7px;
+}
+
+.emptyScheduleState {
+  background: #0b1329;
+  border: 1px dashed #334155;
+  border-radius: 8px;
+  color: #94a3b8;
+  font-size: 13px;
+  padding: 18px;
+  text-align: center;
+}
+
+/* Form Design Structure */
+.addGameSidebarForm {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+
+.addGameSidebarForm h3 {
+  margin: 0 0 20px 0;
+  font-size: 15px;
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 800;
+  border-bottom: 1px solid #1e293b;
+  padding-bottom: 10px;
+}
+
+.formControlElement {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.formControlElement label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.formControlElement input,
+.formControlElement select {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #ffffff;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+.formControlElement input:focus,
+.formControlElement select:focus {
+  outline: none;
+  border-color: #38bdf8;
+}
+
+.mpAddGameSubmitBtn {
+  width: 100%;
+  background: #38bdf8;
+  border: none;
+  color: #020617;
+  padding: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-top: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  transition: background 0.2s;
+}
+
+.mpAddGameSubmitBtn:hover {
+  background: #7dd3fc;
+}
+
+/* ==========================================
+   LIVE GAME CONSOLE MODAL & TILES
+   ========================================== */
+.splitWorkspace {
+  display: grid;
+  grid-template-columns: 320px 1fr 320px;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .splitWorkspace { grid-template-columns: 1fr; }
+}
+
+.card {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.scoreboard {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr 1fr;
+  align-items: center;
+  background: #1e293b;
+  border-radius: 8px;
+  padding: 16px;
+  border: 1px solid #334155;
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.teamBlock { display: flex; flex-direction: column; gap: 4px; }
+.teamLabel { font-size: 11px; font-weight: 800; color: #94a3b8; }
+.scoreDigit { font-size: 42px; font-weight: 900; color: #ffffff; font-family: monospace; }
+.inningIndicator { font-size: 14px; font-weight: 700; color: #38bdf8; }
+.countString { font-size: 20px; font-weight: 800; color: #facc15; font-family: monospace; }
+
+.traditionalOrderTicker {
+  display: flex;
+  justify-content: space-between;
+  background: #1e293b;
+  border: 1px solid #334155;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 24px;
+}
+
+.tickerLabel { color: #64748b; font-weight: bold; }
+
+/* Diamond Geometry Area */
+.diamondField {
+  position: relative;
+  width: 260px;
+  height: 260px;
+  margin: 0 auto 30px auto;
+  border: 2px dashed rgba(51, 65, 85, 0.5);
+  transform: rotate(45deg);
+}
+
+.baseBag {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  background: #cbd5e1;
+  border: 2px solid #64748b;
+  border-radius: 3px;
+  cursor: pointer;
+  transform: rotate(-45deg);
+  transition: all 0.2s ease;
+}
+
+.baseBag:hover { background: #facc15; }
+.baseBag.occupied { background: #ef4444 !important; border-color: #b91c1c; }
+.baseTop { top: -12px; left: 118px; }
+.baseLeft { top: 118px; left: -12px; }
+.baseRight { top: 118px; right: -12px; }
+
+.homePlateAnchor {
+  position: absolute;
+  bottom: -10px;
+  left: 118px;
+  transform: rotate(-45deg);
+  width: 26px;
+  height: 26px;
+}
+
+.homePlateFlat { width: 20px; height: 10px; background: #ffffff; border: 2px solid #cbd5e1; }
+.homePlateApex { width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-top: 10px solid #ffffff; }
+
+/* Runner Placement Modals */
+.pinchModalOverlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-45deg);
+  background: #090d16;
+  border: 2px solid #475569;
+  border-radius: 8px;
+  padding: 14px;
+  width: 220px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pinchModalTitle { font-size: 11px; font-weight: bold; text-align: center; color: #38bdf8; border-bottom: 1px solid #1e293b; padding-bottom: 6px; }
+.modalSectionLabel { font-size: 9px; font-weight: bold; color: #64748b; text-transform: uppercase; }
+.emptyBaseLabel { text-align: center; font-size: 12px; color: #475569; }
+.pinchSelectOptionBtn { background: #1e293b; border: 1px solid #334155; color: #ffffff; padding: 6px; border-radius: 4px; font-size: 11px; cursor: pointer; }
+.pinchDangerBtn { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; padding: 6px; border-radius: 4px; font-size: 11px; cursor: pointer; }
+.pinchClearBtn { background: rgba(21, 128, 61, 0.1); border: 1px solid rgba(21, 128, 61, 0.3); color: #86efac; padding: 6px; border-radius: 4px; font-size: 11px; }
+.pinchCancelBtn { background: transparent; border: none; color: #94a3b8; font-size: 11px; }
+
+/* Log Event Feeds */
+.pitchLogContainer {
+  background: #020617;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  padding: 12px;
+  min-height: 100px;
+  margin-bottom: 20px;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.logItem { color: #cbd5e1; padding-bottom: 2px; border-bottom: 1px solid rgba(30, 41, 59, 0.4); }
+.logItem:first-child { color: #4ade80; font-weight: bold; }
+.emptyLog { color: #475569; text-align: center; }
+
+/* Interactive Dropdown Grids */
+.theTripleConsoleGrid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.controlBox { display: flex; flex-direction: column; gap: 6px; }
+.controlBoxLabel { font-size: 10px; font-weight: 800; color: #64748b; }
+
+.matrixSelect {
+  width: 100%;
+  border-radius: 6px;
+  padding: 10px 8px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.bgBall { background: #1e3a8a; border-color: #2563eb; }
+.bgStrike { background: #7c2d12; border-color: #ea580c; }
+.bgAction { background: #064e3b; border-color: #16a34a; }
+
+.matrixSelect optgroup { background: #0f172a; color: #94a3b8; }
+.matrixSelect option { background: #1e293b; color: #ffffff; }
+
+/* ==========================================
+   LINEUP & ROSTER SIDEBAR ELEMENTS
+   ========================================== */
+.lineupPanel {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.panelHeader {
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 14px;
+  border-bottom: 2px solid #1e293b;
+  padding-bottom: 8px;
+}
+
+.playerRow {
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  border-bottom: 1px solid rgba(30, 41, 59, 0.5);
+  font-size: 13px;
+  gap: 8px;
+}
+
+.rowActiveHitter {
+  background: rgba(250, 204, 21, 0.1) !important;
+  border-left: 3px solid #facc15;
+}
+
+.rowInningEndMarker { border-bottom: 2px double #ef4444; }
+.playerOrder { width: 20px; font-weight: bold; color: #38bdf8; }
+.playerName { flex: 1; color: #e2e8f0; }
+.playerNum { color: #64748b; font-size: 12px; }
+
+.subDropdownInline {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  font-size: 11px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.benchHeaderSeparator {
+  font-size: 10px;
+  font-weight: bold;
+  color: #475569;
+  text-align: center;
+  margin: 18px 0 10px 0;
+  padding: 4px;
+  background: rgba(30, 41, 59, 0.3);
+}
+
+.benchRowStyle { background: rgba(15, 23, 42, 0.6); }
+.benchBadgeStyle { font-size: 9px; background: #334155; color: #94a3b8; padding: 1px 4px; }
+
+/* ==========================================
+   PREGAME FORM COMPONENT CREATORS
+   ========================================== */
+.setupContainer { max-width: 1200px; margin: 0 auto; padding: 20px 0; }
+.setupTitle { font-size: 22px; font-weight: 800; color: #38bdf8; margin-bottom: 24px; }
+.teamConfigGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }
+
+@media (max-width: 850px) { .teamConfigGrid { grid-template-columns: 1fr; } }
+
+.teamConfigCard { background: #0f172a; border: 1px solid #334155; border-radius: 12px; padding: 20px; }
+.setupLabelHeader { display: block; font-size: 11px; font-weight: bold; color: #94a3b8; margin-bottom: 6px; }
+
+.setupTeamInput {
+  width: 100%;
+  background: #1e293b;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  padding: 10px;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: bold;
+  margin-bottom: 20px;
+  box-sizing: border-box;
+}
+
+.setupSectionSub { font-size: 13px; font-weight: bold; color: #facc15; margin: 16px 0 8px 0; }
+
+.setupRosterHeaderRow {
+  display: grid;
+  grid-template-columns: 50px 1.5fr 1.5fr 60px 60px;
+  gap: 8px;
+  font-size: 10px;
+  color: #64748b;
+  padding-bottom: 4px;
+}
+
+.setupPlayerInputsRow {
+  display: grid;
+  grid-template-columns: 50px 1.5fr 1.5fr 60px 60px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.setupPlayerInputsRow input {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #ffffff;
+  padding: 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.setupOrderNum { font-size: 12px; color: #64748b; text-align: center; }
+.widthShortNum { text-align: center; }
+
+.setupAddSubBtn {
+  width: 100%;
+  background: transparent;
+  border: 1px dashed #475569;
+  color: #94a3b8;
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.setupRemoveSubBtn { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; border-radius: 4px; cursor: pointer; height: 28px; }
+.setupActionCenter { text-align: center; margin-top: 30px; }
+.setupLaunchBtn { background: #22c55e; color: #ffffff; border: none; padding: 14px 36px; font-size: 16px; font-weight: 700; border-radius: 6px; cursor: pointer; }
+/* ========================================================
+   STATS GRID & DENSE LEADERBOARD STYLE EXTENSIONS
+   ======================================================== */
+.statsWorkspace, .rankingsWorkspace {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 20px;
+}
+
+.subTabContainer {
+  display: flex;
+  gap: 10px;
+  border-bottom: 2px solid #1e293b;
+  padding-bottom: 12px;
+  margin-bottom: 20px;
+}
+
+.subTabBtn {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 6px 12px;
+  transition: color 0.2s;
+}
+
+.subTabBtnActive {
+  color: #38bdf8 !important;
+  border-bottom: 2px solid #38bdf8;
+}
+
+/* Dense Data Tables */
+.tableWrapper {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid #1e293b;
+}
+
+.statsTable {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+  background: #090d16;
+}
+
+.statsTable th {
+  background: #1e293b;
+  color: #94a3b8;
+  padding: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
+.statsTable td {
+  padding: 12px;
+  border-bottom: 1px solid #1e293b;
+  color: #cbd5e1;
+}
+
+.statsTable tr:hover {
+  background: rgba(30, 41, 59, 0.3);
+}
+
+.highlightStat {
+  color: #facc15 !important;
+  font-weight: 700;
+}
+
+.teamTotalsRow {
+  background: #0f172a;
+  font-weight: 800;
+  border-top: 2px solid #334155;
+}
+
+.teamTotalsRow td {
+  color: #ffffff !important;
+}
+
+/* Leaderboard Dual Column Grid */
+.leaderboardSplitView {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 850px) {
+  .leaderboardSplitView { grid-template-columns: 1fr; }
+}
+
+.leaderboardCard {
+  background: #090d16;
+  border: 1px solid #1e293b;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.leaderHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #1e293b;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+
+.leaderHeader h3 {
+  margin: 0;
+  font-size: 15px;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.statSelectorDropdown {
+  background: #1e293b;
+  color: #ffffff;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.leaderRowsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.leaderRowItem {
+  display: flex;
+  align-items: center;
+  background: #0f172a;
+  padding: 10px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(30, 41, 59, 0.4);
+}
+
+.rankNumber {
+  width: 30px;
+  font-size: 14px;
+  font-weight: 900;
+  color: #64748b;
+}
+
+.leaderRowItem:nth-child(1) .rankNumber { color: #facc15; }
+.leaderRowItem:nth-child(2) .rankNumber { color: #cbd5e1; }
+.leaderRowItem:nth-child(3) .rankNumber { color: #b45309; }
+
+.rankPlayerName {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.rankStatValue {
+  font-size: 15px;
+  font-weight: 800;
+  color: #38bdf8;
+  font-family: monospace;
+}
+
+.noQualifiers {
+  text-align: center;
+  padding: 24px;
+  font-size: 12px;
+  color: #475569;
+  font-style: italic;
+}
+
+.activeRowHighlight {
+  background: rgba(56, 189, 248, 0.08) !important;
+  border-left: 4px solid #38bdf8;
+}
+/* Inline Card Game Removers */
+.deleteGameInlineBtn {
+  background: transparent;
+  border: none;
+  color: #ef4444;
+  font-size: 14px;
+  cursor: pointer;
+  margin-left: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.deleteGameInlineBtn:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+/* Print Layout Optimization Flags */
+.printOnlyTitle {
+  display: none;
+}
+.printOnlySeasonHeader {
+  display: none;
+  font-size: 14px;
+  color: #334155;
+  margin-top: 4px;
+}
+
+/* ========================================================
+   🖨️ CSS PRINT ENGINE OVERRIDES
+   ======================================================== */
+@media print {
+  body, html {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  
+  .container {
+    background: #ffffff !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .hideOnPrint {
+    display: none !important;
+  }
+
+  .scheduleHeaderBanner {
+    background: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #000000 !important;
+    padding: 15px !important;
+    margin-bottom: 20px !important;
+  }
+
+  .bannerRecordsRibbon strong {
+    color: #000000 !important;
+  }
+
+  .printOnlyTitle {
+    display: block !important;
+    color: #000000 !important;
+    font-size: 18px;
+    margin-bottom: 12px;
+    font-weight: bold;
+  }
+
+  .printOnlySeasonHeader {
+    display: block !important;
+  }
+
+  .statsTable {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: 1px solid #94a3b8 !important;
+    width: 100% !important;
+  }
+
+  .statsTable th {
+    background: #f1f5f9 !important;
+    color: #000000 !important;
+    border-bottom: 2px solid #64748b !important;
+  }
+
+  .statsTable td {
+    border-bottom: 1px solid #e2e8f0 !important;
+    color: #000000 !important;
+  }
+
+  .teamTotalsRow td {
+    background: #f8fafc !important;
+    font-weight: bold !important;
+    border-top: 2px solid #000000 !important;
+  }
+}
+/* Update your main container to inherit the dynamic CSS variables */
+.container {
+  /* Provide default fallback values (deep navy/slate) if no custom branding is set */
+  --primary-color: var(--dynamic-primary, #0f172a);
+  --accent-color: var(--dynamic-accent, #22c55e);
+  --text-light: #ffffff;
+  
+  background-color: var(--primary-color);
+  color: var(--text-light);
+  min-height: 100vh;
+  padding: 20px;
+  font-family: system-ui, -apple-system, sans-serif;
+  transition: background-color 0.3s ease;
+}
+
+/* Add these branding UI component styles to the very bottom of your file */
+.brandingSection {
+  background: #0b1329;
+  border: 1px solid #334155;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.colorPickerGroup {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 12px;
+}
+
+.colorPickerItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #94a3b8;
+  flex: 1;
+}
+
+.colorPickerItem input[type="color"] {
+  width: 100%;
+  height: 35px;
+  border: 1px solid #334155;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.logoPreviewWrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.teamLogoAvatar {
+  width: 45px;
+  height: 45px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 4px;
+  border: 1px solid #334155;
+}
+/* Clean branding elements at the bottom of the file */
+.brandingSection {
+  background: #0b1329;
+  border: 1px solid #334155;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.logoPreviewWrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.teamLogoAvatar {
+  width: 45px;
+  height: 45px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 4px;
+  border: 1px solid #334155;
+}
+.importerTextArea {
+  width: 100%;
+  height: 80px;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #fff;
+  padding: 8px;
+  font-family: monospace;
+  font-size: 11px;
+  resize: vertical;
+  margin-bottom: 8px;
+}
+
+.importerInstructions {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+.subNavigationTabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.subTabBtn {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.subTabBtnActive {
+  background: #22c55e;
+  border-color: #22c55e;
+  color: #fff;
+}
+
+.statTableWrapper {
+  overflow-x: auto;
+  background: #0b1329;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.statGridTable {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+
+.statGridTable th {
+  background: #0f172a;
+  color: #94a3b8;
+  padding: 10px 12px;
+  font-weight: 600;
+  border-bottom: 1px solid #334155;
+}
+
+.statGridTable td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #1e293b;
+  color: #e2e8f0;
+}
+
+.statGridTable tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.gameSetupPanel {
+  background: linear-gradient(180deg, #0f172a 0%, #091225 100%);
+  border: 1px solid #274166;
+  border-radius: 10px;
+  padding: 18px;
+  margin-bottom: 25px;
+}
+
+.setupHeaderRow,
+.setupFooterRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.setupHeaderRow h3,
+.setupCard h4,
+.lineupPreviewCard h4 {
+  margin: 0 0 6px;
+  color: #f8fafc;
+}
+
+.setupHeaderRow p,
+.setupHint,
+.setupFooterRow span {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.readyBadge,
+.draftBadge {
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 8px 12px;
+}
+
+.readyBadge {
+  background: rgba(34, 197, 94, 0.16);
+  border: 1px solid rgba(34, 197, 94, 0.55);
+  color: #bbf7d0;
+}
+
+.draftBadge {
+  background: rgba(234, 179, 8, 0.14);
+  border: 1px solid rgba(234, 179, 8, 0.5);
+  color: #fde68a;
+}
+
+.setupGrid,
+.lineupPreviewGrid {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.setupGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.lineupPreviewGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.setupCard,
+.lineupPreviewCard {
+  background: rgba(11, 19, 41, 0.86);
+  border: 1px solid #1e3a5f;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.checklist {
+  display: grid;
+  gap: 7px;
+}
+
+.checkDone,
+.checkTodo {
+  display: grid;
+  grid-template-columns: 46px 1fr;
+  align-items: center;
+  gap: 8px;
+  border-radius: 6px;
+  padding: 7px;
+  font-size: 12px;
+}
+
+.checkDone {
+  background: rgba(34, 197, 94, 0.12);
+  color: #dcfce7;
+}
+
+.checkTodo {
+  background: rgba(148, 163, 184, 0.08);
+  color: #cbd5e1;
+}
+
+.checkDone span,
+.checkTodo span {
+  color: #93c5fd;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.segmentedControl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.segmentedControl button,
+.setupActionButton,
+.primarySetupButton,
+.secondarySetupButton {
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #e2e8f0;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.segmentedControl button {
+  background: #1e293b;
+  padding: 8px 6px;
+  font-size: 11px;
+}
+
+.segmentedControl .segmentActive {
+  background: #2563eb;
+  border-color: #3b82f6;
+  color: #fff;
+}
+
+.setupActionButton,
+.primarySetupButton,
+.secondarySetupButton {
+  padding: 8px 12px;
+}
+
+.setupActionButton,
+.primarySetupButton {
+  background: #2563eb;
+  border-color: #3b82f6;
+}
+
+.secondarySetupButton {
+  background: #1e293b;
+}
+
+.lockHint {
+  border-left: 3px solid #f59e0b;
+  color: #fde68a;
+  font-size: 12px;
+  margin: 10px 0 0;
+  padding-left: 8px;
+}
+
+.pitchLimitRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.pitchLimitRow label {
+  display: grid;
+  gap: 5px;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.pitchLimitRow input {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 5px;
+  color: #fff;
+  padding: 6px;
+  width: 100%;
+}
+
+.limitSafe,
+.limitWarning,
+.limitDanger {
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 8px;
+}
+
+.limitSafe {
+  background: rgba(34, 197, 94, 0.12);
+  color: #bbf7d0;
+}
+
+.limitWarning {
+  background: rgba(234, 179, 8, 0.15);
+  color: #fde68a;
+}
+
+.limitDanger {
+  background: rgba(239, 68, 68, 0.16);
+  color: #fecaca;
+}
+
+.lineupRow {
+  display: grid;
+  grid-template-columns: 38px 1fr 48px;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid #1e293b;
+  color: #e2e8f0;
+  font-size: 12px;
+  padding: 7px 0;
+}
+
+.lineupRow span {
+  color: #60a5fa;
+  font-weight: 900;
+}
+
+.lineupRow small {
+  color: #94a3b8;
+  text-align: right;
+}
+
+.lineupBuilderPanel {
+  background: rgba(2, 6, 23, 0.46);
+  border: 1px solid #1e3a5f;
+  border-radius: 10px;
+  margin-top: 16px;
+  padding: 16px;
+}
+
+.lineupBuilderHeader {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.lineupBuilderHeader h4 {
+  color: #f8fafc;
+  font-size: 16px;
+  margin: 0 0 4px;
+}
+
+.lineupBuilderHeader p {
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.lineupBuilderHeader span {
+  background: rgba(37, 99, 235, 0.15);
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  border-radius: 999px;
+  color: #bfdbfe;
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 7px 10px;
+}
+
+.lineupBuilderActions {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 12px;
+}
+
+.lineupBuilderActions button {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #e2e8f0;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+  min-height: 38px;
+  padding: 8px 10px;
+}
+
+.lineupBuilderActions button:last-child {
+  background: #2563eb;
+  border-color: #60a5fa;
+  color: #fff;
+}
+
+.lineupBuilderActions button:disabled,
+.lineupBuilderRow button:disabled,
+.benchAddRow button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.lineupBuilderGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1.3fr 0.7fr;
+}
+
+.lineupBuilderCard {
+  background: #0b1329;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.lineupBuilderCard h4 {
+  color: #cbd5e1;
+  font-size: 12px;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+}
+
+.lineupBuilderRow {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(30, 41, 59, 0.8);
+  border-radius: 6px;
+  color: #cbd5e1;
+  display: grid;
+  font-size: 12px;
+  gap: 8px;
+  grid-template-columns: 30px 1fr 76px 90px 150px;
+  margin-bottom: 6px;
+  min-height: 46px;
+  padding: 7px;
+}
+
+.lineupBuilderRow > span {
+  color: #60a5fa;
+  font-weight: 900;
+}
+
+.lineupBuilderRow strong {
+  color: #f8fafc;
+  display: grid;
+  gap: 2px;
+}
+
+.lineupBuilderRow small {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.lineupBuilderRow select {
+  background: #020617;
+  border: 1px solid #334155;
+  border-radius: 5px;
+  color: #f8fafc;
+  min-height: 32px;
+  padding: 6px;
+}
+
+.lineupRowTools {
+  display: flex;
+  gap: 5px;
+}
+
+.lineupRowTools button,
+.benchAddRow button {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 5px;
+  color: #e2e8f0;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 6px 7px;
+}
+
+.benchAddRow {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(30, 41, 59, 0.8);
+  border-radius: 6px;
+  color: #cbd5e1;
+  display: grid;
+  font-size: 12px;
+  gap: 8px;
+  grid-template-columns: 44px 1fr 50px 58px;
+  margin-bottom: 6px;
+  min-height: 40px;
+  padding: 7px;
+}
+
+.benchAddRow span,
+.benchAddRow small {
+  color: #94a3b8;
+}
+
+.benchAddRow strong {
+  color: #f8fafc;
+}
+
+.teamCreationCard {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.14), rgba(15, 23, 42, 0.92));
+  border: 1px solid #1d4ed8;
+  border-radius: 10px;
+  margin-top: 16px;
+  padding: 16px;
+}
+
+.teamCreationHeader {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.teamCreationHeader h4 {
+  color: #f8fafc;
+  font-size: 16px;
+  margin: 0 0 4px;
+}
+
+.teamCreationHeader p {
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.teamCreationHeader span {
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+  color: #cbd5e1;
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 7px 10px;
+}
+
+.teamCreationHeader .teamProfileSaved {
+  background: rgba(34, 197, 94, 0.14);
+  border-color: rgba(34, 197, 94, 0.45);
+  color: #bbf7d0;
+}
+
+.teamCreationGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.teamCreationGrid label {
+  color: #93c5fd;
+  display: grid;
+  font-size: 11px;
+  font-weight: 900;
+  gap: 5px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.teamCreationGrid input,
+.teamCreationGrid select {
+  background: #0b1329;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #f8fafc;
+  font-size: 13px;
+  min-height: 38px;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.teamCreationGrid button {
+  align-self: end;
+  background: #2563eb;
+  border: 1px solid #60a5fa;
+  border-radius: 6px;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
+  min-height: 38px;
+  padding: 8px 12px;
+}
+
+.teamCreationGrid button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.rosterManagerPanel {
+  background: rgba(2, 6, 23, 0.42);
+  border: 1px solid #1e3a5f;
+  border-radius: 10px;
+  margin-top: 16px;
+  padding: 16px;
+}
+
+.rosterManagerHeader {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.rosterManagerHeader h4 {
+  color: #f8fafc;
+  font-size: 16px;
+  margin: 0 0 4px;
+}
+
+.rosterManagerHeader p {
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.rosterManagerHeader span {
+  background: rgba(37, 99, 235, 0.15);
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  border-radius: 999px;
+  color: #bfdbfe;
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 7px 10px;
+}
+
+.rosterManagerGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 0.9fr 1.3fr;
+}
+
+.rosterFormCard,
+.rosterListCard {
+  background: #0b1329;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.rosterFormGrid {
+  display: grid;
+  gap: 9px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.rosterFormGrid label {
+  color: #93c5fd;
+  display: grid;
+  font-size: 10px;
+  font-weight: 900;
+  gap: 5px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.rosterFormGrid input,
+.rosterFormGrid select,
+.rosterFormGrid textarea {
+  background: #020617;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #f8fafc;
+  min-height: 36px;
+  padding: 8px;
+  width: 100%;
+}
+
+.rosterFormGrid textarea {
+  min-height: 78px;
+  resize: vertical;
+}
+
+.rosterWideField {
+  grid-column: 1 / -1;
+}
+
+.uploadStatusText {
+  color: #93c5fd;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: none;
+}
+
+.rosterFormActions {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr 90px;
+  margin-top: 10px;
+}
+
+.rosterFormActions button,
+.rosterRowActions button,
+.rosterRowActions a {
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 8px 10px;
+  text-decoration: none;
+}
+
+.rosterFormActions button:first-child {
+  background: #2563eb;
+  border: 1px solid #60a5fa;
+  color: #fff;
+}
+
+.rosterFormActions button:last-child,
+.rosterRowActions button,
+.rosterRowActions a {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #e2e8f0;
+}
+
+.rosterFormActions button:disabled,
+.rosterRowActions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.rosterListHeader,
+.rosterListRow {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 46px 1.4fr 50px 58px 62px 190px;
+  align-items: center;
+}
+
+.rosterListHeader {
+  border-bottom: 1px solid #1e293b;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 0 0 8px;
+  text-transform: uppercase;
+}
+
+.rosterListRows {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.rosterListRows p {
+  color: #94a3b8;
+  font-size: 12px;
+  margin: 0;
+}
+
+.rosterListRow {
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(30, 41, 59, 0.8);
+  border-radius: 6px;
+  color: #cbd5e1;
+  font-size: 12px;
+  min-height: 42px;
+  padding: 7px;
+}
+
+.rosterListRow strong {
+  color: #f8fafc;
+}
+
+.rosterListRow strong small {
+  color: #60a5fa;
+  display: block;
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+.rosterRowActions {
+  display: flex;
+  gap: 6px;
+}
+
+.rosterRowActions button,
+.rosterRowActions a {
+  font-size: 10px;
+  padding: 6px 7px;
+}
+
+.gameChangerPanel {
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.94));
+  border: 1px solid #1e3a5f;
+  border-radius: 10px;
+  padding: 18px;
+  margin-bottom: 25px;
+}
+
+.gcPanelHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  border-bottom: 1px solid #1e293b;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+}
+
+.gcPanelHeader h3 {
+  margin: 0 0 4px;
+  color: #f8fafc;
+  font-size: 18px;
+}
+
+.gcPanelHeader p {
+  margin: 0;
+  color: #93c5fd;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.gcStepRail {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.gcStepRail button {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 999px;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 7px 10px;
+}
+
+.gcStepRail .gcStepActive {
+  background: #2563eb;
+  border-color: #60a5fa;
+  color: #ffffff;
+}
+
+.gcScoreStrip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.gcScoreStrip div {
+  background: #0b1329;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  min-height: 64px;
+  padding: 10px;
+}
+
+.gcScoreStrip span {
+  display: block;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.gcScoreStrip strong {
+  color: #f8fafc;
+  display: block;
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.gcActionGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.gcActionCard {
+  background: rgba(11, 19, 41, 0.92);
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.gcActionCard h4 {
+  color: #cbd5e1;
+  font-size: 12px;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+}
+
+.gcButtonGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gcButtonGrid button {
+  background: #111827;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #f8fafc;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+  min-height: 48px;
+  padding: 8px;
+  text-align: left;
+}
+
+.gcButtonGrid button:hover {
+  border-color: #60a5fa;
+  background: #172554;
+}
+
+.gcButtonGrid button:disabled,
+.gcStepRail button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.gcButtonGrid span {
+  color: #60a5fa;
+  display: block;
+  font-size: 10px;
+  margin-bottom: 3px;
+}
+
+.gcNoteRow {
+  display: grid;
+  grid-template-columns: 1fr 120px 100px;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.gcNoteRow input {
+  background: #0b1329;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #f8fafc;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.gcNoteRow button {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #e2e8f0;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.playLogPanel {
+  background: #0f172a;
+  border: 1px solid #1e3a5f;
+  border-radius: 10px;
+  margin-bottom: 25px;
+  padding: 18px;
+}
+
+.playLogHeader {
+  align-items: flex-start;
+  border-bottom: 1px solid #1e293b;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+}
+
+.playLogHeader h3 {
+  color: #f8fafc;
+  font-size: 18px;
+  margin: 0 0 4px;
+}
+
+.playLogHeader p {
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.playLogHeader span {
+  background: rgba(37, 99, 235, 0.15);
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  border-radius: 999px;
+  color: #bfdbfe;
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 7px 10px;
+}
+
+.playLogTools {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr 150px;
+  margin-bottom: 12px;
+}
+
+.playLogTools input,
+.playLogMain input {
+  background: #020617;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #f8fafc;
+  min-height: 38px;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.playLogTools button,
+.playLogActions button {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #e2e8f0;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 8px 10px;
+}
+
+.playLogTools button {
+  background: #7f1d1d;
+  border-color: #ef4444;
+  color: #fee2e2;
+}
+
+.playLogTools button:disabled,
+.playLogActions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.playLogRows {
+  display: grid;
+  gap: 8px;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.emptyPlayLog {
+  background: #0b1329;
+  border: 1px dashed #334155;
+  border-radius: 8px;
+  color: #94a3b8;
+  font-size: 13px;
+  padding: 18px;
+  text-align: center;
+}
+
+.playLogRow {
+  align-items: center;
+  background: #0b1329;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 132px 1fr 150px;
+  padding: 10px;
+}
+
+.playLogMeta {
+  display: grid;
+  gap: 3px;
+}
+
+.playLogMeta span {
+  color: #60a5fa;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.playLogMeta strong,
+.playLogMain strong {
+  color: #f8fafc;
+}
+
+.playLogMeta small,
+.playLogMain span,
+.playLogMain small {
+  color: #94a3b8;
+  display: block;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.playLogActions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.playLogActions button {
+  font-size: 10px;
+  padding: 6px 8px;
+}
+
+@media (max-width: 1100px) {
+  .setupGrid,
+  .lineupPreviewGrid,
+  .lineupBuilderActions,
+  .lineupBuilderGrid,
+  .lineupBuilderRow,
+  .benchAddRow,
+  .teamCreationGrid,
+  .schedulePlannerGrid,
+  .schedulePlannerActions,
+  .rosterManagerGrid,
+  .rosterFormGrid,
+  .rosterListHeader,
+  .rosterListRow,
+  .gcActionGrid,
+  .gcScoreStrip,
+  .gcNoteRow,
+  .playLogTools,
+  .playLogRow {
+    grid-template-columns: 1fr;
+  }
+
+  .gcPanelHeader,
+  .playLogHeader,
+  .lineupBuilderHeader,
+  .teamCreationHeader,
+  .rosterManagerHeader {
+    flex-direction: column;
+  }
+
+  .rosterRowActions {
+    flex-wrap: wrap;
+  }
+
+  .gameMediaCard,
+  .cardCenterMatchup,
+  .cardRightStatus,
+  .scheduleCardActions {
+    align-items: flex-start;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .scheduleCardActions {
+    margin-left: 0;
+  }
+}
