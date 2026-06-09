@@ -159,6 +159,8 @@ export default function BroadcastConsole() {
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState('');
+  const [userPlan, setUserPlan] = useState('free');
+  const [checkoutStatus, setCheckoutStatus] = useState('');
 
   // 🖼️ Logo Configuration State
   const [logoUrl, setLogoUrl] = useState('');
@@ -188,9 +190,29 @@ export default function BroadcastConsole() {
   const [seasonsData, setSeasonsData] = useState({});
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      if (currentUser) {
+        try {
+          const token = await currentUser.getIdToken();
+          const res = await fetch(`${apiBaseUrl}/api/user/plan`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setUserPlan(data.plan || 'free');
+          }
+        } catch (e) { console.error(e); }
+      } else {
+        setUserPlan('free');
+      }
     });
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('checkout') === 'success') {
+      setActiveTab('upgrade');
+      setCheckoutStatus('success');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
     return () => unsubscribeAuth();
   }, [auth]);
 
@@ -1574,6 +1596,27 @@ export default function BroadcastConsole() {
     } catch (err) { setAuthError('Invalid administrator credentials.'); }
   };
 
+  const startCheckout = async (tier) => {
+    if (!user) { setShowAuthModal(true); return; }
+    setCheckoutStatus('loading');
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`${apiBaseUrl}/create-checkout`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Checkout failed');
+      const { loadStripe } = await import('@stripe/stripe-js');
+      const stripeJs = await loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
+      await stripeJs.redirectToCheckout({ sessionId: data.id });
+    } catch (err) {
+      console.error(err);
+      setCheckoutStatus('error');
+    }
+  };
+
   const copyFanLink = (player) => {
     const url = `${window.location.origin}/fan?game=${encodeURIComponent(defaultLiveGameId)}`;
     const text = `Follow ${player.firstName} ${player.lastName} live at ${teamDisplayName || homeTeamName}! ${url}`;
@@ -1629,6 +1672,7 @@ export default function BroadcastConsole() {
         <button className={`${styles.tabBarBtn} ${activeTab === 'live-game' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('live-game')}>🎮 Live Scoring Engine</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'schedule' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('schedule')}>📅 Results &amp; Records</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'stats' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('stats')}>📈 Stat Sheets</button>
+        <button className={`${styles.tabBarBtn} ${activeTab === 'upgrade' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('upgrade')} style={{ marginLeft: 'auto', color: '#f59e0b', borderColor: '#f59e0b' }}>⭐ Upgrade</button>
       </div>
 
       {/* TOP MEDIA BANNER */}
@@ -2665,6 +2709,127 @@ export default function BroadcastConsole() {
               )}
             </table>
           </div>
+        </div>
+      )}
+
+      {/* UPGRADE / PRICING TAB */}
+      {activeTab === 'upgrade' && (
+        <div style={{ maxWidth: '900px', margin: '30px auto', padding: '0 20px' }}>
+
+          {checkoutStatus === 'success' && (
+            <div style={{ background: '#14532d', border: '1px solid #16a34a', borderRadius: '10px', padding: '16px 24px', marginBottom: '24px', color: '#86efac', fontWeight: 'bold', fontSize: '15px' }}>
+              ✅ Payment successful! Your plan has been upgraded. Welcome to the team.
+            </div>
+          )}
+          {checkoutStatus === 'error' && (
+            <div style={{ background: '#450a0a', border: '1px solid #dc2626', borderRadius: '10px', padding: '16px 24px', marginBottom: '24px', color: '#fca5a5', fontSize: '14px' }}>
+              ⚠️ Something went wrong with checkout. Please try again or contact support.
+            </div>
+          )}
+
+          <div style={{ textAlign: 'center', marginBottom: '36px' }}>
+            <h2 style={{ margin: '0 0 10px', fontSize: '28px', color: '#fff' }}>{sportEmoji(teamSport)} GameTracker Plans</h2>
+            <p style={{ color: '#64748b', fontSize: '15px', margin: 0 }}>Baseball &amp; Softball scoring, stats, and recruiting — built for coaches who are serious about winning.</p>
+            {user && (
+              <div style={{ marginTop: '12px', display: 'inline-block', padding: '6px 18px', borderRadius: '20px', background: userPlan === 'free' ? '#1e293b' : userPlan === 'org' ? '#7c3aed' : '#1d4ed8', color: '#fff', fontSize: '13px', fontWeight: 'bold' }}>
+                Current plan: {userPlan === 'free' ? 'Free' : userPlan === 'org' ? 'Organization' : 'Pro Coach'}
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
+
+            {/* FREE */}
+            <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '14px', padding: '28px 24px', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ fontSize: '13px', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>Free</div>
+                <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#fff', margin: '8px 0 4px' }}>$0</div>
+                <div style={{ fontSize: '13px', color: '#475569' }}>forever</div>
+              </div>
+              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
+                {['1 team', 'Live pitch-by-pitch scoring', 'Fan GameStream page', 'Season schedule', 'Basic roster (no recruiting)', 'Standard stats (AVG, ERA)'].map(f => (
+                  <li key={f} style={{ fontSize: '13px', color: '#94a3b8', display: 'flex', gap: '8px' }}><span style={{ color: '#22c55e' }}>✓</span>{f}</li>
+                ))}
+              </ul>
+              <div style={{ padding: '10px', background: '#1e293b', borderRadius: '8px', textAlign: 'center', color: '#475569', fontSize: '13px', fontWeight: 'bold' }}>
+                {userPlan === 'free' ? '✓ Current Plan' : 'Included'}
+              </div>
+            </div>
+
+            {/* PRO COACH */}
+            <div style={{ background: '#0f172a', border: '2px solid #3b82f6', borderRadius: '14px', padding: '28px 24px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+              <div style={{ position: 'absolute', top: '-13px', left: '50%', transform: 'translateX(-50%)', background: '#3b82f6', color: '#fff', fontSize: '11px', fontWeight: 'bold', padding: '4px 14px', borderRadius: '20px', whiteSpace: 'nowrap' }}>MOST POPULAR</div>
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ fontSize: '13px', color: '#3b82f6', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>Pro Coach</div>
+                <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#fff', margin: '8px 0 2px' }}>$6.99<span style={{ fontSize: '16px', fontWeight: 'normal', color: '#64748b' }}>/mo</span></div>
+                <div style={{ fontSize: '13px', color: '#475569' }}>or $59/year — save 30%</div>
+              </div>
+              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
+                {['Everything in Free', 'Unlimited teams', 'Recruiting profiles per player', 'Highlight video uploads', 'Advanced stats (OBP, SLG, OPS, WHIP)', 'Printable lineup cards', 'Box score sharing', 'Family fan share links', 'Play log edit / undo', 'Priority support'].map(f => (
+                  <li key={f} style={{ fontSize: '13px', color: '#cbd5e1', display: 'flex', gap: '8px' }}><span style={{ color: '#3b82f6' }}>✓</span>{f}</li>
+                ))}
+              </ul>
+              {userPlan === 'pro' ? (
+                <div style={{ padding: '10px', background: '#1d4ed8', borderRadius: '8px', textAlign: 'center', color: '#fff', fontSize: '13px', fontWeight: 'bold' }}>✓ Current Plan</div>
+              ) : (
+                <button
+                  onClick={() => startCheckout('pro')}
+                  disabled={checkoutStatus === 'loading'}
+                  style={{ padding: '12px', background: '#3b82f6', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}
+                >
+                  {checkoutStatus === 'loading' ? 'Redirecting...' : 'Upgrade to Pro →'}
+                </button>
+              )}
+            </div>
+
+            {/* ORGANIZATION */}
+            <div style={{ background: '#0f172a', border: '1px solid #7c3aed', borderRadius: '14px', padding: '28px 24px', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ fontSize: '13px', color: '#a78bfa', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>Organization</div>
+                <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#fff', margin: '8px 0 2px' }}>$39<span style={{ fontSize: '16px', fontWeight: 'normal', color: '#64748b' }}>/mo</span></div>
+                <div style={{ fontSize: '13px', color: '#475569' }}>per organization</div>
+              </div>
+              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
+                {['Everything in Pro', 'Multi-team management', 'Organization admin dashboard', 'League standings', 'Bulk roster import', 'Staff / coach accounts', 'Custom branding', 'College coach visibility (coming soon)', 'Dedicated support'].map(f => (
+                  <li key={f} style={{ fontSize: '13px', color: '#cbd5e1', display: 'flex', gap: '8px' }}><span style={{ color: '#a78bfa' }}>✓</span>{f}</li>
+                ))}
+              </ul>
+              {userPlan === 'org' ? (
+                <div style={{ padding: '10px', background: '#7c3aed', borderRadius: '8px', textAlign: 'center', color: '#fff', fontSize: '13px', fontWeight: 'bold' }}>✓ Current Plan</div>
+              ) : (
+                <button
+                  onClick={() => startCheckout('org')}
+                  disabled={checkoutStatus === 'loading'}
+                  style={{ padding: '12px', background: '#7c3aed', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}
+                >
+                  {checkoutStatus === 'loading' ? 'Redirecting...' : 'Upgrade to Org →'}
+                </button>
+              )}
+            </div>
+
+          </div>
+
+          <div style={{ marginTop: '40px', background: '#0b1329', border: '1px solid #1e293b', borderRadius: '12px', padding: '24px' }}>
+            <h3 style={{ margin: '0 0 16px', color: '#94a3b8', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>Why coaches choose GameTracker over GameChanger</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+              {[
+                ['⚾ Baseball & Softball Only', 'Purpose-built for diamond sports — no basketball, soccer, or watered-down multi-sport features.'],
+                ['🎓 Built-in Recruiting Profiles', 'Every player gets a shareable recruiting page with stats, video links, and NCAA ID — GameChanger doesn\'t offer this.'],
+                ['📊 Real Stats From Real Plays', 'Stats are auto-calculated from live pitch-by-pitch events, not manual entry.']
+              ].map(([title, desc]) => (
+                <div key={title} style={{ padding: '16px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e293b' }}>
+                  <div style={{ fontWeight: 'bold', color: '#fff', marginBottom: '8px', fontSize: '14px' }}>{title}</div>
+                  <div style={{ color: '#64748b', fontSize: '13px', lineHeight: '1.5' }}>{desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {!user && (
+            <p style={{ textAlign: 'center', color: '#475569', fontSize: '13px', marginTop: '24px' }}>
+              <button onClick={() => setShowAuthModal(true)} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', textDecoration: 'underline', fontSize: '13px' }}>Sign in</button> to upgrade your plan.
+            </p>
+          )}
         </div>
       )}
 

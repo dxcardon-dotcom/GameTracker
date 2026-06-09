@@ -11,6 +11,8 @@ const port = Number(process.env.PORT || 4000);
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripePriceId = process.env.STRIPE_PRICE_ID;
+const stripeProPriceId = process.env.STRIPE_PRO_PRICE_ID || stripePriceId;
+const stripeOrgPriceId = process.env.STRIPE_ORG_PRICE_ID || stripePriceId;
 const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
 const firebaseServiceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
@@ -347,13 +349,15 @@ function readRawBody(req) {
   });
 }
 
-async function createCheckoutSession({ uid, email }) {
+async function createCheckoutSession({ uid, email, tier = "pro" }) {
   if (!stripeSecretKey) {
     throw new Error("Missing STRIPE_SECRET_KEY in .env");
   }
 
-  if (!stripePriceId) {
-    throw new Error("Missing STRIPE_PRICE_ID in .env");
+  const priceId = tier === "org" ? stripeOrgPriceId : stripeProPriceId;
+
+  if (!priceId) {
+    throw new Error("Missing Stripe price ID in .env");
   }
 
   const session = await stripe.checkout.sessions.create({
@@ -361,29 +365,32 @@ async function createCheckoutSession({ uid, email }) {
     payment_method_types: ["card"],
     customer_email: email,
     client_reference_id: uid,
-    line_items: [
-      {
-        price: stripePriceId,
-        quantity: 1,
-      },
-    ],
-    metadata: {
-      uid,
-    },
-    subscription_data: {
-      metadata: {
-        uid,
-      },
-    },
-    success_url: `${clientUrl}?checkout=success`,
+    line_items: [{ price: priceId, quantity: 1 }],
+    metadata: { uid, tier },
+    subscription_data: { metadata: { uid, tier } },
+    success_url: `${clientUrl}?checkout=success&tier=${tier}`,
     cancel_url: `${clientUrl}?checkout=canceled`,
   });
 
   return session;
 }
 
+async function getUserPlan(req, res) {
+  try {
+    const user = await requireUser(req);
+    const userDoc = await getDb().collection("users").doc(user.uid).get();
+    const plan = userDoc.exists ? (userDoc.data().plan || "free") : "free";
+    const tier = userDoc.exists ? (userDoc.data().tier || plan) : "free";
+    return sendJson(res, 200, { plan, tier });
+  } catch (error) {
+    const denied = /token|required/i.test(error.message);
+    return sendJson(res, denied ? 403 : 400, { error: error.message });
+  }
+}
+
 async function markUserProFromCheckoutSession(session) {
   const uid = session.metadata?.uid || session.client_reference_id;
+  const tier = session.metadata?.tier || "pro";
 
   if (!uid) {
     throw new Error("Stripe session missing uid metadata");
@@ -394,7 +401,8 @@ async function markUserProFromCheckoutSession(session) {
     .doc(uid)
     .set(
       {
-        plan: "pro",
+        plan: tier,
+        tier,
         stripeCustomerId: session.customer || null,
         stripeSubscriptionId: session.subscription || null,
         stripeCheckoutSessionId: session.id,
@@ -478,13 +486,19 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { ok: true });
   }
 
+  if (req.method === "GET" && requestUrl.pathname === "/api/user/plan") {
+    return getUserPlan(req, res);
+  }
+
   if (req.method === "POST" && requestUrl.pathname === "/create-checkout") {
     try {
       const user = await requireUser(req);
+      const body = await readBody(req);
       const uid = user.uid;
       const email = user.email;
+      const tier = body.tier || "pro";
 
-      const session = await createCheckoutSession({ uid, email });
+      const session = await createCheckoutSession({ uid, email, tier });
 
       return sendJson(res, 200, { id: session.id });
     } catch (error) {
