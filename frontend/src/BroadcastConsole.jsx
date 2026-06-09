@@ -188,6 +188,20 @@ export default function BroadcastConsole() {
     typeof Notification !== 'undefined' ? Notification.permission : 'default'
   );
 
+  // 🏢 Multi-Team / Org State
+  const [mySeasons, setMySeasons] = useState([]);
+  const [showNewTeamModal, setShowNewTeamModal] = useState(false);
+  const [newTeamName, setNewTeamName] = useState('');
+  const [newTeamSport, setNewTeamSport] = useState('Baseball');
+  const [newTeamAgeGroup, setNewTeamAgeGroup] = useState('Varsity');
+  const [newTeamLocation, setNewTeamLocation] = useState('');
+  const [newTeamStatus, setNewTeamStatus] = useState('');
+  const [showInvitePanel, setShowInvitePanel] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('coach');
+  const [inviteStatus, setInviteStatus] = useState('');
+  const [seasonCoaches, setSeasonCoaches] = useState([]);
+
   // 🖼️ Logo Configuration State
   const [logoUrl, setLogoUrl] = useState('');
   const [liveGameReady, setLiveGameReady] = useState(false);
@@ -215,6 +229,27 @@ export default function BroadcastConsole() {
 
   const [seasonsData, setSeasonsData] = useState({});
 
+  const loadMySeasons = async (currentUser) => {
+    if (!currentUser) return;
+    try {
+      const token = await currentUser.getIdToken();
+      const res = await fetch(`${apiBaseUrl}/api/my-seasons`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setMySeasons(data.seasons || []);
+      }
+    } catch (e) { console.error('loadMySeasons', e); }
+  };
+
+  const loadSeasonCoaches = async (seasonId, currentUser) => {
+    if (!currentUser) return;
+    try {
+      const { getDoc, doc: firestoreDoc } = await import('firebase/firestore');
+      const snap = await getDoc(firestoreDoc(db, 'seasons', seasonId));
+      if (snap.exists()) setSeasonCoaches(snap.data().coaches || []);
+    } catch (e) { console.error('loadSeasonCoaches', e); }
+  };
+
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
@@ -229,8 +264,10 @@ export default function BroadcastConsole() {
             setUserPlan(data.plan || 'free');
           }
         } catch (e) { console.error(e); }
+        loadMySeasons(currentUser);
       } else {
         setUserPlan('free');
+        setMySeasons([]);
       }
     });
     const params = new URLSearchParams(window.location.search);
@@ -1656,6 +1693,57 @@ export default function BroadcastConsole() {
     }
   };
 
+  const handleCreateTeam = async () => {
+    if (!user || !newTeamName.trim()) return;
+    setNewTeamStatus('Creating…');
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`${apiBaseUrl}/api/seasons`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newTeamName.trim(), sport: newTeamSport, ageGroup: newTeamAgeGroup, location: newTeamLocation.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok) { setNewTeamStatus(data.error || 'Error'); return; }
+      setNewTeamStatus('Created!');
+      setShowNewTeamModal(false);
+      setNewTeamName(''); setNewTeamSport('Baseball'); setNewTeamAgeGroup('Varsity'); setNewTeamLocation(''); setNewTeamStatus('');
+      await loadMySeasons(user);
+      setSelectedSeason(data.id);
+    } catch (e) { setNewTeamStatus('Network error'); }
+  };
+
+  const handleInviteCoach = async () => {
+    if (!user || !inviteEmail.trim()) return;
+    setInviteStatus('Sending…');
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`${apiBaseUrl}/api/seasons/${encodeURIComponent(selectedSeason)}/invite`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole })
+      });
+      const data = await res.json();
+      if (!res.ok) { setInviteStatus(data.error || 'Error'); return; }
+      setInviteStatus(`✓ Invited ${inviteEmail.trim()}`);
+      setInviteEmail('');
+      setSeasonCoaches(prev => [...prev, data.coach]);
+    } catch (e) { setInviteStatus('Network error'); }
+  };
+
+  const handleRemoveCoach = async (email) => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      await fetch(`${apiBaseUrl}/api/seasons/${encodeURIComponent(selectedSeason)}/remove-coach`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      setSeasonCoaches(prev => prev.filter(c => c.email !== email));
+    } catch (e) { console.error(e); }
+  };
+
   const requestNotifPermission = async () => {
     if (typeof Notification === 'undefined') return;
     const result = await Notification.requestPermission();
@@ -1754,10 +1842,48 @@ export default function BroadcastConsole() {
                 {user ? '🔒 Logout' : '🔑 Coach Login'}
               </button>
             </div>
-            <div style={{ marginTop: '8px' }}>
-              {['2024–2025', '2025–2026', '2026–2027'].map(yr => (
-                <button key={yr} className={`${styles.seasonYearPill} ${selectedSeason === yr ? styles.seasonYearPillActive : ''}`} onClick={() => setSelectedSeason(yr)}>{yr}</button>
-              ))}
+            <div style={{ marginTop: '8px', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              {user && mySeasons.length > 0 ? (
+                <>
+                  <select
+                    value={selectedSeason}
+                    onChange={e => { setSelectedSeason(e.target.value); loadSeasonCoaches(e.target.value, user); }}
+                    style={{ background: '#0f172a', border: '1px solid #334155', color: '#f8fafc', borderRadius: '8px', padding: '6px 12px', fontSize: '13px', fontWeight: '700', maxWidth: '260px' }}
+                  >
+                    {mySeasons.map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.teamProfile?.name || s.id} {s.role === 'owner' ? '' : `(${s.role})`}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => setShowNewTeamModal(true)}
+                    style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e', borderRadius: '8px', padding: '6px 12px', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}
+                  >
+                    + New Team
+                  </button>
+                  <button
+                    onClick={() => { setShowInvitePanel(p => !p); loadSeasonCoaches(selectedSeason, user); }}
+                    style={{ background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.3)', color: '#a78bfa', borderRadius: '8px', padding: '6px 12px', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}
+                  >
+                    👥 Team Access
+                  </button>
+                </>
+              ) : user ? (
+                <>
+                  <span style={{ fontSize: '12px', color: '#475569' }}>No teams yet</span>
+                  <button
+                    onClick={() => setShowNewTeamModal(true)}
+                    style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e', borderRadius: '8px', padding: '6px 12px', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}
+                  >
+                    + Create First Team
+                  </button>
+                </>
+              ) : (
+                ['2024–2025', '2025–2026', '2026–2027'].map(yr => (
+                  <button key={yr} className={`${styles.seasonYearPill} ${selectedSeason === yr ? styles.seasonYearPillActive : ''}`} onClick={() => setSelectedSeason(yr)}>{yr}</button>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -3497,6 +3623,101 @@ export default function BroadcastConsole() {
                 Done
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW TEAM MODAL */}
+      {showNewTeamModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(2,6,23,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '14px', padding: '28px', width: '100%', maxWidth: '440px' }}>
+            <h3 style={{ margin: '0 0 18px', color: '#fff', fontSize: '16px' }}>➕ Create New Team</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Team Name *</label>
+                <input value={newTeamName} onChange={e => setNewTeamName(e.target.value)} placeholder="e.g. Irvin Rockets JV"
+                  style={{ width: '100%', boxSizing: 'border-box', background: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '9px 12px', fontSize: '14px' }} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Sport</label>
+                  <select value={newTeamSport} onChange={e => setNewTeamSport(e.target.value)}
+                    style={{ width: '100%', background: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '9px 12px', fontSize: '13px' }}>
+                    {['Baseball','Softball','Basketball','Football','Soccer','Volleyball','Tennis','Track'].map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Level</label>
+                  <select value={newTeamAgeGroup} onChange={e => setNewTeamAgeGroup(e.target.value)}
+                    style={{ width: '100%', background: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '9px 12px', fontSize: '13px' }}>
+                    {['Varsity','JV','Freshman','8U','10U','12U','14U','16U','18U','College','Adult'].map(a => <option key={a}>{a}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Location</label>
+                <input value={newTeamLocation} onChange={e => setNewTeamLocation(e.target.value)} placeholder="e.g. El Paso, TX"
+                  style={{ width: '100%', boxSizing: 'border-box', background: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '9px 12px', fontSize: '13px' }} />
+              </div>
+            </div>
+            {newTeamStatus && <p style={{ margin: '12px 0 0', fontSize: '13px', color: newTeamStatus.includes('Created') ? '#22c55e' : '#f59e0b' }}>{newTeamStatus}</p>}
+            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+              <button onClick={() => { setShowNewTeamModal(false); setNewTeamStatus(''); }} style={{ flex: 1, padding: '10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#94a3b8', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={handleCreateTeam} disabled={!newTeamName.trim()} style={{ flex: 2, padding: '10px', background: '#22c55e', border: 'none', borderRadius: '8px', color: '#020617', fontSize: '13px', fontWeight: '900', cursor: 'pointer', opacity: newTeamName.trim() ? 1 : 0.5 }}>Create Team</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TEAM ACCESS / INVITE PANEL */}
+      {showInvitePanel && user && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(2,6,23,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '14px', padding: '28px', width: '100%', maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+              <h3 style={{ margin: 0, color: '#fff', fontSize: '16px' }}>👥 Team Access — {currentSeasonData.teamProfile?.name || selectedSeason}</h3>
+              <button onClick={() => setShowInvitePanel(false)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '20px', cursor: 'pointer', lineHeight: 1 }}>×</button>
+            </div>
+
+            {/* Current coaches */}
+            {seasonCoaches.length > 0 && (
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>Current Staff</div>
+                {seasonCoaches.map(c => (
+                  <div key={c.email} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: '#020617', border: '1px solid #1e293b', borderRadius: '8px', marginBottom: '6px' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '13px', color: '#e2e8f0', fontWeight: '600' }}>{c.email}</div>
+                      <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px' }}>{c.uid ? '✓ Account linked' : '⏳ Pending signup'}</div>
+                    </div>
+                    <span style={{ background: c.role === 'owner' ? 'rgba(56,189,248,0.15)' : 'rgba(167,139,250,0.15)', border: `1px solid ${c.role === 'owner' ? 'rgba(56,189,248,0.3)' : 'rgba(167,139,250,0.3)'}`, borderRadius: '999px', color: c.role === 'owner' ? '#38bdf8' : '#a78bfa', fontSize: '10px', fontWeight: '800', padding: '3px 9px', textTransform: 'uppercase' }}>{c.role}</span>
+                    {c.role !== 'owner' && (
+                      <button onClick={() => handleRemoveCoach(c.email)} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', color: '#ef4444', fontSize: '11px', fontWeight: '700', padding: '4px 10px', cursor: 'pointer' }}>Remove</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Invite form */}
+            <div style={{ fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>Invite Someone</div>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+              <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="coach@school.edu" type="email"
+                onKeyDown={e => e.key === 'Enter' && handleInviteCoach()}
+                style={{ flex: 1, minWidth: '180px', background: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '9px 12px', fontSize: '13px' }} />
+              <select value={inviteRole} onChange={e => setInviteRole(e.target.value)}
+                style={{ background: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '9px 12px', fontSize: '13px' }}>
+                <option value="coach">Coach</option>
+                <option value="assistant">Assistant</option>
+                <option value="scorekeeper">Scorekeeper</option>
+              </select>
+              <button onClick={handleInviteCoach} disabled={!inviteEmail.trim()}
+                style={{ background: '#a78bfa', border: 'none', borderRadius: '8px', color: '#020617', padding: '9px 16px', fontSize: '13px', fontWeight: '900', cursor: 'pointer', opacity: inviteEmail.trim() ? 1 : 0.5 }}>
+                Invite
+              </button>
+            </div>
+            {inviteStatus && <p style={{ margin: '6px 0 0', fontSize: '12px', color: inviteStatus.startsWith('✓') ? '#22c55e' : '#f59e0b' }}>{inviteStatus}</p>}
+            <p style={{ margin: '14px 0 0', fontSize: '11px', color: '#334155', lineHeight: 1.5 }}>
+              Invited coaches can view and score this season. They need a GameTracker account at the same email address.
+            </p>
           </div>
         </div>
       )}

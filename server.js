@@ -273,6 +273,135 @@ async function saveSeasonRoster(req, res, seasonId) {
   }
 }
 
+async function getMySeasons(req, res) {
+  try {
+    const user = await requireUser(req);
+    const owned = await getDb().collection('seasons')
+      .where('ownerId', '==', user.uid)
+      .orderBy('createdAt', 'desc')
+      .limit(50)
+      .get();
+    const invited = await getDb().collection('seasons')
+      .where('coachIds', 'array-contains', user.uid)
+      .limit(50)
+      .get();
+    const seen = new Set();
+    const seasons = [];
+    owned.forEach(doc => {
+      seen.add(doc.id);
+      const d = serializeFirestoreValue(doc.data());
+      seasons.push({ id: doc.id, role: 'owner', teamProfile: d.teamProfile || {}, createdAt: d.createdAt || null });
+    });
+    invited.forEach(doc => {
+      if (seen.has(doc.id)) return;
+      const d = serializeFirestoreValue(doc.data());
+      const member = (d.coaches || []).find(c => c.uid === user.uid);
+      seasons.push({ id: doc.id, role: member?.role || 'coach', teamProfile: d.teamProfile || {}, createdAt: d.createdAt || null });
+    });
+    return sendJson(res, 200, { seasons });
+  } catch (err) {
+    const denied = /token|required/i.test(err.message);
+    return sendJson(res, denied ? 403 : 400, { error: err.message });
+  }
+}
+
+async function createSeason(req, res) {
+  try {
+    const user = await requireUser(req);
+    const body = await readBody(req);
+    const name = (body.name || '').trim();
+    if (!name) return sendJson(res, 400, { error: 'Team name required' });
+    const seasonId = `${user.uid.slice(0, 8)}-${name.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 24)}-${Date.now().toString(36)}`;
+    await getDb().collection('seasons').doc(seasonId).set({
+      ownerId: user.uid,
+      coachIds: [],
+      coaches: [],
+      teamProfile: {
+        name,
+        sport: body.sport || 'Baseball',
+        ageGroup: body.ageGroup || 'Varsity',
+        location: body.location || '',
+        privacy: 'Public',
+      },
+      visibility: 'public',
+      roster: [],
+      schedule: [],
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return sendJson(res, 201, { id: seasonId, name });
+  } catch (err) {
+    const denied = /token|required/i.test(err.message);
+    return sendJson(res, denied ? 403 : 400, { error: err.message });
+  }
+}
+
+async function deleteSeason(req, res, seasonId) {
+  try {
+    const user = await requireUser(req);
+    const snap = await getDb().collection('seasons').doc(seasonId).get();
+    if (!snap.exists) return sendJson(res, 404, { error: 'Season not found' });
+    if (snap.data().ownerId !== user.uid) return sendJson(res, 403, { error: 'Only the owner can delete a season' });
+    await getDb().collection('seasons').doc(seasonId).delete();
+    return sendJson(res, 200, { ok: true });
+  } catch (err) {
+    const denied = /token|required/i.test(err.message);
+    return sendJson(res, denied ? 403 : 400, { error: err.message });
+  }
+}
+
+async function inviteCoach(req, res, seasonId) {
+  try {
+    const user = await requireUser(req);
+    const snap = await getDb().collection('seasons').doc(seasonId).get();
+    if (!snap.exists) return sendJson(res, 404, { error: 'Season not found' });
+    const season = snap.data();
+    if (season.ownerId !== user.uid) return sendJson(res, 403, { error: 'Only owner can invite coaches' });
+    const body = await readBody(req);
+    const email = (body.email || '').trim().toLowerCase();
+    const role = ['coach', 'scorekeeper', 'assistant'].includes(body.role) ? body.role : 'coach';
+    if (!email) return sendJson(res, 400, { error: 'Email required' });
+    let invitedUid = null;
+    try {
+      const invitedUser = await getAuth().getUserByEmail(email);
+      invitedUid = invitedUser.uid;
+    } catch { }
+    const coaches = Array.isArray(season.coaches) ? season.coaches : [];
+    if (coaches.find(c => c.email === email)) return sendJson(res, 409, { error: 'Already invited' });
+    const newCoach = { email, role, uid: invitedUid, invitedAt: new Date().toISOString(), invitedBy: user.uid };
+    const coachIds = Array.isArray(season.coachIds) ? season.coachIds : [];
+    await getDb().collection('seasons').doc(seasonId).update({
+      coaches: [...coaches, newCoach],
+      coachIds: invitedUid ? [...coachIds, invitedUid] : coachIds,
+    });
+    return sendJson(res, 200, { ok: true, coach: newCoach });
+  } catch (err) {
+    const denied = /token|required/i.test(err.message);
+    return sendJson(res, denied ? 403 : 400, { error: err.message });
+  }
+}
+
+async function removeCoach(req, res, seasonId) {
+  try {
+    const user = await requireUser(req);
+    const snap = await getDb().collection('seasons').doc(seasonId).get();
+    if (!snap.exists) return sendJson(res, 404, { error: 'Season not found' });
+    const season = snap.data();
+    if (season.ownerId !== user.uid) return sendJson(res, 403, { error: 'Only owner can remove coaches' });
+    const body = await readBody(req);
+    const email = (body.email || '').trim().toLowerCase();
+    const coaches = (season.coaches || []).filter(c => c.email !== email);
+    const coachIds = (season.coachIds || []).filter(id => {
+      const removed = (season.coaches || []).find(c => c.email === email);
+      return !removed || id !== removed.uid;
+    });
+    await getDb().collection('seasons').doc(seasonId).update({ coaches, coachIds });
+    return sendJson(res, 200, { ok: true });
+  } catch (err) {
+    const denied = /token|required/i.test(err.message);
+    return sendJson(res, denied ? 403 : 400, { error: err.message });
+  }
+}
+
 async function getPublicSeasonPage(res, seasonId) {
   try {
     const seasonSnap = await getDb().collection("seasons").doc(seasonId).get();
@@ -660,6 +789,29 @@ const server = http.createServer(async (req, res) => {
   const seasonRosterMatch = requestUrl.pathname.match(/^\/api\/seasons\/([^/]+)\/roster$/);
   if (req.method === "POST" && seasonRosterMatch) {
     return saveSeasonRoster(req, res, decodeURIComponent(seasonRosterMatch[1]));
+  }
+
+  if (req.method === "GET" && requestUrl.pathname === "/api/my-seasons") {
+    return getMySeasons(req, res);
+  }
+
+  if (req.method === "POST" && requestUrl.pathname === "/api/seasons") {
+    return createSeason(req, res);
+  }
+
+  const deleteSeasonMatch = requestUrl.pathname.match(/^\/api\/seasons\/([^/]+)$/);
+  if (req.method === "DELETE" && deleteSeasonMatch) {
+    return deleteSeason(req, res, decodeURIComponent(deleteSeasonMatch[1]));
+  }
+
+  const inviteCoachMatch = requestUrl.pathname.match(/^\/api\/seasons\/([^/]+)\/invite$/);
+  if (req.method === "POST" && inviteCoachMatch) {
+    return inviteCoach(req, res, decodeURIComponent(inviteCoachMatch[1]));
+  }
+
+  const removeCoachMatch = requestUrl.pathname.match(/^\/api\/seasons\/([^/]+)\/remove-coach$/);
+  if (req.method === "POST" && removeCoachMatch) {
+    return removeCoach(req, res, decodeURIComponent(removeCoachMatch[1]));
   }
 
   return sendJson(res, 404, { error: "Not found" });
