@@ -1725,6 +1725,7 @@ export default function BroadcastConsole() {
         <button className={`${styles.tabBarBtn} ${activeTab === 'scouting' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('scouting')}>🔍 Scouting</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'bracket' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('bracket')}>🏆 Bracket</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'gameday' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('gameday')}>📋 Game Day</button>
+        <button className={`${styles.tabBarBtn} ${activeTab === 'changelog' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('changelog')} style={{ color: activeTab === 'changelog' ? '#a78bfa' : '#64748b' }}>🆕 What's New</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'upgrade' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('upgrade')} style={{ marginLeft: 'auto', color: activeTab === 'upgrade' ? '#fff' : '#f59e0b', background: activeTab === 'upgrade' ? '#854d0e' : 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.4)' }}>⭐ Upgrade</button>
       </div>
 
@@ -3154,6 +3155,167 @@ export default function BroadcastConsole() {
                 Enable notifications in the header banner to send game-day push alerts.
               </p>
             )}
+          </div>
+        );
+      })()}
+
+      {/* WHAT'S NEW / CHANGELOG TAB */}
+      {activeTab === 'changelog' && (() => {
+        const releases = [
+          {
+            version: 'v1.0', date: 'Jun 8, 2026', label: 'Polish', color: '#a78bfa',
+            features: [
+              'Navbar scrolls horizontally — all tabs always reachable on any screen size',
+              'Stats sub-tabs redesigned as pill buttons with blue ring on active',
+              'Stat table headers: uppercase, spaced, professional MaxPreps style',
+              'Player & discover cards get hover border transitions',
+              'Player profile: 3-column stat ribbon on mobile, content grid aligned',
+              'Pitch type dropdown shows full names (FB — Fastball, etc.)',
+              'Upgrade button: visible amber border + active state',
+              'Discover feed: focus ring on filter inputs, better mobile layout',
+            ]
+          },
+          {
+            version: 'v0.10–0.11', date: 'Jun 8, 2026', label: 'Pitch Tracker + Game Day', color: '#38bdf8',
+            features: [
+              'Pitch velocity input (MPH) + pitch type selector on every pitch',
+              'Live avg/top velocity display updates as you pitch',
+              'Pitch Mix bar chart in Pitching Staff tab — % usage per pitch type',
+              'Velocity by pitcher card — AVG · TOP · LOW per pitcher',
+              'Game Day Checklist tab with 8 pre-loaded items',
+              'Progress bar turns green when all items complete',
+              'Add custom items, remove any item, reset for next game',
+              'Next game auto-pulled from schedule',
+              '🔔 Send push alert when checklist is 100% done',
+            ]
+          },
+          {
+            version: 'v0.9', date: 'Jun 8, 2026', label: 'Coach Discovery', color: '#22c55e',
+            features: [
+              'New public /discover page — College Coach Discovery Feed',
+              'Filter by sport, position, class year, recruiting status',
+              'Sort by AVG, HR, RBI, ERA, or strikeouts',
+              'Player cards with stats, recruiting badge, 🎥 film indicator',
+              'Direct mailto links for player + family contact',
+              '🎓 View Profile button links to full recruiting page',
+              'Coach Discovery link added to header banner and team page sidebar',
+              'SEO footer for Google indexing by position/class/region',
+            ]
+          },
+          {
+            version: 'v0.8', date: 'Jun 8, 2026', label: 'Recruiting Profiles', color: '#f59e0b',
+            features: [
+              'Player recruiting profile at /player?season=&player=',
+              'New backend endpoint: /api/public/seasons/:id/players/:id',
+              'Color-coded recruiting status badge (Committed/Open/Signed/Verbal)',
+              '6-stat ribbon: AVG, OPS, HR, RBI, ERA, K',
+              'Tabbed stats: Hitting / Pitching / Fielding',
+              'YouTube links auto-embed as 16:9 iframes; others render as buttons',
+              'Contact CTA buttons for player and family email',
+              'Roster switcher sidebar to jump between teammates',
+              'Legacy ?game= URL support maintained',
+              'SEO footer with name, position, team, class year',
+            ]
+          },
+          {
+            version: 'v0.7', date: 'Jun 8, 2026', label: 'Spray Chart · Notifications · Scouting · Bracket', color: '#ef4444',
+            features: [
+              'Spray chart hit-location tracker on live field SVG',
+              'Color-coded dots: single/double/triple/HR/out per batter or team',
+              'Push notifications for fans and coaches (browser Notification API)',
+              'Auto-notification fires when a run scores',
+              'Opponent scouting report tab — notes, tendencies, lineup',
+              'Tournament bracket builder — 4/8/16 team single elimination',
+              'Bracket auto-advances winners, supports custom team names',
+            ]
+          },
+          {
+            version: 'v0.6', date: 'Jun 8, 2026', label: 'Public Team Pages', color: '#06b6d4',
+            features: [
+              'Public team page at /team?season=ID',
+              'Backend /api/public/seasons/:id endpoint',
+              'Roster grid, full schedule table, W-L record',
+              'Team profile: sport, age group, location, logo',
+              '🌐 Public Team Page link in the header banner',
+            ]
+          },
+          {
+            version: 'v0.5', date: 'Jun 8, 2026', label: 'Mobile Responsive UI', color: '#84cc16',
+            features: [
+              '768px tablet + 480px phone breakpoints across all views',
+              'Navbar scrolls horizontally on small screens',
+              'Diamond scales down on mobile',
+              'Stat grids, roster tables, and lineup cards collapse to single column',
+              'No horizontal overflow on any screen size',
+            ]
+          },
+          {
+            version: 'v0.4', date: 'Jun 8, 2026', label: 'Season Leaderboard', color: '#f97316',
+            features: [
+              'Season leaderboard on Stat Sheets tab',
+              'Top 5 leaders for AVG, HR, RBI, ERA, and strikeouts',
+              'Medal rankings 🥇🥈🥉 for top 3 in each category',
+              'Dropdown to switch stat categories',
+            ]
+          },
+          {
+            version: 'v0.3', date: 'Jun 8, 2026', label: 'Tiered Pricing + Stripe', color: '#a855f7',
+            features: [
+              'Three-tier pricing UI: Free / Pro / Org',
+              'Stripe Checkout integration with per-tier price IDs',
+              'User plan stored and fetched from backend',
+              'Upgrade tab with feature comparison',
+              'Success/cancel redirect handling',
+            ]
+          },
+          {
+            version: 'v0.2', date: 'Jun 8, 2026', label: 'LIVE Badge · Share · Lineup Print', color: '#3b82f6',
+            features: [
+              'LIVE badge auto-syncs with schedule — lights up during active games',
+              'Family fan share link per player (📣 Share button on roster)',
+              'Printable lineup card — browser print dialog with clean CSS',
+            ]
+          },
+          {
+            version: 'v0.1', date: 'Jun 8, 2026', label: 'Core Stats Engine', color: '#64748b',
+            features: [
+              'Auto-calculate hitting, pitching, and fielding stats from game events',
+              'Postgame box score modal',
+              'Season W-L record displayed in the header banner',
+              'SB (stolen bases) column added to hitting stats',
+              'Dynamic sport emoji based on team sport setting',
+            ]
+          },
+        ];
+
+        return (
+          <div style={{ maxWidth: '760px', margin: '28px auto', padding: '0 20px' }}>
+            <div style={{ marginBottom: '28px' }}>
+              <h2 style={{ margin: '0 0 6px', color: '#fff', fontSize: '22px', fontWeight: '900' }}>🆕 What's New in GameTracker</h2>
+              <p style={{ margin: 0, color: '#475569', fontSize: '13px' }}>{releases.length} releases · {releases.reduce((s, r) => s + r.features.length, 0)} features shipped</p>
+            </div>
+            {releases.map((r, i) => (
+              <div key={r.version} style={{ display: 'flex', gap: '16px', marginBottom: '8px' }}>
+                {/* Timeline line */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '36px', flexShrink: 0 }}>
+                  <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: r.color, boxShadow: `0 0 8px ${r.color}66`, marginTop: '14px', flexShrink: 0 }} />
+                  {i < releases.length - 1 && <div style={{ width: '2px', flex: 1, background: '#1e293b', marginTop: '4px' }} />}
+                </div>
+                {/* Card */}
+                <div style={{ flex: 1, background: '#0f172a', border: `1px solid #1e293b`, borderRadius: '12px', padding: '16px 18px', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                    <span style={{ background: `${r.color}22`, border: `1px solid ${r.color}66`, borderRadius: '999px', color: r.color, fontSize: '11px', fontWeight: '900', padding: '3px 10px' }}>{r.version}</span>
+                    <strong style={{ color: '#fff', fontSize: '14px' }}>{r.label}</strong>
+                    <span style={{ color: '#334155', fontSize: '11px', marginLeft: 'auto' }}>{r.date}</span>
+                  </div>
+                  <ul style={{ margin: 0, padding: '0 0 0 16px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                    {r.features.map((f, fi) => (
+                      <li key={fi} style={{ color: '#94a3b8', fontSize: '13px', lineHeight: '1.5' }}>{f}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            ))}
           </div>
         );
       })()}
