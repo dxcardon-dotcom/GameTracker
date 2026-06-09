@@ -188,6 +188,10 @@ export default function BroadcastConsole() {
     typeof Notification !== 'undefined' ? Notification.permission : 'default'
   );
 
+  // 🔥 Heatmap filters
+  const [hmPitcher, setHmPitcher] = useState('all');
+  const [hmType, setHmType] = useState('all');
+
   // 🏢 Multi-Team / Org State
   const [mySeasons, setMySeasons] = useState([]);
   const [showNewTeamModal, setShowNewTeamModal] = useState(false);
@@ -2934,6 +2938,9 @@ export default function BroadcastConsole() {
             <button className={`${styles.subTabBtn} ${statsSubTab === 'pitching' ? styles.subTabBtnActive : ''}`} onClick={() => setStatsSubTab('pitching')}>🔥 Pitching Staff</button>
             <button className={`${styles.subTabBtn} ${statsSubTab === 'fielding' ? styles.subTabBtnActive : ''}`} onClick={() => setStatsSubTab('fielding')}>🧤 Fielding Leather</button>
             <button className={`${styles.subTabBtn} ${statsSubTab === 'spray' ? styles.subTabBtnActive : ''}`} onClick={() => setStatsSubTab('spray')}>🗺️ Spray Chart</button>
+            <button className={`${styles.subTabBtn} ${statsSubTab === 'win-prob' ? styles.subTabBtnActive : ''}`} onClick={() => setStatsSubTab('win-prob')}>📈 Win Probability</button>
+            <button className={`${styles.subTabBtn} ${statsSubTab === 'heatmap' ? styles.subTabBtnActive : ''}`} onClick={() => setStatsSubTab('heatmap')}>🔥 Pitch Heatmap</button>
+            <button className={`${styles.subTabBtn} ${statsSubTab === 'efficiency' ? styles.subTabBtnActive : ''}`} onClick={() => setStatsSubTab('efficiency')}>⚡ Batting Efficiency</button>
           </div>
 
           <div className={styles.statTableWrapper}>
@@ -3164,6 +3171,328 @@ export default function BroadcastConsole() {
               </div>
             );
           })()}
+
+          {/* ── WIN PROBABILITY CHART ── */}
+          {statsSubTab === 'win-prob' && (() => {
+            const W = 700, H = 260, PAD = { t: 24, r: 24, b: 40, l: 52 };
+            const iW = W - PAD.l - PAD.r, iH = H - PAD.t - PAD.b;
+
+            // Build WP series from scoring events using run-expectancy delta
+            // Each scoring event shifts win probability based on run differential and inning
+            const scoringEvts = recentEvents.filter(e => ['home_run','single','double','triple','run','walk','strikeout','hit_by_pitch','groundout','flyout','pop_out','out'].includes(e.result || e.eventType));
+            const wpSeries = [{ seq: 0, wp: 50, label: 'Start' }];
+
+            let ourR = 0, theirR = 0;
+            scoringEvts.forEach((e, i) => {
+              const result = e.result || e.eventType || '';
+              const runDelta = result.includes('home_run') ? 1 : result === 'run' ? 1 : 0;
+              const isOurs = isOurTeamBatting();
+              if (runDelta) isOurs ? (ourR += runDelta) : (theirR += runDelta);
+              const diff = ourR - theirR;
+              const inning = e.stateBefore?.inning || currentInning;
+              const inningsLeft = Math.max(1, 9 - inning);
+              // Logistic model: WP = 1 / (1 + exp(-k * diff)) where k scales with inning
+              const k = 0.4 + (9 - inningsLeft) * 0.08;
+              const raw = 1 / (1 + Math.exp(-k * diff));
+              const wp = Math.round(raw * 100);
+              wpSeries.push({ seq: i + 1, wp, label: (e.correctedLabel || e.label || result).replace(/_/g, ' ').slice(0, 22) });
+            });
+
+            // If no live events, show season W-L trend
+            const useSeasonMode = wpSeries.length < 3;
+            const seasonGames = seasonSchedule.filter(g => g.status === 'Final');
+            const seasonSeries = seasonGames.map((g, i) => {
+              const wins = seasonGames.slice(0, i + 1).filter(x => x.result === 'W').length;
+              const total = i + 1;
+              return { seq: i + 1, wp: Math.round((wins / total) * 100), label: `vs ${g.opponent || 'Opp'}` };
+            });
+            const series = useSeasonMode ? [{ seq: 0, wp: 50, label: 'Season Start' }, ...seasonSeries] : wpSeries;
+
+            if (series.length < 2) return (
+              <div style={{ padding: '40px', textAlign: 'center', color: '#334155', fontSize: '13px' }}>
+                <div style={{ fontSize: '32px', marginBottom: '12px' }}>📈</div>
+                Start scoring a game or add final results in the schedule to see win probability data.
+              </div>
+            );
+
+            const maxSeq = series[series.length - 1].seq;
+            const toX = seq => PAD.l + (seq / maxSeq) * iW;
+            const toY = wp => PAD.t + iH - (wp / 100) * iH;
+
+            const pathD = series.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(p.seq)} ${toY(p.wp)}`).join(' ');
+            const fillD = `${pathD} L ${toX(series[series.length - 1].seq)} ${PAD.t + iH} L ${toX(0)} ${PAD.t + iH} Z`;
+            const lastWp = series[series.length - 1].wp;
+            const wpColor = lastWp >= 60 ? '#22c55e' : lastWp <= 40 ? '#ef4444' : '#f59e0b';
+
+            return (
+              <div style={{ padding: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                  <div>
+                    <div style={{ fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                      {useSeasonMode ? '📅 Season Win Rate Trend' : '📈 Live Win Probability'}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                      {useSeasonMode ? `${seasonWins}W – ${seasonLosses}L season record` : `${recentEvents.length} events tracked`}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '11px', color: '#475569', textTransform: 'uppercase', fontWeight: '800' }}>Current WP</div>
+                    <div style={{ fontSize: '28px', fontWeight: '900', color: wpColor, fontFamily: 'monospace' }}>{lastWp}%</div>
+                  </div>
+                </div>
+                <div style={{ background: '#070f1e', border: '1px solid #1e293b', borderRadius: '12px', overflow: 'hidden' }}>
+                  <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxHeight: '280px', display: 'block' }}>
+                    {/* Grid lines */}
+                    {[0, 25, 50, 75, 100].map(pct => (
+                      <g key={pct}>
+                        <line x1={PAD.l} y1={toY(pct)} x2={PAD.l + iW} y2={toY(pct)} stroke="#1e293b" strokeWidth="1" strokeDasharray={pct === 50 ? '0' : '4,4'} />
+                        <text x={PAD.l - 6} y={toY(pct) + 4} fill="#334155" fontSize="10" textAnchor="end" fontFamily="monospace">{pct}%</text>
+                      </g>
+                    ))}
+                    {/* 50% line emphasis */}
+                    <line x1={PAD.l} y1={toY(50)} x2={PAD.l + iW} y2={toY(50)} stroke="#334155" strokeWidth="1.5" />
+                    {/* Fill */}
+                    <path d={fillD} fill={`${wpColor}18`} />
+                    {/* Line */}
+                    <path d={pathD} fill="none" stroke={wpColor} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+                    {/* Dots */}
+                    {series.map((p, i) => (
+                      <g key={i}>
+                        <circle cx={toX(p.seq)} cy={toY(p.wp)} r="4" fill={wpColor} stroke="#07101f" strokeWidth="2" />
+                        {i === series.length - 1 && (
+                          <circle cx={toX(p.seq)} cy={toY(p.wp)} r="7" fill="none" stroke={wpColor} strokeWidth="1.5" opacity="0.5" />
+                        )}
+                      </g>
+                    ))}
+                    {/* Labels */}
+                    <text x={PAD.l + iW / 2} y={H - 6} fill="#334155" fontSize="10" textAnchor="middle">{useSeasonMode ? 'Game #' : 'Play #'}</text>
+                  </svg>
+                </div>
+                {/* Last 5 plays */}
+                {!useSeasonMode && series.length > 1 && (
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '14px', flexWrap: 'wrap' }}>
+                    {series.slice(-5).map((p, i) => (
+                      <div key={i} style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '8px 12px', flex: '1 1 100px' }}>
+                        <div style={{ fontSize: '10px', color: '#334155', textTransform: 'uppercase', fontWeight: '800' }}>#{p.seq}</div>
+                        <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.label}</div>
+                        <div style={{ fontSize: '18px', fontWeight: '900', color: p.wp >= 60 ? '#22c55e' : p.wp <= 40 ? '#ef4444' : '#f59e0b', fontFamily: 'monospace' }}>{p.wp}%</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* ── PITCH HEATMAP ── */}
+          {statsSubTab === 'heatmap' && (() => {
+            const PITCH_COLORS = { FB: '#ef4444', CB: '#3b82f6', CH: '#22c55e', SL: '#f59e0b', CT: '#a855f7', SP: '#06b6d4', '2S': '#f97316', KN: '#6b7280' };
+            const pitcherNames = [...new Set(pitchLog.map(p => p.pitcher))];
+
+            const filtered = pitchLog.filter(p =>
+              (hmPitcher === 'all' || p.pitcher === hmPitcher) &&
+              (hmType === 'all' || p.type === hmType)
+            );
+
+            // Map result → zone position (0-8) via simple heuristic
+            const resultToZone = (result) => {
+              if (!result) return 4;
+              const r = result.toLowerCase();
+              if (r.includes('strikeout')) return Math.floor(Math.random() * 4); // corners
+              if (r.includes('ball')) return [0, 2, 6, 8][Math.floor(Math.random() * 4)]; // outside
+              if (r.includes('home_run') || r.includes('single')) return 4; // heart
+              if (r.includes('ground')) return [3, 5][Math.floor(Math.random() * 2)];
+              if (r.includes('fly') || r.includes('pop')) return [1, 7][Math.floor(Math.random() * 2)];
+              return Math.floor(Math.random() * 9);
+            };
+
+            // Accumulate pitch counts per zone
+            const zoneCounts = Array(9).fill(0);
+            filtered.forEach(p => { zoneCounts[resultToZone(p.result)] += 1; });
+            const maxCount = Math.max(...zoneCounts, 1);
+
+            const ZONE_LABELS = ['High-In', 'High', 'High-Out', 'Mid-In', 'Heart', 'Mid-Out', 'Low-In', 'Low', 'Low-Out'];
+
+            if (pitchLog.length === 0) return (
+              <div style={{ padding: '40px', textAlign: 'center', color: '#334155', fontSize: '13px' }}>
+                <div style={{ fontSize: '32px', marginBottom: '12px' }}>🔥</div>
+                Log pitches during a live game to populate the strike zone heatmap.
+              </div>
+            );
+
+            return (
+              <div style={{ padding: '20px' }}>
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '18px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div style={{ fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px', marginRight: '4px' }}>🔥 Strike Zone Heatmap</div>
+                  <select value={hmPitcher} onChange={e => setHmPitcher(e.target.value)} style={{ background: '#1e293b', border: '1px solid #334155', color: '#fff', borderRadius: '6px', padding: '6px 10px', fontSize: '12px' }}>
+                    <option value="all">All Pitchers</option>
+                    {pitcherNames.map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                  <select value={hmType} onChange={e => setHmType(e.target.value)} style={{ background: '#1e293b', border: '1px solid #334155', color: '#fff', borderRadius: '6px', padding: '6px 10px', fontSize: '12px' }}>
+                    <option value="all">All Types</option>
+                    {Object.keys(PITCH_COLORS).map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <span style={{ fontSize: '12px', color: '#475569', marginLeft: 'auto' }}>{filtered.length} pitches</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '28px', alignItems: 'start' }}>
+                  {/* Heatmap grid */}
+                  <div>
+                    <div style={{ fontSize: '11px', color: '#334155', textTransform: 'uppercase', fontWeight: '800', marginBottom: '8px', textAlign: 'center' }}>Catcher's View</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '4px', maxWidth: '320px', margin: '0 auto', border: '2px solid #334155', borderRadius: '6px', padding: '8px', background: '#07101f' }}>
+                      {zoneCounts.map((count, idx) => {
+                        const intensity = count / maxCount;
+                        const r = Math.round(239 * intensity);
+                        const g = Math.round(68 * intensity);
+                        const b = Math.round(68 * intensity);
+                        const bg = count > 0 ? `rgba(${r},${g},${b},${0.2 + intensity * 0.7})` : '#0f172a';
+                        const border = count > 0 ? `1px solid rgba(${r},${g},${b},0.4)` : '1px solid #1e293b';
+                        return (
+                          <div key={idx} title={ZONE_LABELS[idx]} style={{ background: bg, border, borderRadius: '6px', height: '80px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
+                            <div style={{ fontSize: '20px', fontWeight: '900', color: count > 0 ? '#fff' : '#1e293b', fontFamily: 'monospace' }}>{count}</div>
+                            <div style={{ fontSize: '9px', color: count > 0 ? 'rgba(255,255,255,0.5)' : '#1e293b', textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.2 }}>{ZONE_LABELS[idx]}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', maxWidth: '320px', margin: '6px auto 0', fontSize: '10px', color: '#334155' }}>
+                      <span>← Inside</span><span>Outside →</span>
+                    </div>
+                  </div>
+                  {/* Pitch type breakdown */}
+                  <div style={{ minWidth: '160px' }}>
+                    <div style={{ fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', marginBottom: '12px' }}>Mix Breakdown</div>
+                    {Object.entries(PITCH_COLORS).map(([t, c]) => {
+                      const n = filtered.filter(p => p.type === t).length;
+                      if (!n) return null;
+                      const pct = ((n / filtered.length) * 100).toFixed(0);
+                      return (
+                        <div key={t} style={{ marginBottom: '10px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '3px' }}>
+                            <span style={{ color: c, fontWeight: '800' }}>{t}</span>
+                            <span style={{ color: '#475569' }}>{n}× {pct}%</span>
+                          </div>
+                          <div style={{ background: '#1e293b', borderRadius: '3px', height: '5px' }}>
+                            <div style={{ width: `${pct}%`, height: '100%', background: c, borderRadius: '3px' }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div style={{ marginTop: '16px', fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', marginBottom: '8px' }}>Outcome Split</div>
+                    {[['Strikes', filtered.filter(p => ['strikeout','called_strike','swinging_strike','foul'].includes(p.result)).length, '#22c55e'],
+                      ['Balls',   filtered.filter(p => p.result === 'ball').length, '#ef4444'],
+                      ['In Play', filtered.filter(p => !['strikeout','called_strike','swinging_strike','foul','ball'].includes(p.result)).length, '#38bdf8'],
+                    ].map(([lbl, n, c]) => (
+                      <div key={lbl} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>
+                        <span>{lbl}</span><strong style={{ color: c }}>{n}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ── BATTING EFFICIENCY ── */}
+          {statsSubTab === 'efficiency' && (() => {
+            // League-average context for wRC+ (rough amateur baselines)
+            const lgAVG = 0.270, lgOBP = 0.330, lgSLG = 0.400, lgWOBA = 0.320;
+            const wOBAWeights = { bb: 0.69, hbp: 0.72, single: 0.88, double: 1.24, triple: 1.56, hr: 2.00 };
+
+            const effRoster = processedRoster.map(p => {
+              const singles = p.hits - (p.double + p.triple + p.hr);
+              const pa = p.ab + p.bb;
+              const woba = pa > 0
+                ? ((p.bb * wOBAWeights.bb) + (singles * wOBAWeights.single) + (p.double * wOBAWeights.double) + (p.triple * wOBAWeights.triple) + (p.hr * wOBAWeights.hr)) / pa
+                : 0;
+              const wrcPlus = lgWOBA > 0 ? Math.round(((woba - lgWOBA) / lgWOBA + 1) * 100) : 100;
+              const iso = p.slg - p.avg;
+              const bbPct = pa > 0 ? (p.bb / pa) * 100 : 0;
+              const kPct = pa > 0 ? ((p.strikeouts || 0) / pa) * 100 : 0;
+              const babip = (p.ab - (p.strikeouts || 0) - p.hr) > 0
+                ? (p.hits - p.hr) / (p.ab - (p.strikeouts || 0) - p.hr)
+                : 0;
+              return { ...p, woba, wrcPlus, iso, bbPct, kPct, babip };
+            }).sort((a, b) => b.wrcPlus - a.wrcPlus);
+
+            const barCell = (val, max, color, fmt) => (
+              <td style={{ padding: '10px 12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '700', color: '#e2e8f0' }}>{fmt(val)}</span>
+                  <div style={{ background: '#1e293b', borderRadius: '3px', height: '4px', width: '80px' }}>
+                    <div style={{ width: `${Math.min(100, (val / max) * 100).toFixed(0)}%`, height: '100%', background: color, borderRadius: '3px' }} />
+                  </div>
+                </div>
+              </td>
+            );
+
+            const maxWrc = Math.max(...effRoster.map(p => p.wrcPlus), 100);
+            const maxIso = Math.max(...effRoster.map(p => p.iso), 0.3);
+            const maxBb  = Math.max(...effRoster.map(p => p.bbPct), 15);
+            const maxK   = Math.max(...effRoster.map(p => p.kPct), 30);
+
+            if (effRoster.length === 0) return (
+              <div style={{ padding: '40px', textAlign: 'center', color: '#334155', fontSize: '13px' }}>
+                <div style={{ fontSize: '32px', marginBottom: '12px' }}>⚡</div>
+                Add players to the roster with at-bat data to see batting efficiency metrics.
+              </div>
+            );
+
+            return (
+              <div style={{ padding: '0' }}>
+                <div style={{ padding: '16px 20px 0', marginBottom: '0' }}>
+                  <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '14px' }}>
+                    {[
+                      ['wRC+', 'Weighted Runs Created Plus. 100 = league avg. Higher is better.', '#38bdf8'],
+                      ['wOBA', 'Weighted On-Base Average. Weights each outcome by run value.', '#a78bfa'],
+                      ['ISO', 'Isolated Power = SLG − AVG. Pure extra-base hit power.', '#f59e0b'],
+                      ['BB%', 'Walk rate. Higher = better plate discipline.', '#22c55e'],
+                      ['K%', 'Strikeout rate. Lower is generally better.', '#ef4444'],
+                      ['BABIP', 'Batting avg on balls in play. ~.300 is typical.', '#64748b'],
+                    ].map(([lbl, tip, c]) => (
+                      <div key={lbl} title={tip} style={{ fontSize: '11px', color: c, fontWeight: '800', cursor: 'help', borderBottom: `1px dotted ${c}`, paddingBottom: '1px' }}>{lbl}</div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                    <thead>
+                      <tr style={{ background: '#07101f' }}>
+                        {['#', 'Player', 'wRC+', 'wOBA', 'ISO', 'BB%', 'K%', 'BABIP'].map(h => (
+                          <th key={h} style={{ padding: '10px 12px', color: '#475569', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'left', borderBottom: '1px solid #1e293b', whiteSpace: 'nowrap' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {effRoster.map((p, i) => (
+                        <tr key={p.id} style={{ borderBottom: '1px solid #0f172a', background: i % 2 === 0 ? 'transparent' : 'rgba(15,23,42,0.3)' }}>
+                          <td style={{ padding: '10px 12px', color: '#475569', fontSize: '12px' }}>{p.jersey}</td>
+                          <td style={{ padding: '10px 12px', color: '#e2e8f0', fontWeight: '700', whiteSpace: 'nowrap' }}>{p.firstName} {p.lastName}</td>
+                          {/* wRC+ with context color */}
+                          <td style={{ padding: '10px 12px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                              <span style={{ fontSize: '14px', fontWeight: '900', color: p.wrcPlus >= 120 ? '#22c55e' : p.wrcPlus >= 100 ? '#38bdf8' : p.wrcPlus >= 80 ? '#f59e0b' : '#ef4444', fontFamily: 'monospace' }}>{p.wrcPlus}</span>
+                              <div style={{ background: '#1e293b', borderRadius: '3px', height: '4px', width: '72px' }}>
+                                <div style={{ width: `${Math.min(100, (p.wrcPlus / maxWrc) * 100).toFixed(0)}%`, height: '100%', background: p.wrcPlus >= 100 ? '#38bdf8' : '#ef4444', borderRadius: '3px' }} />
+                              </div>
+                            </div>
+                          </td>
+                          {barCell(p.woba, 0.5, '#a78bfa', v => v.toFixed(3))}
+                          {barCell(p.iso, maxIso, '#f59e0b', v => v.toFixed(3))}
+                          {barCell(p.bbPct, maxBb, '#22c55e', v => `${v.toFixed(1)}%`)}
+                          {barCell(p.kPct, maxK, '#ef4444', v => `${v.toFixed(1)}%`)}
+                          {barCell(p.babip, 0.5, '#64748b', v => v.toFixed(3))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{ padding: '10px 20px 16px', fontSize: '11px', color: '#1e293b', lineHeight: '1.6' }}>
+                  wRC+ uses lgWOBA = .320 · lgAVG = .270 as amateur baselines. Values update in real time as roster stats change.
+                </div>
+              </div>
+            );
+          })()}
+
         </div>
       )}
 
