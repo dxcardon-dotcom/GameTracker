@@ -148,6 +148,13 @@ export default function BroadcastConsole() {
   const [atBatCount, setAtBatCount] = useState(0);
   const [pitcherStats, setPitcherStats] = useState({ strikes: 0, balls: 0, kCount: 0, bbCount: 0 });
 
+  // 📝 Play Log Edit/Undo System
+  const [editingEvent, setEditingEvent] = useState(null);
+  const [showPlayLog, setShowPlayLog] = useState(false);
+  const [eventHistory, setEventHistory] = useState([]);
+  const [correctionMode, setCorrectionMode] = useState(false);
+  const [selectedEvents, setSelectedEvents] = useState([]);
+
   // 📋 Game Day Checklist
   const [checklistItems, setChecklistItems] = useState([
     { id: 1, label: 'Equipment packed (bats, helmets, catchers gear)', done: false },
@@ -870,7 +877,7 @@ export default function BroadcastConsole() {
         }
       };
 
-      await authenticatedPost(`/api/games/${liveGameId}/events`, {
+      const response = await authenticatedPost(`/api/games/${liveGameId}/events`, {
         eventType,
         inning: currentInning,
         half: isTopInning ? 'top' : 'bottom',
@@ -903,10 +910,116 @@ export default function BroadcastConsole() {
         note: playNote.trim() || null,
         ...enhancedEvent
       });
+      
+      // Add to event history for undo functionality
+      if (response.eventId) {
+        setEventHistory(prev => [...prev, {
+          id: response.eventId,
+          type: eventType,
+          data: enhancedEvent,
+          timestamp: new Date().toISOString()
+        }]);
+      }
+      
       setPlayNote('');
     } catch (error) {
       console.error(error);
       setSyncStatus('Event error');
+    }
+  };
+
+  // 📝 Play Log Edit Functions
+  const deleteEvent = async (eventId) => {
+    if (!user || !eventId) return;
+    
+    try {
+      await authenticatedPost(`/api/games/${liveGameId}/events/${eventId}/delete`, {});
+      setEventHistory(prev => prev.filter(e => e.id !== eventId));
+      setLastPlaySummary('Event deleted');
+    } catch (error) {
+      console.error('Failed to delete event:', error);
+      setSyncStatus('Delete error');
+    }
+  };
+
+  const editEvent = async (eventId, updatedData) => {
+    if (!user || !eventId) return;
+    
+    try {
+      await authenticatedPost(`/api/games/${liveGameId}/events/${eventId}/edit`, {
+        ...updatedData,
+        editedAt: new Date().toISOString()
+      });
+      
+      setEventHistory(prev => prev.map(e => 
+        e.id === eventId ? { ...e, data: { ...e.data, ...updatedData } } : e
+      ));
+      
+      setLastPlaySummary('Event updated');
+      setEditingEvent(null);
+    } catch (error) {
+      console.error('Failed to edit event:', error);
+      setSyncStatus('Edit error');
+    }
+  };
+
+  const correctEvent = async (eventId, correctionType, correctionData) => {
+    if (!user || !eventId) return;
+    
+    try {
+      await authenticatedPost(`/api/games/${liveGameId}/events/${eventId}/correct`, {
+        correctionType,
+        correctionData,
+        correctedAt: new Date().toISOString()
+      });
+      
+      setLastPlaySummary(`Correction applied: ${correctionType}`);
+      setCorrectionMode(false);
+      setSelectedEvents([]);
+    } catch (error) {
+      console.error('Failed to correct event:', error);
+      setSyncStatus('Correction error');
+    }
+  };
+
+  const revertToEvent = async (eventId) => {
+    if (!user || !eventId) return;
+    
+    try {
+      const eventIndex = eventHistory.findIndex(e => e.id === eventId);
+      if (eventIndex === -1) return;
+      
+      // Restore state from this event point
+      const targetEvent = eventHistory[eventIndex];
+      const stateAfter = targetEvent.data.stateBefore;
+      
+      // Apply the restored state
+      setCurrentInning(stateAfter.inning);
+      setIsTopInning(stateAfter.half === 'top');
+      setBalls(stateAfter.balls);
+      setStrikes(stateAfter.strikes);
+      setOuts(stateAfter.outs);
+      setPitchCount(stateAfter.pitchCount);
+      setRunnerOnFirst(stateAfter.runners.first);
+      setRunnerOnSecond(stateAfter.runners.second);
+      setRunnerOnThird(stateAfter.runners.third);
+      setOurInnings(stateAfter.ourInnings);
+      setTheirInnings(stateAfter.theirInnings);
+      setOurHits(stateAfter.ourHits);
+      setTheirHits(stateAfter.theirHits);
+      setOurErrors(stateAfter.ourErrors);
+      setTheirErrors(stateAfter.theirErrors);
+      setCurrentBatter(stateAfter.currentBatter);
+      setCurrentPitcher(stateAfter.currentPitcher);
+      
+      // Remove events after this point
+      const eventsToKeep = eventHistory.slice(0, eventIndex + 1);
+      setEventHistory(eventsToKeep);
+      
+      setLastPlaySummary(`Reverted to event at ${targetEvent.timestamp}`);
+    } catch (error) {
+      console.error('Failed to revert to event:', error);
+      setSyncStatus('Revert error');
     }
   };
 
@@ -3810,6 +3923,10 @@ export default function BroadcastConsole() {
 
                 {/* Field view + full-screen toggles */}
                 <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                  <button onClick={() => setShowPlayLog(v => !v)}
+                    style={{ background: showPlayLog ? 'rgba(56,189,248,0.15)' : '#0f172a', border: `1px solid ${showPlayLog ? '#38bdf8' : '#334155'}`, borderRadius: '8px', color: showPlayLog ? '#38bdf8' : '#64748b', cursor: 'pointer', fontSize: '14px', padding: '6px 9px' }} title="Toggle play log">
+                    📝
+                  </button>
                   <button onClick={() => setShowPitchDetails(v => !v)}
                     style={{ background: showPitchDetails ? 'rgba(56,189,248,0.15)' : '#0f172a', border: `1px solid ${showPitchDetails ? '#38bdf8' : '#334155'}`, borderRadius: '8px', color: showPitchDetails ? '#38bdf8' : '#64748b', cursor: 'pointer', fontSize: '14px', padding: '6px 9px' }} title="Toggle pitch details">
                     ⚡
@@ -4705,6 +4822,297 @@ export default function BroadcastConsole() {
                         </div>
                       )}
                     </div>
+
+                    {/* ── PLAY LOG EDIT/UNDO PANEL ── */}
+                    {showPlayLog && (
+                      <div style={{ background: '#0a0f1f', border: '1px solid #1e293b', borderRadius: '12px', padding: '12px', marginBottom: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                          <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '800', textTransform: 'uppercase' }}>📝 Play Log</span>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button 
+                              onClick={() => setCorrectionMode(!correctionMode)}
+                              style={{ 
+                                background: correctionMode ? 'rgba(239,68,68,0.15)' : '#0f172a', 
+                                border: `1px solid ${correctionMode ? '#ef4444' : '#334155'}`, 
+                                borderRadius: '6px', 
+                                color: correctionMode ? '#ef4444' : '#64748b', 
+                                cursor: 'pointer', 
+                                fontSize: '9px', 
+                                fontWeight: '600', 
+                                padding: '4px 8px' 
+                              }}
+                            >
+                              {correctionMode ? 'Exit Edit' : 'Edit Mode'}
+                            </button>
+                            <button onClick={() => setShowPlayLog(false)} style={{ background: 'transparent', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '14px' }}>✕</button>
+                          </div>
+                        </div>
+                        
+                        {/* Event List */}
+                        <div style={{ maxHeight: '300px', overflowY: 'auto', marginBottom: '10px' }}>
+                          {eventHistory.length === 0 ? (
+                            <div style={{ textAlign: 'center', color: '#64748b', fontSize: '11px', padding: '20px' }}>
+                              No events recorded yet
+                            </div>
+                          ) : (
+                            eventHistory.slice().reverse().map((event, index) => (
+                              <div 
+                                key={event.id} 
+                                style={{ 
+                                  background: selectedEvents.includes(event.id) ? 'rgba(56,189,248,0.1)' : '#0f172a', 
+                                  border: `1px solid ${selectedEvents.includes(event.id) ? '#38bdf8' : '#1e293b'}`, 
+                                  borderRadius: '6px', 
+                                  padding: '8px', 
+                                  marginBottom: '6px',
+                                  cursor: correctionMode ? 'pointer' : 'default'
+                                }}
+                                onClick={() => {
+                                  if (correctionMode) {
+                                    setSelectedEvents(prev => 
+                                      prev.includes(event.id) 
+                                        ? prev.filter(id => id !== event.id)
+                                        : [...prev, event.id]
+                                    );
+                                  }
+                                }}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                  <span style={{ fontSize: '10px', color: '#64748b' }}>
+                                    {new Date(event.timestamp).toLocaleTimeString()}
+                                  </span>
+                                  <span style={{ fontSize: '9px', color: '#38bdf8', fontWeight: '600' }}>
+                                    Inning {event.data.gameContext?.inning || '-'} {event.data.gameContext?.half || '-'}
+                                  </span>
+                                </div>
+                                
+                                <div style={{ fontSize: '11px', color: '#e2e8f0', marginBottom: '4px' }}>
+                                  {event.data.label || event.type}
+                                </div>
+                                
+                                {event.data.playerContext && (
+                                  <div style={{ fontSize: '10px', color: '#64748b' }}>
+                                    {event.data.playerContext.batter} vs {event.data.playerContext.pitcher}
+                                  </div>
+                                )}
+                                
+                                {/* Edit Actions */}
+                                {correctionMode && (
+                                  <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingEvent(event);
+                                      }}
+                                      style={{ 
+                                        background: '#38bdf8', 
+                                        color: '#020617', 
+                                        border: 'none', 
+                                        borderRadius: '4px', 
+                                        padding: '2px 6px', 
+                                        fontSize: '8px', 
+                                        fontWeight: '600', 
+                                        cursor: 'pointer' 
+                                      }}
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        deleteEvent(event.id);
+                                      }}
+                                      style={{ 
+                                        background: '#ef4444', 
+                                        color: '#fff', 
+                                        border: 'none', 
+                                        borderRadius: '4px', 
+                                        padding: '2px 6px', 
+                                        fontSize: '8px', 
+                                        fontWeight: '600', 
+                                        cursor: 'pointer' 
+                                      }}
+                                    >
+                                      Delete
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        revertToEvent(event.id);
+                                      }}
+                                      style={{ 
+                                        background: '#f59e0b', 
+                                        color: '#020617', 
+                                        border: 'none', 
+                                        borderRadius: '4px', 
+                                        padding: '2px 6px', 
+                                        fontSize: '8px', 
+                                        fontWeight: '600', 
+                                        cursor: 'pointer' 
+                                      }}
+                                    >
+                                      Revert
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                        
+                        {/* Bulk Actions */}
+                        {correctionMode && selectedEvents.length > 0 && (
+                          <div style={{ borderTop: '1px solid #1e293b', paddingTop: '8px', display: 'flex', gap: '6px' }}>
+                            <button
+                              onClick={() => {
+                                selectedEvents.forEach(eventId => deleteEvent(eventId));
+                                setSelectedEvents([]);
+                              }}
+                              style={{ 
+                                background: '#ef4444', 
+                                color: '#fff', 
+                                border: 'none', 
+                                borderRadius: '6px', 
+                                padding: '6px 10px', 
+                                fontSize: '9px', 
+                                fontWeight: '600', 
+                                cursor: 'pointer' 
+                              }}
+                            >
+                              Delete Selected ({selectedEvents.length})
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ── EVENT EDIT MODAL ── */}
+                    {editingEvent && (
+                      <div style={{ 
+                        position: 'fixed', 
+                        top: 0, 
+                        left: 0, 
+                        right: 0, 
+                        bottom: 0, 
+                        background: 'rgba(0,0,0,0.8)', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        zIndex: 1000 
+                      }}>
+                        <div style={{ 
+                          background: '#0f172a', 
+                          border: '1px solid #334155', 
+                          borderRadius: '12px', 
+                          padding: '20px', 
+                          maxWidth: '500px', 
+                          width: '90%' 
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                            <h3 style={{ color: '#fff', margin: 0, fontSize: '16px' }}>Edit Event</h3>
+                            <button 
+                              onClick={() => setEditingEvent(null)}
+                              style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '18px' }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                          
+                          <div style={{ marginBottom: '16px' }}>
+                            <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '4px' }}>Event Type</label>
+                            <select 
+                              value={editingEvent.type}
+                              onChange={(e) => setEditingEvent(prev => ({ ...prev, type: e.target.value }))}
+                              style={{ 
+                                background: '#020617', 
+                                border: '1px solid #334155', 
+                                borderRadius: '6px', 
+                                color: '#fff', 
+                                padding: '8px', 
+                                fontSize: '14px', 
+                                width: '100%' 
+                              }}
+                            >
+                              <option value="plate_appearance">Plate Appearance</option>
+                              <option value="defensive_play">Defensive Play</option>
+                              <option value="manual_run">Manual Run</option>
+                            </select>
+                          </div>
+                          
+                          <div style={{ marginBottom: '16px' }}>
+                            <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '4px' }}>Description</label>
+                            <input 
+                              type="text"
+                              value={editingEvent.data.label || ''}
+                              onChange={(e) => setEditingEvent(prev => ({ 
+                                ...prev, 
+                                data: { ...prev.data, label: e.target.value } 
+                              }))}
+                              style={{ 
+                                background: '#020617', 
+                                border: '1px solid #334155', 
+                                borderRadius: '6px', 
+                                color: '#fff', 
+                                padding: '8px', 
+                                fontSize: '14px', 
+                                width: '100%' 
+                              }}
+                            />
+                          </div>
+                          
+                          <div style={{ marginBottom: '16px' }}>
+                            <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '4px' }}>Notes</label>
+                            <textarea 
+                              value={editingEvent.data.note || ''}
+                              onChange={(e) => setEditingEvent(prev => ({ 
+                                ...prev, 
+                                data: { ...prev.data, note: e.target.value } 
+                              }))}
+                              style={{ 
+                                background: '#020617', 
+                                border: '1px solid #334155', 
+                                borderRadius: '6px', 
+                                color: '#fff', 
+                                padding: '8px', 
+                                fontSize: '14px', 
+                                width: '100%', 
+                                minHeight: '60px',
+                                resize: 'vertical'
+                              }}
+                            />
+                          </div>
+                          
+                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                            <button 
+                              onClick={() => setEditingEvent(null)}
+                              style={{ 
+                                background: '#0f172a', 
+                                color: '#64748b', 
+                                border: '1px solid #334155', 
+                                borderRadius: '6px', 
+                                padding: '8px 16px', 
+                                cursor: 'pointer' 
+                              }}
+                            >
+                              Cancel
+                            </button>
+                            <button 
+                              onClick={() => editEvent(editingEvent.id, editingEvent.data)}
+                              style={{ 
+                                background: '#38bdf8', 
+                                color: '#020617', 
+                                border: 'none', 
+                                borderRadius: '6px', 
+                                padding: '8px 16px', 
+                                cursor: 'pointer',
+                                fontWeight: '600'
+                              }}
+                            >
+                              Save Changes
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     
                     {/* ── RUNNERS & DEFENSE (always visible below pitch/outcome) ── */}
                     <div style={{ borderTop: '1px solid #1e293b', paddingTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
