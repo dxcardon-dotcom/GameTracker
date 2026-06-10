@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import styles from './BroadcastConsole.module.css';
 import { db, storage } from './firebase';
 import { collection, doc, limit, onSnapshot, orderBy, query, setDoc } from 'firebase/firestore';
@@ -1419,32 +1419,46 @@ export default function BroadcastConsole() {
     };
   };
 
-  const processedRoster = currentSeasonData.roster ? currentSeasonData.roster.map(parsePlayerStats) : [];
-  const rosterById = processedRoster.reduce((lookup, player) => {
-    lookup[player.id] = player;
-    return lookup;
-  }, {});
-  const activeLineupEntries = lineupEntries.length
-    ? lineupEntries.map((entry, index) => ({
-      ...entry,
-      battingOrder: entry.battingOrder || index + 1,
-      player: rosterById[entry.playerId]
-    })).filter((entry) => entry.player)
-    : processedRoster.slice(0, 9).map((player, index) => ({
-      playerId: player.id,
-      battingOrder: index + 1,
-      position: player.primaryPosition || '',
+  const processedRoster = useMemo(() => {
+    return currentSeasonData.roster ? currentSeasonData.roster.map(parsePlayerStats) : [];
+  }, [currentSeasonData.roster]);
+  const rosterById = useMemo(() => {
+    return processedRoster.reduce((lookup, player) => {
+      lookup[player.id] = player;
+      return lookup;
+    }, {});
+  }, [processedRoster]);
+  const activeLineupEntries = useMemo(() => {
+    return lineupEntries.length
+      ? lineupEntries.map((entry, index) => ({
+        ...entry,
+        battingOrder: entry.battingOrder || index + 1,
+        player: rosterById[entry.playerId]
+      })).filter((entry) => entry.player)
+      : processedRoster.slice(0, 9).map((player, index) => ({
+        playerId: player.id,
+        battingOrder: index + 1,
+        position: player.primaryPosition || '',
       status: 'starter',
       player
     }));
-  const lineupPlayerIds = new Set(activeLineupEntries.map((entry) => entry.playerId));
-  const probableLineup = activeLineupEntries.map((entry) => ({
-    ...entry.player,
-    lineupPosition: entry.position,
-    battingOrder: entry.battingOrder,
-    lineupStatus: entry.status
-  }));
-  const benchPlayers = processedRoster.filter((player) => !lineupPlayerIds.has(player.id));
+  }, [lineupEntries, rosterById, processedRoster]);
+  
+  const lineupPlayerIds = useMemo(() => {
+    return new Set(activeLineupEntries.map((entry) => entry.playerId));
+  }, [activeLineupEntries]);
+  const probableLineup = useMemo(() => {
+    return activeLineupEntries.map((entry) => ({
+      ...entry.player,
+      lineupPosition: entry.position,
+      battingOrder: entry.battingOrder,
+      lineupStatus: entry.status
+    }));
+  }, [activeLineupEntries]);
+  
+  const benchPlayers = useMemo(() => {
+    return processedRoster.filter((player) => !lineupPlayerIds.has(player.id));
+  }, [processedRoster, lineupPlayerIds]);
   const hasScoringStarted = pitchCount > 0 || recentEvents.length > 0;
   const seasonSchedule = currentSeasonData.schedule || [];
   const seasonWins = seasonSchedule.filter(g => g.status === 'Final' && g.result === 'W').length;
