@@ -205,6 +205,14 @@ export default function BroadcastConsole() {
   const [clipTags, setClipTags] = useState([]);
   const [newTag, setNewTag] = useState('');
 
+  // 🔄 Real-time Synchronization Features
+  const [lastSyncTime, setLastSyncTime] = useState(new Date());
+  const [connectedDevices, setConnectedDevices] = useState([]);
+  const [syncConflicts, setSyncConflicts] = useState([]);
+  const [pendingSync, setPendingSync] = useState([]);
+  const [websocket, setWebsocket] = useState(null);
+  const [syncProgress, setSyncProgress] = useState(0);
+
   // 📋 Game Day Checklist
   const [checklistItems, setChecklistItems] = useState([
     { id: 1, label: 'Equipment packed (bats, helmets, catchers gear)', done: false },
@@ -378,7 +386,7 @@ export default function BroadcastConsole() {
   const [logoUrl, setLogoUrl] = useState('');
   const [liveGameReady, setLiveGameReady] = useState(false);
   const [recentEvents, setRecentEvents] = useState([]);
-  const [syncStatus, setSyncStatus] = useState('Connecting');
+  const [syncStatus, setSyncStatus] = useState('connected'); // 'connected', 'syncing', 'offline', 'error'
   const hydratingFromCloud = useRef(false);
 
   const auth = getAuth();
@@ -1798,6 +1806,242 @@ export default function BroadcastConsole() {
     
     return () => clearInterval(timer);
   }, [isRecording, recordingStartTime]);
+
+  // 🔄 Real-time Synchronization Functions
+  const initializeWebSocket = useCallback(() => {
+    if (!user || !liveGameId) return;
+
+    // In production, connect to your WebSocket server
+    // const ws = new WebSocket(`wss://your-server.com/ws/${liveGameId}`);
+    
+    // Mock WebSocket for demonstration
+    const mockWebSocket = {
+      send: (data) => {
+        console.log('WebSocket send:', data);
+        // Simulate broadcast to other devices
+        setTimeout(() => {
+          handleIncomingMessage(JSON.parse(data));
+        }, 100);
+      },
+      close: () => {
+        console.log('WebSocket closed');
+        setSyncStatus('offline');
+      }
+    };
+
+    setWebsocket(mockWebSocket);
+    setSyncStatus('connected');
+
+    // Mock connection events
+    setTimeout(() => {
+      setConnectedDevices([
+        { id: 'tablet-1', name: 'Scoreboard Tablet', type: 'tablet', lastSeen: new Date() },
+        { id: 'phone-1', name: "Coach's Phone", type: 'phone', lastSeen: new Date() }
+      ]);
+    }, 2000);
+
+    return mockWebSocket;
+  }, [user, liveGameId]);
+
+  const handleIncomingMessage = useCallback((message) => {
+    switch (message.type) {
+      case 'game_update':
+        // Handle game state updates from other devices
+        if (message.timestamp > lastSyncTime) {
+          // Apply updates with conflict resolution
+          applyGameUpdate(message.data);
+          setLastSyncTime(new Date(message.timestamp));
+        }
+        break;
+      
+      case 'device_status':
+        // Update connected devices list
+        setConnectedDevices(prev => {
+          const updated = prev.filter(d => d.id !== message.data.id);
+          return [...updated, message.data];
+        });
+        break;
+      
+      case 'sync_request':
+        // Handle synchronization requests
+        handleSyncRequest(message.data);
+        break;
+      
+      default:
+        console.log('Unknown message type:', message.type);
+    }
+  }, [lastSyncTime]);
+
+  const applyGameUpdate = useCallback((updateData) => {
+    // Apply updates with conflict resolution
+    try {
+      if (updateData.ourInnings) {
+        setOurInnings(updateData.ourInnings);
+      }
+      if (updateData.theirInnings) {
+        setTheirInnings(updateData.theirInnings);
+      }
+      if (updateData.currentInning) {
+        setCurrentInning(updateData.currentInning);
+      }
+      if (updateData.processedRoster) {
+        setProcessedRoster(updateData.processedRoster);
+      }
+    } catch (error) {
+      console.error('Error applying game update:', error);
+      setSyncConflicts(prev => [...prev, {
+        id: Date.now(),
+        type: 'game_update',
+        data: updateData,
+        timestamp: new Date(),
+        resolved: false
+      }]);
+    }
+  }, []);
+
+  const broadcastUpdate = useCallback((updateType, data) => {
+    if (!websocket || syncStatus !== 'connected') {
+      // Queue for later sync
+      setPendingSync(prev => [...prev, {
+        type: updateType,
+        data,
+        timestamp: new Date().toISOString()
+      }]);
+      return;
+    }
+
+    const message = {
+      type: updateType,
+      data,
+      timestamp: new Date().toISOString(),
+      deviceId: 'broadcast-console',
+      gameId: liveGameId
+    };
+
+    websocket.send(JSON.stringify(message));
+    setLastSyncTime(new Date());
+  }, [websocket, syncStatus, liveGameId]);
+
+  const handleSyncRequest = useCallback((requestData) => {
+    // Send current game state to requesting device
+    const currentState = {
+      ourInnings,
+      theirInnings,
+      currentInning,
+      processedRoster,
+      isTopInning,
+      scoringLocation,
+      game
+    };
+
+    broadcastUpdate('sync_response', {
+      requestId: requestData.requestId,
+      state: currentState
+    });
+  }, [ourInnings, theirInnings, currentInning, processedRoster, isTopInning, scoringLocation, game, broadcastUpdate]);
+
+  const resolveConflict = useCallback((conflictId, resolution) => {
+    setSyncConflicts(prev => prev.map(conflict => 
+      conflict.id === conflictId 
+        ? { ...conflict, resolved: true, resolution }
+        : conflict
+    ));
+  }, []);
+
+  const syncPendingData = useCallback(async () => {
+    if (pendingSync.length === 0) return;
+    
+    setSyncStatus('syncing');
+    setSyncProgress(0);
+
+    for (let i = 0; i < pendingSync.length; i++) {
+      const item = pendingSync[i];
+      
+      try {
+        await new Promise(resolve => setTimeout(resolve, 100)); // Simulate network delay
+        broadcastUpdate(item.type, item.data);
+        setSyncProgress(((i + 1) / pendingSync.length) * 100);
+      } catch (error) {
+        console.error('Sync failed for item:', item, error);
+      }
+    }
+
+    setPendingSync([]);
+    setSyncStatus('connected');
+    setLastSyncTime(new Date());
+  }, [pendingSync, broadcastUpdate]);
+
+  const forceSync = useCallback(() => {
+    // Force full synchronization with all devices
+    setSyncStatus('syncing');
+    
+    // Broadcast current state
+    broadcastUpdate('force_sync', {
+      ourInnings,
+      theirInnings,
+      currentInning,
+      processedRoster,
+      isTopInning,
+      scoringLocation,
+      game
+    });
+
+    setTimeout(() => {
+      setSyncStatus('connected');
+      setLastSyncTime(new Date());
+    }, 2000);
+  }, [ourInnings, theirInnings, currentInning, processedRoster, isTopInning, scoringLocation, game, broadcastUpdate]);
+
+  // Initialize WebSocket connection
+  useEffect(() => {
+    if (!websocket && user && liveGameId) {
+      const ws = initializeWebSocket();
+      
+      return () => {
+        if (ws) {
+          ws.close();
+        }
+      };
+    }
+  }, [user, liveGameId, websocket, initializeWebSocket]);
+
+  // Monitor online status
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      if (pendingSync.length > 0) {
+        syncPendingData();
+      }
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      setSyncStatus('offline');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [pendingSync, syncPendingData]);
+
+  // Auto-sync on game changes
+  useEffect(() => {
+    if (websocket && syncStatus === 'connected') {
+      broadcastUpdate('game_update', {
+        ourInnings,
+        theirInnings,
+        currentInning,
+        processedRoster,
+        isTopInning,
+        scoringLocation,
+        game
+      });
+    }
+  }, [ourInnings, theirInnings, currentInning, isTopInning, scoringLocation, websocket, syncStatus, broadcastUpdate]);
 
   const isOurTeamBatting = () => (scoringLocation === 'Away' ? isTopInning : !isTopInning);
 
@@ -4697,6 +4941,45 @@ export default function BroadcastConsole() {
                   </div>
                 </div>
 
+                {/* Sync Status Indicator */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginRight: '8px' }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '4px',
+                    padding: '2px 6px',
+                    background: syncStatus === 'connected' ? '#22c55e20' : 
+                               syncStatus === 'syncing' ? '#f59e0b20' : 
+                               syncStatus === 'offline' ? '#ef444420' : '#334155',
+                    border: `1px solid ${
+                      syncStatus === 'connected' ? '#22c55e' : 
+                      syncStatus === 'syncing' ? '#f59e0b' : 
+                      syncStatus === 'offline' ? '#ef4444' : '#334155'
+                    }`,
+                    borderRadius: '4px'
+                  }}>
+                    <span style={{ 
+                      width: '6px', 
+                      height: '6px', 
+                      borderRadius: '50%',
+                      background: syncStatus === 'connected' ? '#22c55e' : 
+                                 syncStatus === 'syncing' ? '#f59e0b' : 
+                                 syncStatus === 'offline' ? '#ef4444' : '#64748b',
+                      animation: syncStatus === 'syncing' ? 'pulse 1.5s infinite' : 'none'
+                    }} />
+                    <span style={{ fontSize: '8px', color: '#94a3b8' }}>
+                      {syncStatus === 'connected' ? 'Synced' : 
+                       syncStatus === 'syncing' ? 'Syncing' : 
+                       syncStatus === 'offline' ? 'Offline' : 'Error'}
+                    </span>
+                  </div>
+                  {connectedDevices.length > 0 && (
+                    <span style={{ fontSize: '8px', color: '#64748b' }}>
+                      {connectedDevices.length} devices
+                    </span>
+                  )}
+                </div>
+
                 {/* Field view + full-screen toggles */}
                 <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
                   <button onClick={() => setShowVideoPanel(v => !v)}
@@ -7225,6 +7508,198 @@ export default function BroadcastConsole() {
                         {recordedClips.length > 0 && (
                           <div style={{ fontSize: '8px', color: '#64748b' }}>
                             Popular tags: {getPopularTags().slice(0, 5).join(', ')}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ── SYNCHRONIZATION PANEL ── */}
+                    {(syncStatus !== 'connected' || pendingSync.length > 0 || syncConflicts.length > 0) && (
+                      <div style={{ background: '#0a0f1f', border: '1px solid #1e293b', borderRadius: '12px', padding: '12px', marginBottom: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                          <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '800', textTransform: 'uppercase' }}>🔄 Synchronization</span>
+                          <button onClick={forceSync} style={{ background: '#38bdf8', color: '#020617', border: '1px solid #334155', borderRadius: '6px', padding: '4px 8px', fontSize: '8px', cursor: 'pointer' }}>
+                            Force Sync
+                          </button>
+                        </div>
+                        
+                        {/* Sync Status */}
+                        <div style={{ marginBottom: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                            <div style={{ 
+                              width: '8px', 
+                              height: '8px', 
+                              borderRadius: '50%',
+                              background: syncStatus === 'connected' ? '#22c55e' : 
+                                         syncStatus === 'syncing' ? '#f59e0b' : 
+                                         syncStatus === 'offline' ? '#ef4444' : '#64748b',
+                              animation: syncStatus === 'syncing' ? 'pulse 1.5s infinite' : 'none'
+                            }} />
+                            <span style={{ fontSize: '9px', color: '#e2e8f0' }}>
+                              Status: {syncStatus === 'connected' ? 'Connected' : 
+                                       syncStatus === 'syncing' ? 'Synchronizing' : 
+                                       syncStatus === 'offline' ? 'Offline' : 'Error'}
+                            </span>
+                          </div>
+                          
+                          <div style={{ fontSize: '8px', color: '#64748b' }}>
+                            Last sync: {lastSyncTime.toLocaleTimeString()}
+                            {connectedDevices.length > 0 && ` • ${connectedDevices.length} devices connected`}
+                          </div>
+                        </div>
+                        
+                        {/* Sync Progress */}
+                        {syncStatus === 'syncing' && (
+                          <div style={{ marginBottom: '12px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                              <span style={{ fontSize: '8px', color: '#e2e8f0' }}>Sync Progress</span>
+                              <span style={{ fontSize: '8px', color: '#94a3b8' }}>{Math.round(syncProgress)}%</span>
+                            </div>
+                            <div style={{ 
+                              background: '#1e293b', 
+                              borderRadius: '4px', 
+                              height: '6px', 
+                              overflow: 'hidden' 
+                            }}>
+                              <div style={{ 
+                                background: '#38bdf8', 
+                                height: '100%', 
+                                borderRadius: '4px',
+                                width: `${syncProgress}%`,
+                                transition: 'width 0.3s ease'
+                              }} />
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Pending Sync Items */}
+                        {pendingSync.length > 0 && (
+                          <div style={{ marginBottom: '12px' }}>
+                            <div style={{ fontSize: '9px', color: '#f59e0b', fontWeight: '600', marginBottom: '4px' }}>
+                              ⏳ Pending Sync ({pendingSync.length} items)
+                            </div>
+                            <div style={{ 
+                              background: '#0f172a', 
+                              border: '1px solid #1e293b', 
+                              borderRadius: '6px', 
+                              padding: '6px',
+                              maxHeight: '80px',
+                              overflowY: 'auto'
+                            }}>
+                              {pendingSync.slice(0, 3).map((item, index) => (
+                                <div key={index} style={{ fontSize: '7px', color: '#94a3b8', marginBottom: '2px' }}>
+                                  • {item.type} - {new Date(item.timestamp).toLocaleTimeString()}
+                                </div>
+                              ))}
+                              {pendingSync.length > 3 && (
+                                <div style={{ fontSize: '7px', color: '#64748b', fontStyle: 'italic' }}>
+                                  ... and {pendingSync.length - 3} more
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Connected Devices */}
+                        {connectedDevices.length > 0 && (
+                          <div style={{ marginBottom: '12px' }}>
+                            <div style={{ fontSize: '9px', color: '#22c55e', fontWeight: '600', marginBottom: '4px' }}>
+                              📱 Connected Devices
+                            </div>
+                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                              {connectedDevices.map(device => (
+                                <div 
+                                  key={device.id}
+                                  style={{ 
+                                    background: '#1e293b', 
+                                    border: '1px solid #334155', 
+                                    borderRadius: '4px', 
+                                    padding: '2px 6px',
+                                    fontSize: '7px',
+                                    color: '#94a3b8',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '2px'
+                                  }}
+                                >
+                                  {device.type === 'tablet' ? '📱' : '📱'}
+                                  {device.name}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Sync Conflicts */}
+                        {syncConflicts.length > 0 && (
+                          <div style={{ marginBottom: '12px' }}>
+                            <div style={{ fontSize: '9px', color: '#ef4444', fontWeight: '600', marginBottom: '4px' }}>
+                              ⚠️ Sync Conflicts ({syncConflicts.filter(c => !c.resolved).length})
+                            </div>
+                            <div style={{ 
+                              background: '#0f172a', 
+                              border: '1px solid #1e293b', 
+                              borderRadius: '6px', 
+                              padding: '6px',
+                              maxHeight: '100px',
+                              overflowY: 'auto'
+                            }}>
+                              {syncConflicts.filter(c => !c.resolved).map(conflict => (
+                                <div key={conflict.id} style={{ marginBottom: '4px' }}>
+                                  <div style={{ fontSize: '7px', color: '#e2e8f0', marginBottom: '2px' }}>
+                                    {conflict.type} at {conflict.timestamp.toLocaleTimeString()}
+                                  </div>
+                                  <div style={{ display: 'flex', gap: '4px' }}>
+                                    <button
+                                      onClick={() => resolveConflict(conflict.id, 'accept_remote')}
+                                      style={{ 
+                                        background: '#22c55e', 
+                                        color: '#fff', 
+                                        border: '1px solid #334155', 
+                                        borderRadius: '3px', 
+                                        padding: '1px 4px', 
+                                        fontSize: '6px', 
+                                        cursor: 'pointer' 
+                                      }}
+                                    >
+                                      Accept
+                                    </button>
+                                    <button
+                                      onClick={() => resolveConflict(conflict.id, 'reject_remote')}
+                                      style={{ 
+                                        background: '#ef4444', 
+                                        color: '#fff', 
+                                        border: '1px solid #334155', 
+                                        borderRadius: '3px', 
+                                        padding: '1px 4px', 
+                                        fontSize: '6px', 
+                                        cursor: 'pointer' 
+                                      }}
+                                    >
+                                      Reject
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Offline Mode Notice */}
+                        {!isOnline && (
+                          <div style={{ 
+                            background: '#ef444420', 
+                            border: '1px solid #ef4444', 
+                            borderRadius: '6px', 
+                            padding: '6px',
+                            textAlign: 'center'
+                          }}>
+                            <div style={{ fontSize: '8px', color: '#ef4444', fontWeight: '600' }}>
+                              📵 Offline Mode
+                            </div>
+                            <div style={{ fontSize: '7px', color: '#f87171' }}>
+                              Changes will sync when connection is restored
+                            </div>
                           </div>
                         )}
                       </div>
