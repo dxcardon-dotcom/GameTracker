@@ -2868,6 +2868,24 @@ export default function BroadcastConsole() {
           📋 Game Day
         </AnimatedButton>
         <AnimatedButton 
+          variant={activeTab === 'lineup' ? 'primary' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveTab('lineup')}
+          style={{ 
+            backgroundColor: activeTab === 'lineup' ? colors.primary[600] : 'transparent',
+            color: activeTab === 'lineup' ? 'white' : colors.neutral[400],
+            border: 'none',
+            borderRadius: '0.5rem',
+            padding: '0.75rem 1rem',
+            fontSize: '0.875rem',
+            fontWeight: '600',
+            transition: transitions.all,
+            borderBottom: activeTab === 'lineup' ? `3px solid ${colors.primary[400]}` : '3px solid transparent',
+          }}
+        >
+          📝 Lineup Builder
+        </AnimatedButton>
+        <AnimatedButton 
           variant={activeTab === 'changelog' ? 'primary' : 'ghost'}
           size="sm"
           onClick={() => setActiveTab('changelog')}
@@ -4656,6 +4674,362 @@ export default function BroadcastConsole() {
                 <button onClick={handleBulkRosterImport} style={{ background: '#1e293b', border: '1px solid #334155', color: '#fff', width: '100%', fontSize: '12px', padding: '6px 0', borderRadius: '4px', cursor: 'pointer' }}>Parse Roster</button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* LINEUP BUILDER TAB */}
+      {activeTab === 'lineup' && (
+        <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+            <h2 style={{ color: '#fff', fontSize: '28px', margin: '0 0 8px' }}>📝 Lineup Builder</h2>
+            <p style={{ color: '#94a3b8', margin: 0, fontSize: '14px' }}>Create batting orders and defensive positions</p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }}>
+            {/* Batting Order */}
+            <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '24px' }}>
+              <h3 style={{ color: '#fff', margin: '0 0 16px', fontSize: '18px' }}>🏏 Batting Order</h3>
+              
+              <div style={{ marginBottom: '20px' }}>
+                <button 
+                  disabled={!user}
+                  onClick={() => {
+                    const availablePlayers = (currentSeasonData.roster || []).filter(p => 
+                      !lineupEntries.some(entry => entry.id === p.id)
+                    );
+                    if (availablePlayers.length > 0) {
+                      const newEntry = {
+                        id: availablePlayers[0].id,
+                        name: `${availablePlayers[0].firstName} ${availablePlayers[0].lastName}`,
+                        jersey: availablePlayers[0].jersey || '',
+                        position: availablePlayers[0].primaryPosition || 'P',
+                        battingOrder: lineupEntries.length + 1
+                      };
+                      setLineupEntries([...lineupEntries, newEntry]);
+                    }
+                  }}
+                  style={{ 
+                    background: user ? '#3b82f6' : '#1e293b', 
+                    color: user ? '#fff' : '#475569', 
+                    border: 'none', 
+                    borderRadius: '8px', 
+                    padding: '10px 16px', 
+                    fontSize: '13px', 
+                    fontWeight: '600', 
+                    cursor: user ? 'pointer' : 'not-allowed',
+                    width: '100%'
+                  }}
+                >
+                  + Add Player to Lineup
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {lineupEntries.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: '#64748b', padding: '20px' }}>
+                    No players in lineup yet
+                  </div>
+                ) : (
+                  lineupEntries.map((entry, index) => (
+                    <div 
+                      key={entry.id}
+                      draggable
+                      onDragStart={() => handleLineupDragStart(index)}
+                      onDragOver={(e) => handleLineupDragOver(e, index)}
+                      onDragEnd={handleLineupDragEnd}
+                      style={{ 
+                        background: '#1e293b', 
+                        border: '1px solid #334155', 
+                        borderRadius: '8px', 
+                        padding: '12px', 
+                        cursor: 'move',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px'
+                      }}
+                    >
+                      <div style={{ 
+                        background: '#3b82f6', 
+                        color: '#fff', 
+                        borderRadius: '50%', 
+                        width: '24px', 
+                        height: '24px', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        fontSize: '12px', 
+                        fontWeight: 'bold' 
+                      }}>
+                        {index + 1}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ color: '#fff', fontWeight: '600' }}>
+                          {entry.name}
+                        </div>
+                        <div style={{ color: '#64748b', fontSize: '12px' }}>
+                          #{entry.jersey} • {entry.position}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          disabled={!user}
+                          onClick={() => setSubModal({ idx: index, name: entry.name })}
+                          style={{ 
+                            background: '#f59e0b', 
+                            color: '#fff', 
+                            border: 'none', 
+                            borderRadius: '6px', 
+                            padding: '4px 8px', 
+                            fontSize: '11px', 
+                            cursor: 'pointer' 
+                          }}
+                        >
+                          Sub
+                        </button>
+                        <button
+                          disabled={!user}
+                          onClick={() => {
+                            setLineupEntries(lineupEntries.filter((_, i) => i !== index));
+                            if (lineupBatterIndex >= index) setLineupBatterIndex(Math.max(0, lineupBatterIndex - 1));
+                          }}
+                          style={{ 
+                            background: '#ef4444', 
+                            color: '#fff', 
+                            border: 'none', 
+                            borderRadius: '6px', 
+                            padding: '4px 8px', 
+                            fontSize: '11px', 
+                            cursor: 'pointer' 
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {subModal && (
+                <div style={{ marginTop: '16px' }}>
+                  <SubstitutionModal 
+                    subModal={subModal}
+                    onConfirm={substitutePlayer}
+                    onCancel={() => setSubModal(null)}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Defensive Positions */}
+            <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '24px' }}>
+              <h3 style={{ color: '#fff', margin: '0 0 16px', fontSize: '18px' }}>🧢 Defensive Positions</h3>
+              
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(3, 1fr)', 
+                gap: '8px', 
+                marginBottom: '20px' 
+              }}>
+                {[
+                  { pos: 'P', label: 'Pitcher' },
+                  { pos: 'C', label: 'Catcher' },
+                  { pos: '1B', label: '1st Base' },
+                  { pos: '2B', label: '2nd Base' },
+                  { pos: '3B', label: '3rd Base' },
+                  { pos: 'SS', label: 'Shortstop' },
+                  { pos: 'LF', label: 'Left Field' },
+                  { pos: 'CF', label: 'Center Field' },
+                  { pos: 'RF', label: 'Right Field' }
+                ].map(({ pos, label }) => {
+                  const player = lineupEntries.find(entry => entry.position === pos);
+                  return (
+                    <div 
+                      key={pos}
+                      style={{ 
+                        background: player ? '#1e293b' : '#0f172a', 
+                        border: `1px solid ${player ? '#3b82f6' : '#334155'}`, 
+                        borderRadius: '8px', 
+                        padding: '12px', 
+                        textAlign: 'center' 
+                      }}
+                    >
+                      <div style={{ color: '#64748b', fontSize: '10px', marginBottom: '4px' }}>
+                        {pos}
+                      </div>
+                      <div style={{ color: '#fff', fontSize: '12px', fontWeight: '600' }}>
+                        {player ? player.name.split(' ').pop() : label}
+                      </div>
+                      {player && (
+                        <div style={{ color: '#64748b', fontSize: '10px' }}>
+                          #{player.jersey}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ background: '#1e293b', borderRadius: '8px', padding: '16px' }}>
+                <h4 style={{ color: '#fff', margin: '0 0 12px', fontSize: '14px' }}>Field View</h4>
+                <div style={{ 
+                  background: '#0f172a', 
+                  border: '1px solid #334155', 
+                  borderRadius: '8px', 
+                  height: '200px', 
+                  position: 'relative', 
+                  overflow: 'hidden' 
+                }}>
+                  {/* Simple field diagram */}
+                  <div style={{ 
+                    position: 'absolute', 
+                    top: '50%', 
+                    left: '50%', 
+                    transform: 'translate(-50%, -50%)', 
+                    width: '60px', 
+                    height: '60px', 
+                    background: '#1e293b', 
+                    border: '2px solid #334155', 
+                    borderRadius: '50%' 
+                  }} />
+                  {lineupEntries.map((entry, index) => {
+                    const positions = {
+                      'P': { x: 50, y: 50 },
+                      'C': { x: 50, y: 85 },
+                      '1B': { x: 85, y: 50 },
+                      '2B': { x: 65, y: 35 },
+                      '3B': { x: 15, y: 50 },
+                      'SS': { x: 35, y: 35 },
+                      'LF': { x: 15, y: 15 },
+                      'CF': { x: 50, y: 15 },
+                      'RF': { x: 85, y: 15 }
+                    };
+                    const pos = positions[entry.position];
+                    if (!pos) return null;
+                    
+                    return (
+                      <div
+                        key={entry.id}
+                        style={{
+                          position: 'absolute',
+                          left: `${pos.x}%`,
+                          top: `${pos.y}%`,
+                          transform: 'translate(-50%, -50%)',
+                          background: '#3b82f6',
+                          color: '#fff',
+                          borderRadius: '50%',
+                          width: '20px',
+                          height: '20px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '10px',
+                          fontWeight: 'bold'
+                        }}
+                        title={entry.name}
+                      >
+                        {entry.jersey || '?'}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Lineup Actions */}
+          <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '24px' }}>
+            <h3 style={{ color: '#fff', margin: '0 0 16px', fontSize: '18px' }}>⚙️ Lineup Management</h3>
+            
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <button
+                disabled={!user || lineupEntries.length === 0}
+                onClick={async () => {
+                  setLineupStatus('Saving...');
+                  try {
+                    await setDoc(doc(db, 'games', liveGameId), { 
+                      lineupEntries,
+                      lineupBatterIndex,
+                      updatedAt: new Date().toISOString()
+                    }, { merge: true });
+                    setLineupStatus('Saved!');
+                    setTimeout(() => setLineupStatus('Ready'), 2000);
+                  } catch (error) {
+                    setLineupStatus('Error saving');
+                    console.error(error);
+                  }
+                }}
+                style={{ 
+                  background: user && lineupEntries.length > 0 ? '#22c55e' : '#1e293b', 
+                  color: user && lineupEntries.length > 0 ? '#fff' : '#475569', 
+                  border: 'none', 
+                  borderRadius: '8px', 
+                  padding: '10px 20px', 
+                  fontSize: '13px', 
+                  fontWeight: '600', 
+                  cursor: user && lineupEntries.length > 0 ? 'pointer' : 'not-allowed' 
+                }}
+              >
+                💾 Save Lineup
+              </button>
+              
+              <button
+                disabled={!user}
+                onClick={() => {
+                  setLineupEntries([]);
+                  setLineupBatterIndex(0);
+                  setLineupStatus('Cleared');
+                  setTimeout(() => setLineupStatus('Ready'), 2000);
+                }}
+                style={{ 
+                  background: user ? '#ef4444' : '#1e293b', 
+                  color: user ? '#fff' : '#475569', 
+                  border: 'none', 
+                  borderRadius: '8px', 
+                  padding: '10px 20px', 
+                  fontSize: '13px', 
+                  fontWeight: '600', 
+                  cursor: user ? 'pointer' : 'not-allowed' 
+                }}
+              >
+                🗑️ Clear Lineup
+              </button>
+              
+              <button
+                disabled={!user}
+                onClick={() => {
+                  // Auto-fill lineup from roster
+                  const roster = currentSeasonData.roster || [];
+                  const autoLineup = roster.slice(0, 9).map((player, index) => ({
+                    id: player.id,
+                    name: `${player.firstName} ${player.lastName}`,
+                    jersey: player.jersey || '',
+                    position: player.primaryPosition || 'P',
+                    battingOrder: index + 1
+                  }));
+                  setLineupEntries(autoLineup);
+                  setLineupStatus('Auto-filled from roster');
+                  setTimeout(() => setLineupStatus('Ready'), 2000);
+                }}
+                style={{ 
+                  background: user ? '#3b82f6' : '#1e293b', 
+                  color: user ? '#fff' : '#475569', 
+                  border: 'none', 
+                  borderRadius: '8px', 
+                  padding: '10px 20px', 
+                  fontSize: '13px', 
+                  fontWeight: '600', 
+                  cursor: user ? 'pointer' : 'not-allowed' 
+                }}
+              >
+                🔄 Auto-Fill from Roster
+              </button>
+            </div>
+            
+            <div style={{ marginTop: '12px', color: '#64748b', fontSize: '12px' }}>
+              Status: {lineupStatus}
+            </div>
           </div>
         </div>
       )}
