@@ -184,6 +184,15 @@ export default function BroadcastConsole() {
   const [recapLoading, setRecapLoading] = useState(false);
   const [recapCopied, setRecapCopied] = useState(false);
 
+  // 💬 Team Communication Features
+  const [showTeamChat, setShowTeamChat] = useState(false);
+  const [teamMessages, setTeamMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [messageType, setMessageType] = useState('general'); // 'general', 'announcement', 'coach'
+  const [selectedRecipient, setSelectedRecipient] = useState('all'); // 'all' or specific player
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [messageLoading, setMessageLoading] = useState(false);
+
   // 📋 Game Day Checklist
   const [checklistItems, setChecklistItems] = useState([
     { id: 1, label: 'Equipment packed (bats, helmets, catchers gear)', done: false },
@@ -1507,6 +1516,125 @@ export default function BroadcastConsole() {
       console.error('Failed to copy recap:', error);
     }
   };
+
+  // 💬 Team Communication Functions
+  const sendMessage = useCallback(async () => {
+    if (!newMessage.trim() || !user) return;
+    
+    setMessageLoading(true);
+    
+    const message = {
+      id: Date.now(),
+      text: newMessage.trim(),
+      sender: user.displayName || 'Coach',
+      senderId: user.uid,
+      type: messageType,
+      recipient: selectedRecipient,
+      timestamp: new Date().toISOString(),
+      read: false,
+      gameContext: {
+        gameId: liveGameId,
+        inning: currentInning,
+        isTopInning,
+        score: {
+          our: sumRuns(game.ourInnings),
+          their: sumRuns(game.theirInnings)
+        }
+      }
+    };
+    
+    try {
+      // Add message to local state
+      setTeamMessages(prev => [message, ...prev]);
+      setNewMessage('');
+      
+      // In production, save to Firestore
+      // await addDoc(collection(db, 'teams', currentSeasonData.teamProfile.id, 'messages'), message);
+      
+      // Update unread count for other users
+      if (selectedRecipient === 'all') {
+        setUnreadCount(prev => prev + processedRoster.length - 1);
+      }
+      
+    } catch (error) {
+      console.error('Failed to send message:', error);
+    }
+    
+    setMessageLoading(false);
+  }, [newMessage, user, messageType, selectedRecipient, liveGameId, currentInning, isTopInning, game, processedRoster]);
+
+  const markMessagesAsRead = useCallback(() => {
+    setTeamMessages(prev => prev.map(msg => ({ ...msg, read: true })));
+    setUnreadCount(0);
+  }, []);
+
+  const getQuickMessages = () => [
+    { text: "Great game today team!", type: "general" },
+    { text: "Remember our defensive positioning", type: "coach" },
+    { text: "Game starts in 30 minutes", type: "announcement" },
+    { text: "Nice hitting everyone!", type: "general" },
+    { text: "Let's focus this inning", type: "coach" },
+    { text: "Bring your A-game today", type: "general" }
+  ];
+
+  const sendQuickMessage = (quickMsg) => {
+    setNewMessage(quickMsg.text);
+    setMessageType(quickMsg.type);
+    setTimeout(() => sendMessage(), 100);
+  };
+
+  // Load team messages
+  useEffect(() => {
+    if (!showTeamChat) return;
+    
+    // In production, load from Firestore
+    // const q = query(collection(db, 'teams', currentSeasonData.teamProfile.id, 'messages'), orderBy('timestamp', 'desc'));
+    // const unsubscribe = onSnapshot(q, (snapshot) => {
+    //   const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    //   setTeamMessages(messages);
+    // });
+    
+    // Mock messages for demo
+    const mockMessages = [
+      {
+        id: 1,
+        text: "Great practice today everyone!",
+        sender: "Coach Smith",
+        senderId: "coach1",
+        type: "general",
+        recipient: "all",
+        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+        read: false
+      },
+      {
+        id: 2,
+        text: "Don't forget about tomorrow's game at 4pm",
+        sender: "Coach Smith",
+        senderId: "coach1",
+        type: "announcement",
+        recipient: "all",
+        timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+        read: true
+      },
+      {
+        id: 3,
+        text: "Remember to work on your batting stance",
+        sender: "Coach Johnson",
+        senderId: "coach2",
+        type: "coach",
+        recipient: "all",
+        timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+        read: true
+      }
+    ];
+    
+    setTeamMessages(mockMessages);
+    setUnreadCount(mockMessages.filter(m => !m.read).length);
+    
+    return () => {
+      // unsubscribe();
+    };
+  }, [showTeamChat]);
 
   const isOurTeamBatting = () => (scoringLocation === 'Away' ? isTopInning : !isTopInning);
 
@@ -4408,6 +4536,29 @@ export default function BroadcastConsole() {
 
                 {/* Field view + full-screen toggles */}
                 <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                  <button onClick={() => setShowTeamChat(v => !v)}
+                    style={{ background: showTeamChat ? 'rgba(56,189,248,0.15)' : '#0f172a', border: `1px solid ${showTeamChat ? '#38bdf8' : '#334155'}`, borderRadius: '8px', color: showTeamChat ? '#38bdf8' : '#64748b', cursor: 'pointer', fontSize: '14px', padding: '6px 9px', position: 'relative' }} title="Team communication">
+                    💬
+                    {unreadCount > 0 && (
+                      <span style={{ 
+                        position: 'absolute', 
+                        top: '2px', 
+                        right: '2px', 
+                        background: '#ef4444', 
+                        color: '#fff', 
+                        borderRadius: '50%', 
+                        width: '12px', 
+                        height: '12px', 
+                        fontSize: '8px', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center',
+                        fontWeight: 'bold'
+                      }}>
+                        {unreadCount}
+                      </span>
+                    )}
+                  </button>
                   <button onClick={() => setShowRecapGenerator(v => !v)}
                     style={{ background: showRecapGenerator ? 'rgba(56,189,248,0.15)' : '#0f172a', border: `1px solid ${showRecapGenerator ? '#38bdf8' : '#334155'}`, borderRadius: '8px', color: showRecapGenerator ? '#38bdf8' : '#64748b', cursor: 'pointer', fontSize: '14px', padding: '6px 9px' }} title="Game recap generator">
                     📄
@@ -6314,6 +6465,235 @@ export default function BroadcastConsole() {
                             </div>
                           </div>
                         )}
+                      </div>
+                    )}
+
+                    {/* ── TEAM COMMUNICATION CHAT ── */}
+                    {showTeamChat && (
+                      <div style={{ background: '#0a0f1f', border: '1px solid #1e293b', borderRadius: '12px', padding: '12px', marginBottom: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                          <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '800', textTransform: 'uppercase' }}>💬 Team Chat</span>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            {unreadCount > 0 && (
+                              <span style={{ 
+                                background: '#ef4444', 
+                                color: '#fff', 
+                                borderRadius: '10px', 
+                                padding: '2px 6px', 
+                                fontSize: '9px', 
+                                fontWeight: 'bold' 
+                              }}>
+                                {unreadCount} new
+                              </span>
+                            )}
+                            <button 
+                              onClick={() => {
+                                markMessagesAsRead();
+                                setShowTeamChat(false);
+                              }} 
+                              style={{ background: 'transparent', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '14px' }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                        
+                        {/* Message Input Area */}
+                        <div style={{ marginBottom: '12px' }}>
+                          <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                            <select
+                              value={messageType}
+                              onChange={e => setMessageType(e.target.value)}
+                              style={{ 
+                                background: '#0f172a', 
+                                border: '1px solid #334155', 
+                                borderRadius: '6px', 
+                                color: '#fff', 
+                                padding: '4px 8px', 
+                                fontSize: '10px' 
+                              }}
+                            >
+                              <option value="general">💬 General</option>
+                              <option value="announcement">📢 Announcement</option>
+                              <option value="coach">👨‍🏫 Coach Note</option>
+                            </select>
+                            
+                            <select
+                              value={selectedRecipient}
+                              onChange={e => setSelectedRecipient(e.target.value)}
+                              style={{ 
+                                background: '#0f172a', 
+                                border: '1px solid #334155', 
+                                borderRadius: '6px', 
+                                color: '#fff', 
+                                padding: '4px 8px', 
+                                fontSize: '10px' 
+                              }}
+                            >
+                              <option value="all">👥 All Team</option>
+                              {processedRoster.map(player => (
+                                <option key={player.id} value={`${player.firstName} ${player.lastName}`}>
+                                  {player.firstName} {player.lastName}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <input
+                              type="text"
+                              value={newMessage}
+                              onChange={e => setNewMessage(e.target.value)}
+                              onKeyPress={e => e.key === 'Enter' && sendMessage()}
+                              placeholder="Type your message..."
+                              style={{ 
+                                flex: 1, 
+                                background: '#0f172a', 
+                                border: '1px solid #334155', 
+                                borderRadius: '6px', 
+                                color: '#fff', 
+                                padding: '6px 10px', 
+                                fontSize: '10px' 
+                              }}
+                            />
+                            <button
+                              onClick={sendMessage}
+                              disabled={!newMessage.trim() || messageLoading}
+                              style={{ 
+                                background: messageLoading ? '#334155' : '#38bdf8', 
+                                color: '#020617', 
+                                border: '1px solid #334155', 
+                                borderRadius: '6px', 
+                                padding: '6px 12px', 
+                                fontSize: '9px', 
+                                fontWeight: '600', 
+                                cursor: messageLoading || !newMessage.trim() ? 'not-allowed' : 'pointer'
+                              }}
+                            >
+                              {messageLoading ? 'Sending...' : 'Send'}
+                            </button>
+                          </div>
+                        </div>
+                        
+                        {/* Quick Messages */}
+                        <div style={{ marginBottom: '12px' }}>
+                          <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '4px' }}>Quick Messages:</div>
+                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                            {getQuickMessages().map((quickMsg, index) => (
+                              <button
+                                key={index}
+                                onClick={() => sendQuickMessage(quickMsg)}
+                                style={{ 
+                                  background: '#1e293b', 
+                                  color: '#94a3b8', 
+                                  border: '1px solid #334155', 
+                                  borderRadius: '4px', 
+                                  padding: '2px 6px', 
+                                  fontSize: '8px', 
+                                  cursor: 'pointer' 
+                                }}
+                              >
+                                {quickMsg.text}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        {/* Messages Display */}
+                        <div style={{ 
+                          background: '#0f172a', 
+                          border: '1px solid #1e293b', 
+                          borderRadius: '8px', 
+                          padding: '8px', 
+                          maxHeight: '200px', 
+                          overflowY: 'auto' 
+                        }}>
+                          {teamMessages.length === 0 ? (
+                            <div style={{ textAlign: 'center', color: '#64748b', fontSize: '10px', padding: '20px' }}>
+                              No messages yet. Start the conversation!
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              {teamMessages.map(message => (
+                                <div 
+                                  key={message.id} 
+                                  style={{ 
+                                    background: message.read ? '#1e293b' : '#2563eb20', 
+                                    border: `1px solid ${message.read ? '#334155' : '#38bdf8'}`, 
+                                    borderRadius: '6px', 
+                                    padding: '6px 8px',
+                                    borderLeft: `3px solid ${
+                                      message.type === 'announcement' ? '#f59e0b' :
+                                      message.type === 'coach' ? '#22c55e' : '#38bdf8'
+                                    }`
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <span style={{ 
+                                        fontSize: '9px', 
+                                        fontWeight: 'bold', 
+                                        color: '#e2e8f0' 
+                                      }}>
+                                        {message.sender}
+                                      </span>
+                                      <span style={{ 
+                                        fontSize: '7px', 
+                                        color: '#64748b',
+                                        background: '#1e293b',
+                                        padding: '1px 4px',
+                                        borderRadius: '3px'
+                                      }}>
+                                        {message.type === 'announcement' ? '📢' :
+                                         message.type === 'coach' ? '👨‍🏫' : '💬'}
+                                      </span>
+                                      {message.recipient !== 'all' && (
+                                        <span style={{ 
+                                          fontSize: '7px', 
+                                          color: '#f59e0b',
+                                          background: '#f59e0b20',
+                                          padding: '1px 4px',
+                                          borderRadius: '3px'
+                                        }}>
+                                          To: {message.recipient}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span style={{ fontSize: '7px', color: '#64748b' }}>
+                                      {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                  </div>
+                                  <div style={{ fontSize: '9px', color: '#e2e8f0', lineHeight: '1.3' }}>
+                                    {message.text}
+                                  </div>
+                                  {message.gameContext && (
+                                    <div style={{ 
+                                      fontSize: '7px', 
+                                      color: '#64748b', 
+                                      marginTop: '4px',
+                                      fontStyle: 'italic'
+                                    }}>
+                                      🏟️ Inning {message.gameContext.inning} • Score: {message.gameContext.score.our}-{message.gameContext.score.their}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Chat Status */}
+                        <div style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center', 
+                          marginTop: '8px',
+                          fontSize: '8px', 
+                          color: '#64748b' 
+                        }}>
+                          <span>📱 Team Chat Active</span>
+                          <span>{teamMessages.length} messages</span>
+                        </div>
                       </div>
                     )}
 
