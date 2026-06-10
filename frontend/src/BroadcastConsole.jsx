@@ -162,6 +162,14 @@ export default function BroadcastConsole() {
   const [templateType, setTemplateType] = useState('batting'); // 'batting' or 'fielding'
   const [opponentType, setOpponentType] = useState('generic'); // 'lefty', 'righty', 'generic'
 
+  // 📊 Advanced Analytics Dashboard
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [analyticsView, setAnalyticsView] = useState('overview'); // 'overview', 'hitting', 'pitching', 'fielding'
+  const [selectedTimeRange, setSelectedTimeRange] = useState('season'); // 'season', 'last10', 'last5'
+  const [playerAnalytics, setPlayerAnalytics] = useState([]);
+  const [teamAnalytics, setTeamAnalytics] = useState({});
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
   // 📋 Game Day Checklist
   const [checklistItems, setChecklistItems] = useState([
     { id: 1, label: 'Equipment packed (bats, helmets, catchers gear)', done: false },
@@ -1171,6 +1179,127 @@ export default function BroadcastConsole() {
     
     return unsubscribe;
   }, [user, selectedSeason]);
+
+  // 📊 Analytics Calculation Functions
+  const calculatePlayerAnalytics = useCallback((player, timeRange = 'season') => {
+    const games = currentSeasonData.schedule || [];
+    let relevantGames = games;
+    
+    if (timeRange === 'last5') {
+      relevantGames = games.slice(-5);
+    } else if (timeRange === 'last10') {
+      relevantGames = games.slice(-10);
+    }
+    
+    // Calculate advanced hitting metrics
+    const avg = parseFloat(player.avg || '0');
+    const obp = player.ab && player.ab + player.bb + player.hbp > 0 
+      ? ((player.hits || 0) + (player.bb || 0) + (player.hbp || 0)) / (player.ab + player.bb + player.hbp)
+      : 0;
+    const slg = player.ab > 0 
+      ? ((player.hits || 0) + 2 * (player.double || 0) + 3 * (player.triple || 0) + 4 * (player.hr || 0)) / player.ab
+      : 0;
+    const ops = obp + slg;
+    
+    // Calculate recent performance trend
+    const recentAvg = player.recentAvg || avg;
+    const trend = avg - recentAvg;
+    
+    return {
+      ...player,
+      avg: avg.toFixed(3),
+      obp: obp.toFixed(3),
+      slg: slg.toFixed(3),
+      ops: ops.toFixed(3),
+      trend: trend > 0.050 ? 'hot' : trend < -0.050 ? 'cold' : 'stable',
+      gamesPlayed: relevantGames.filter(g => g.status === 'Final').length,
+      qualityStarts: player.ip >= 6 && player.er <= 3 ? (player.qualityStarts || 0) : 0,
+      whip: player.ip > 0 ? ((player.hitsAllowed || 0) + (player.walksAllowed || 0)) / player.ip : 0,
+      era: player.ip > 0 ? (player.er * 9) / player.ip : 0
+    };
+  }, [currentSeasonData.schedule]);
+
+  const calculateTeamAnalytics = useCallback(() => {
+    const games = currentSeasonData.schedule || [];
+    const completedGames = games.filter(g => g.status === 'Final');
+    
+    // Team hitting stats
+    const totalHits = processedRoster.reduce((sum, p) => sum + (p.hits || 0), 0);
+    const totalAB = processedRoster.reduce((sum, p) => sum + (p.ab || 0), 0);
+    const totalRuns = processedRoster.reduce((sum, p) => sum + (p.runs || 0), 0);
+    const totalHR = processedRoster.reduce((sum, p) => sum + (p.hr || 0), 0);
+    const totalRBI = processedRoster.reduce((sum, p) => sum + (p.rbi || 0), 0);
+    const totalBB = processedRoster.reduce((sum, p) => sum + (p.bb || 0), 0);
+    
+    // Team pitching stats
+    const totalIP = processedRoster.reduce((sum, p) => sum + (p.ip || 0), 0);
+    const totalER = processedRoster.reduce((sum, p) => sum + (p.er || 0), 0);
+    const totalSO = processedRoster.reduce((sum, p) => sum + (p.strikeouts || 0), 0);
+    const totalHitsAllowed = processedRoster.reduce((sum, p) => sum + (p.hitsAllowed || 0), 0);
+    const totalWalksAllowed = processedRoster.reduce((sum, p) => sum + (p.walksAllowed || 0), 0);
+    
+    // Calculate team averages
+    const teamAvg = totalAB > 0 ? (totalHits / totalAB) : 0;
+    const teamERA = totalIP > 0 ? (totalER * 9) / totalIP : 0;
+    const teamWHIP = totalIP > 0 ? (totalHitsAllowed + totalWalksAllowed) / totalIP : 0;
+    
+    // Win/loss record
+    const wins = completedGames.filter(g => g.result === 'W').length;
+    const losses = completedGames.filter(g => g.result === 'L').length;
+    const winPercentage = completedGames.length > 0 ? wins / completedGames.length : 0;
+    
+    return {
+      record: { wins, losses, winPercentage: (winPercentage * 100).toFixed(1) },
+      hitting: {
+        avg: teamAvg.toFixed(3),
+        runs: totalRuns,
+        hits: totalHits,
+        hr: totalHR,
+        rbi: totalRBI,
+        bb: totalBB,
+        runsPerGame: completedGames.length > 0 ? (totalRuns / completedGames.length).toFixed(1) : 0
+      },
+      pitching: {
+        era: teamERA.toFixed(2),
+        whip: teamWHIP.toFixed(2),
+        ip: totalIP,
+        so: totalSO,
+        hitsAllowed: totalHitsAllowed,
+        walksAllowed: totalWalksAllowed,
+        strikeoutsPer9: totalIP > 0 ? ((totalSO * 9) / totalIP).toFixed(1) : 0
+      },
+      fielding: {
+        errors: processedRoster.reduce((sum, p) => sum + (p.errors || 0), 0),
+        assists: processedRoster.reduce((sum, p) => sum + (p.assists || 0), 0),
+        putouts: processedRoster.reduce((sum, p) => sum + (p.po || 0), 0),
+        fieldingPct: (() => {
+          const totalChances = processedRoster.reduce((sum, p) => 
+            sum + (p.errors || 0) + (p.assists || 0) + (p.po || 0), 0);
+          const totalOuts = processedRoster.reduce((sum, p) => 
+            sum + (p.assists || 0) + (p.po || 0), 0);
+          return totalChances > 0 ? ((totalOuts / totalChances) * 100).toFixed(1) : '0.0';
+        })()
+      }
+    };
+  }, [currentSeasonData.schedule, processedRoster]);
+
+  // Load analytics data
+  useEffect(() => {
+    if (!showAnalytics) return;
+    
+    setAnalyticsLoading(true);
+    
+    // Calculate player analytics
+    const playersWithAnalytics = processedRoster.map(player => 
+      calculatePlayerAnalytics(player, selectedTimeRange)
+    );
+    setPlayerAnalytics(playersWithAnalytics);
+    
+    // Calculate team analytics
+    setTeamAnalytics(calculateTeamAnalytics());
+    
+    setAnalyticsLoading(false);
+  }, [showAnalytics, selectedTimeRange, processedRoster, calculatePlayerAnalytics, calculateTeamAnalytics]);
 
   const isOurTeamBatting = () => (scoringLocation === 'Away' ? isTopInning : !isTopInning);
 
@@ -4072,6 +4201,10 @@ export default function BroadcastConsole() {
 
                 {/* Field view + full-screen toggles */}
                 <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                  <button onClick={() => setShowAnalytics(v => !v)}
+                    style={{ background: showAnalytics ? 'rgba(56,189,248,0.15)' : '#0f172a', border: `1px solid ${showAnalytics ? '#38bdf8' : '#334155'}`, borderRadius: '8px', color: showAnalytics ? '#38bdf8' : '#64748b', cursor: 'pointer', fontSize: '14px', padding: '6px 9px' }} title="Analytics dashboard">
+                    📊
+                  </button>
                   <button onClick={() => setShowTemplateManager(v => !v)}
                     style={{ background: showTemplateManager ? 'rgba(56,189,248,0.15)' : '#0f172a', border: `1px solid ${showTemplateManager ? '#38bdf8' : '#334155'}`, borderRadius: '8px', color: showTemplateManager ? '#38bdf8' : '#64748b', cursor: 'pointer', fontSize: '14px', padding: '6px 9px' }} title="Lineup templates">
                     📋
@@ -5320,6 +5453,259 @@ export default function BroadcastConsole() {
                             )}
                           </div>
                         </div>
+                      </div>
+                    )}
+
+                    {/* ── ADVANCED ANALYTICS DASHBOARD ── */}
+                    {showAnalytics && (
+                      <div style={{ background: '#0a0f1f', border: '1px solid #1e293b', borderRadius: '12px', padding: '12px', marginBottom: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                          <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '800', textTransform: 'uppercase' }}>📊 Analytics Dashboard</span>
+                          <button onClick={() => setShowAnalytics(false)} style={{ background: 'transparent', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '14px' }}>✕</button>
+                        </div>
+                        
+                        {/* Analytics Controls */}
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                          <select
+                            value={selectedTimeRange}
+                            onChange={e => setSelectedTimeRange(e.target.value)}
+                            style={{ 
+                              background: '#0f172a', 
+                              border: '1px solid #334155', 
+                              borderRadius: '6px', 
+                              color: '#fff', 
+                              padding: '4px 8px', 
+                              fontSize: '10px' 
+                            }}
+                          >
+                            <option value="season">Full Season</option>
+                            <option value="last10">Last 10 Games</option>
+                            <option value="last5">Last 5 Games</option>
+                          </select>
+                          
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            {['overview', 'hitting', 'pitching', 'fielding'].map(view => (
+                              <button
+                                key={view}
+                                onClick={() => setAnalyticsView(view)}
+                                style={{ 
+                                  background: analyticsView === view ? '#38bdf8' : '#0f172a', 
+                                  color: analyticsView === view ? '#020617' : '#64748b', 
+                                  border: '1px solid #334155', 
+                                  borderRadius: '6px', 
+                                  padding: '4px 8px', 
+                                  fontSize: '9px', 
+                                  fontWeight: '600', 
+                                  cursor: 'pointer',
+                                  textTransform: 'capitalize'
+                                }}
+                              >
+                                {view}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        {analyticsLoading ? (
+                          <div style={{ textAlign: 'center', color: '#64748b', fontSize: '11px', padding: '20px' }}>
+                            Loading analytics...
+                          </div>
+                        ) : (
+                          <>
+                            {/* Overview */}
+                            {analyticsView === 'overview' && (
+                              <div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '12px' }}>
+                                  <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '6px', padding: '8px' }}>
+                                    <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px' }}>Team Record</div>
+                                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#38bdf8' }}>
+                                      {teamAnalytics.record?.wins || 0}-{teamAnalytics.record?.losses || 0}
+                                    </div>
+                                    <div style={{ fontSize: '10px', color: '#64748b' }}>
+                                      {teamAnalytics.record?.winPercentage || '0.0'}% win rate
+                                    </div>
+                                  </div>
+                                  
+                                  <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '6px', padding: '8px' }}>
+                                    <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px' }}>Team Batting</div>
+                                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#22c55e' }}>
+                                      .{teamAnalytics.hitting?.avg || '000'}
+                                    </div>
+                                    <div style={{ fontSize: '10px', color: '#64748b' }}>
+                                      {teamAnalytics.hitting?.runsPerGame || '0.0'} runs/game
+                                    </div>
+                                  </div>
+                                  
+                                  <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '6px', padding: '8px' }}>
+                                    <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px' }}>Team Pitching</div>
+                                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#ef4444' }}>
+                                      {teamAnalytics.pitching?.era || '0.00'} ERA
+                                    </div>
+                                    <div style={{ fontSize: '10px', color: '#64748b' }}>
+                                      {teamAnalytics.pitching?.whip || '0.00'} WHIP
+                                    </div>
+                                  </div>
+                                  
+                                  <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '6px', padding: '8px' }}>
+                                    <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px' }}>Fielding</div>
+                                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#f59e0b' }}>
+                                      {teamAnalytics.fielding?.fieldingPct || '0.0'}%
+                                    </div>
+                                    <div style={{ fontSize: '10px', color: '#64748b' }}>
+                                      {teamAnalytics.fielding?.errors || 0} errors
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* Hitting Analytics */}
+                            {analyticsView === 'hitting' && (
+                              <div>
+                                <div style={{ marginBottom: '12px' }}>
+                                  <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '6px', textTransform: 'uppercase' }}>Top Hitters</div>
+                                  <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                                    {playerAnalytics
+                                      .filter(p => p.ab > 0)
+                                      .sort((a, b) => parseFloat(b.avg) - parseFloat(a.avg))
+                                      .slice(0, 10)
+                                      .map(player => (
+                                        <div key={player.id} style={{ 
+                                          background: '#0f172a', 
+                                          border: '1px solid #1e293b', 
+                                          borderRadius: '6px', 
+                                          padding: '6px', 
+                                          marginBottom: '4px',
+                                          display: 'flex',
+                                          justifyContent: 'space-between',
+                                          alignItems: 'center'
+                                        }}>
+                                          <div>
+                                            <div style={{ fontSize: '11px', color: '#e2e8f0', fontWeight: '600' }}>
+                                              {player.firstName} {player.lastName}
+                                            </div>
+                                            <div style={{ fontSize: '9px', color: '#64748b' }}>
+                                              {player.ab} AB • {player.hits} H • {player.rbi} RBI
+                                            </div>
+                                          </div>
+                                          <div style={{ textAlign: 'right' }}>
+                                            <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#22c55e' }}>
+                                              .{player.avg}
+                                            </div>
+                                            <div style={{ fontSize: '9px', color: '#64748b' }}>
+                                              OPS: {player.ops}
+                                            </div>
+                                            <div style={{ 
+                                              fontSize: '8px', 
+                                              color: player.trend === 'hot' ? '#22c55e' : player.trend === 'cold' ? '#ef4444' : '#64748b',
+                                              fontWeight: '600'
+                                            }}>
+                                              {player.trend === 'hot' ? '🔥 Hot' : player.trend === 'cold' ? '❄️ Cold' : '➡️ Stable'}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* Pitching Analytics */}
+                            {analyticsView === 'pitching' && (
+                              <div>
+                                <div style={{ marginBottom: '12px' }}>
+                                  <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '6px', textTransform: 'uppercase' }}>Pitching Staff</div>
+                                  <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                                    {playerAnalytics
+                                      .filter(p => p.ip > 0)
+                                      .sort((a, b) => a.era - b.era)
+                                      .slice(0, 10)
+                                      .map(player => (
+                                        <div key={player.id} style={{ 
+                                          background: '#0f172a', 
+                                          border: '1px solid #1e293b', 
+                                          borderRadius: '6px', 
+                                          padding: '6px', 
+                                          marginBottom: '4px',
+                                          display: 'flex',
+                                          justifyContent: 'space-between',
+                                          alignItems: 'center'
+                                        }}>
+                                          <div>
+                                            <div style={{ fontSize: '11px', color: '#e2e8f0', fontWeight: '600' }}>
+                                              {player.firstName} {player.lastName}
+                                            </div>
+                                            <div style={{ fontSize: '9px', color: '#64748b' }}>
+                                              {player.ip} IP • {player.strikeouts} K • {player.bb} BB
+                                            </div>
+                                          </div>
+                                          <div style={{ textAlign: 'right' }}>
+                                            <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#ef4444' }}>
+                                              {player.era.toFixed(2)} ERA
+                                            </div>
+                                            <div style={{ fontSize: '9px', color: '#64748b' }}>
+                                              WHIP: {player.whip.toFixed(2)}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* Fielding Analytics */}
+                            {analyticsView === 'fielding' && (
+                              <div>
+                                <div style={{ marginBottom: '12px' }}>
+                                  <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '6px', textTransform: 'uppercase' }}>Fielding Leaders</div>
+                                  <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                                    {playerAnalytics
+                                      .filter(p => (p.po + p.assists + p.errors) > 0)
+                                      .sort((a, b) => {
+                                        const aPct = (a.po + a.assists) / (a.po + a.assists + a.errors) || 0;
+                                        const bPct = (b.po + b.assists) / (b.po + b.assists + b.errors) || 0;
+                                        return bPct - aPct;
+                                      })
+                                      .slice(0, 10)
+                                      .map(player => {
+                                        const fieldingPct = ((player.po + player.assists) / (player.po + player.assists + player.errors) * 100) || 0;
+                                        return (
+                                          <div key={player.id} style={{ 
+                                            background: '#0f172a', 
+                                            border: '1px solid #1e293b', 
+                                            borderRadius: '6px', 
+                                            padding: '6px', 
+                                            marginBottom: '4px',
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center'
+                                          }}>
+                                            <div>
+                                              <div style={{ fontSize: '11px', color: '#e2e8f0', fontWeight: '600' }}>
+                                                {player.firstName} {player.lastName}
+                                              </div>
+                                              <div style={{ fontSize: '9px', color: '#64748b' }}>
+                                                {player.primaryPosition} • {player.po} PO • {player.assists} A • {player.errors} E
+                                              </div>
+                                            </div>
+                                            <div style={{ textAlign: 'right' }}>
+                                              <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#f59e0b' }}>
+                                                {fieldingPct.toFixed(1)}%
+                                              </div>
+                                              <div style={{ fontSize: '9px', color: '#64748b' }}>
+                                                Chances: {player.po + player.assists + player.errors}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )}
                       </div>
                     )}
 
