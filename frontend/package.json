@@ -16,6 +16,8 @@
     "vite": "^6.0.7"
   },
   "devDependencies": {
-    "netlify-cli": "^26.1.0"
+    "@vitejs/plugin-react": "^4.7.0",
+    "netlify-cli": "^26.1.0",
+    "terser": "^5.48.0"
   }
 }
