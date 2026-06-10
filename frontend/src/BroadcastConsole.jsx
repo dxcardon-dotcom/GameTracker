@@ -254,6 +254,7 @@ export default function BroadcastConsole() {
   const [notifPermission, setNotifPermission] = useState(() =>
     typeof Notification !== 'undefined' ? Notification.permission : 'default'
   );
+  const [selectedAnalyticsPlayer, setSelectedAnalyticsPlayer] = useState('');
 
   // 🔥 Heatmap filters
   const [hmPitcher, setHmPitcher] = useState('all');
@@ -2446,6 +2447,7 @@ export default function BroadcastConsole() {
         <button className={`${styles.tabBarBtn} ${activeTab === 'gameday' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('gameday')}>📋 Game Day</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'changelog' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('changelog')} style={{ color: activeTab === 'changelog' ? '#a78bfa' : '#64748b' }}>🆕 What's New</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'leaderboard' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('leaderboard')}>🏆 Leaderboard</button>
+        <button className={`${styles.tabBarBtn} ${activeTab === 'analytics' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('analytics')}>📊 Analytics</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'upgrade' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('upgrade')} style={{ marginLeft: 'auto', color: activeTab === 'upgrade' ? '#fff' : '#f59e0b', background: activeTab === 'upgrade' ? '#854d0e' : 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.4)' }}>⭐ Upgrade</button>
       </div>
 
@@ -4458,6 +4460,187 @@ export default function BroadcastConsole() {
               📤 Share Leaderboard
             </button>
           </div>
+        </div>
+      )}
+
+      {/* ANALYTICS TAB */}
+      {activeTab === 'analytics' && (
+        <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+            <h2 style={{ color: '#fff', fontSize: '28px', margin: '0 0 8px' }}>📊 Advanced Analytics</h2>
+            <p style={{ color: '#94a3b8', margin: 0, fontSize: '14px' }}>Spray charts, pitch tracking, and performance insights</p>
+          </div>
+
+          {!userLimits.advancedStats && (
+            <div style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '12px', padding: '20px', marginBottom: '32px', textAlign: 'center' }}>
+              <h3 style={{ color: '#f59e0b', margin: '0 0 8px' }}>🔒 Premium Feature</h3>
+              <p style={{ color: '#94a3b8', margin: '0 0 16px' }}>Advanced analytics require a Pro plan. Upgrade to unlock spray charts, pitch tracking, and detailed insights.</p>
+              <button onClick={() => setActiveTab('upgrade')} style={{ background: '#f59e0b', color: '#020617', border: 'none', borderRadius: '8px', padding: '12px 24px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>Upgrade to Pro</button>
+            </div>
+          )}
+
+          {userLimits.advancedStats && (
+            <>
+              {/* Player Selection */}
+              <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px', marginBottom: '24px' }}>
+                <label style={{ display: 'block', color: '#e2e8f0', fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>
+                  Select Player
+                </label>
+                <select
+                  value={selectedAnalyticsPlayer || ''}
+                  onChange={(e) => setSelectedAnalyticsPlayer(e.target.value)}
+                  style={{ width: '100%', background: '#020617', border: '1px solid #334155', borderRadius: '8px', padding: '12px', color: '#fff', fontSize: '14px' }}
+                >
+                  <option value="">Choose a player...</option>
+                  {processedRoster.map(player => (
+                    <option key={player.id} value={player.id}>
+                      #{player.jersey || '?'} {player.firstName} {player.lastName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedAnalyticsPlayer && (() => {
+                const player = processedRoster.find(p => p.id === selectedAnalyticsPlayer);
+                if (!player) return null;
+
+                // Mock spray chart data (in real app, this comes from detailed play-by-play)
+                const sprayData = [
+                  { x: 45, y: 30, result: 'hit', type: 'single' },
+                  { x: -20, y: 40, result: 'out', type: 'groundout' },
+                  { x: 60, y: -10, result: 'hit', type: 'double' },
+                  { x: -30, y: 20, result: 'hit', type: 'single' },
+                  { x: 50, y: 50, result: 'hit', type: 'hr' },
+                  { x: -40, y: -20, result: 'out', type: 'flyout' },
+                  { x: 30, y: 10, result: 'hit', type: 'single' },
+                  { x: -10, y: 45, result: 'out', type: 'groundout' },
+                  { x: 55, y: 25, result: 'hit', type: 'double' },
+                  { x: -25, y: 35, result: 'hit', type: 'single' }
+                ];
+
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '24px' }}>
+                    {/* Spray Chart */}
+                    <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px' }}>
+                      <h3 style={{ color: '#fff', margin: '0 0 16px', fontSize: '16px' }}>🎯 Spray Chart</h3>
+                      <div style={{ position: 'relative', width: '100%', height: '300px', background: '#020617', border: '1px solid #334155', borderRadius: '8px' }}>
+                        {/* Baseball field outline */}
+                        <svg width="100%" height="100%" viewBox="-100 -100 200 200">
+                          {/* Field lines */}
+                          <line x1="0" y1="0" x2="-70" y2="70" stroke="#334155" strokeWidth="1" />
+                          <line x1="0" y1="0" x2="70" y2="70" stroke="#334155" strokeWidth="1" />
+                          <line x1="-70" y1="70" x2="70" y2="70" stroke="#334155" strokeWidth="1" />
+                          
+                          {/* Home plate */}
+                          <polygon points="0,-5 5,5 0,10 -5,5" fill="#64748b" />
+                          
+                          {/* Hit locations */}
+                          {sprayData.map((point, i) => (
+                            <circle
+                              key={i}
+                              cx={point.x}
+                              cy={point.y}
+                              r="4"
+                              fill={point.result === 'hit' ? '#22c55e' : '#ef4444'}
+                              opacity="0.8"
+                            />
+                          ))}
+                        </svg>
+                      </div>
+                      <div style={{ display: 'flex', gap: '16px', marginTop: '12px', fontSize: '12px' }}>
+                        <span style={{ color: '#22c55e' }}>● Hit</span>
+                        <span style={{ color: '#ef4444' }}>● Out</span>
+                      </div>
+                    </div>
+
+                    {/* Pitch Location Heatmap */}
+                    <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px' }}>
+                      <h3 style={{ color: '#fff', margin: '0 0 16px', fontSize: '16px' }}>🎾 Pitch Location Heatmap</h3>
+                      <div style={{ position: 'relative', width: '100%', height: '300px', background: '#020617', border: '1px solid #334155', borderRadius: '8px' }}>
+                        <svg width="100%" height="100%" viewBox="-150 -150 300 300">
+                          {/* Strike zone */}
+                          <rect x="-50" y="-50" width="100" height="100" fill="none" stroke="#64748b" strokeWidth="2" strokeDasharray="5,5" />
+                          
+                          {/* Mock pitch data with heat intensity */}
+                          {[
+                            { x: 10, y: 20, intensity: 0.8 },
+                            { x: -15, y: -10, intensity: 0.6 },
+                            { x: 30, y: 5, intensity: 0.9 },
+                            { x: -20, y: 30, intensity: 0.4 },
+                            { x: 5, y: -25, intensity: 0.7 },
+                            { x: -40, y: 10, intensity: 0.5 },
+                            { x: 25, y: -15, intensity: 0.8 }
+                          ].map((pitch, i) => (
+                            <circle
+                              key={i}
+                              cx={pitch.x}
+                              cy={pitch.y}
+                              r={15 * pitch.intensity}
+                              fill={`rgba(239, 68, 68, ${pitch.intensity * 0.6})`}
+                            />
+                          ))}
+                        </svg>
+                      </div>
+                      <div style={{ marginTop: '12px', fontSize: '12px', color: '#64748b' }}>
+                        Red zones: High pitch density
+                      </div>
+                    </div>
+
+                    {/* Performance Trends */}
+                    <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px' }}>
+                      <h3 style={{ color: '#fff', margin: '0 0 16px', fontSize: '16px' }}>📈 Performance Trends</h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {[
+                          { label: 'Batting Average', value: '.345', trend: 'up', change: '+0.12' },
+                          { label: 'On-Base %', value: '.423', trend: 'up', change: '+0.08' },
+                          { label: 'Strikeout Rate', value: '18.5%', trend: 'down', change: '-3.2%' },
+                          { label: 'Hard Contact %', value: '42.1%', trend: 'up', change: '+5.7%' }
+                        ].map((stat, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #1e293b' }}>
+                            <span style={{ color: '#94a3b8', fontSize: '13px' }}>{stat.label}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ color: '#fff', fontSize: '14px', fontWeight: 'bold' }}>{stat.value}</span>
+                              <span style={{ color: stat.trend === 'up' ? '#22c55e' : '#ef4444', fontSize: '12px' }}>
+                                {stat.trend === 'up' ? '↑' : '↓'} {stat.change}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Exit Velocity */}
+                    <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px' }}>
+                      <h3 style={{ color: '#fff', margin: '0 0 16px', fontSize: '16px' }}>⚡ Exit Velocity</h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {[
+                          { velocity: 92, date: 'May 15' },
+                          { velocity: 87, date: 'May 12' },
+                          { velocity: 95, date: 'May 8' },
+                          { velocity: 89, date: 'May 5' },
+                          { velocity: 91, date: 'May 2' }
+                        ].map((hit, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: '#94a3b8', fontSize: '13px' }}>{hit.date}</span>
+                            <span style={{ 
+                              color: hit.velocity >= 90 ? '#22c55e' : '#64748b', 
+                              fontSize: '14px', 
+                              fontWeight: 'bold' 
+                            }}>
+                              {hit.velocity} mph
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ marginTop: '12px', padding: '8px', background: '#020617', borderRadius: '6px', textAlign: 'center' }}>
+                        <span style={{ color: '#38bdf8', fontSize: '12px' }}>Season Avg: 90.8 mph</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </>
+          )}
         </div>
       )}
 
