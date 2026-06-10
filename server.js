@@ -669,6 +669,59 @@ async function getUserPlan(req, res) {
   }
 }
 
+async function handleReferralReward(session) {
+  const uid = session.metadata?.uid || session.client_reference_id;
+  if (!uid) return;
+  // Check if this user was referred
+  const referredUserDoc = await getDb().collection("users").doc(uid).get();
+  const referredBy = referredUserDoc.exists ? referredUserDoc.data().referredBy : null;
+  if (!referredBy) return;
+  // Find the referrer by code
+  const referrerQuery = await getDb().collection("users").where("referralCode", "==", referredBy).limit(1).get();
+  if (referrerQuery.empty) return;
+  const referrerDoc = referrerQuery.docs[0];
+  const referrerId = referrerDoc.id;
+  // Find and update the referral record
+  const referralQuery = await getDb().collection("referrals")
+    .where("referrerId", "==", referrerId)
+    .where("referredId", "==", uid)
+    .where("status", "==", "pending")
+    .limit(1)
+    .get();
+  if (referralQuery.empty) return;
+  const referralDoc = referralQuery.docs[0];
+  // Apply 1-month credit via Stripe
+  const referrerCustomerId = referrerDoc.data().stripeCustomerId || (await getDb().collection("users").doc(referrerId).get()).data()?.stripeCustomerId;
+  if (referrerCustomerId && stripe) {
+    try {
+      // Create a 100% off coupon for 1 month
+      const coupon = await stripe.coupons.create({
+        amount_off: 699, // $6.99 in cents
+        currency: 'usd',
+        duration: 'once',
+        name: 'Referral Reward - 1 Month Free',
+        metadata: { referralId: referralDoc.id }
+      });
+      // Apply coupon to referrer's subscription
+      const subs = await stripe.subscriptions.list({ customer: referrerCustomerId, status: 'active', limit: 1 });
+      if (subs.data.length > 0) {
+        await stripe.subscriptions.update(subs.data[0].id, {
+          coupon: coupon.id
+        });
+        // Mark referral as completed
+        await getDb().collection("referrals").doc(referralDoc.id).update({
+          status: "completed",
+          rewardedAt: new Date().toISOString(),
+          rewardCouponId: coupon.id
+        });
+        console.log(`Referral reward applied: 1 month free to ${referrerId}`);
+      }
+    } catch (e) {
+      console.error('Failed to apply referral reward:', e);
+    }
+  }
+}
+
 async function markUserProFromCheckoutSession(session) {
   const uid = session.metadata?.uid || session.client_reference_id;
   const tier = session.metadata?.tier || "pro";
@@ -741,6 +794,8 @@ async function handleStripeWebhook(req, res) {
   try {
     if (event.type === "checkout.session.completed") {
       await markUserProFromCheckoutSession(event.data.object);
+      // Handle referral reward
+      await handleReferralReward(event.data.object);
     }
 
     if (event.type === "customer.subscription.deleted") {
@@ -807,6 +862,76 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 500, {
         error: error.message || "Could not create checkout session",
       });
+    }
+  }
+
+  if (req.method === "POST" && requestUrl.pathname === "/api/user/referral") {
+    try {
+      const user = await requireUser(req);
+      const uid = user.uid;
+      const userDoc = await getDb().collection("users").doc(uid);
+      const snapshot = await userDoc.get();
+      let referralCode = snapshot.exists ? snapshot.data().referralCode : null;
+      if (!referralCode) {
+        // Generate a unique 6-char code
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        let code;
+        let exists = true;
+        let attempts = 0;
+        while (exists && attempts < 10) {
+          code = '';
+          for (let i = 0; i < 6; i++) {
+            code += chars.charAt(Math.floor(Math.random() * chars.length));
+          }
+          const existing = await getDb().collection("users").where("referralCode", "==", code).limit(1).get();
+          exists = !existing.empty;
+          attempts++;
+        }
+        if (exists) throw new Error("Failed to generate unique referral code");
+        referralCode = code;
+        await userDoc.set({ referralCode }, { merge: true });
+      }
+      return sendJson(res, 200, { referralCode });
+    } catch (error) {
+      console.error("Referral error:", error);
+      return sendJson(res, 500, { error: error.message });
+    }
+  }
+
+  if (req.method === "POST" && requestUrl.pathname === "/api/user/referral-claim") {
+    try {
+      const user = await requireUser(req);
+      const body = await readBody(req);
+      const { referralCode } = body;
+      if (!referralCode || typeof referralCode !== 'string' || referralCode.length !== 6) {
+        return sendJson(res, 400, { error: "Invalid referral code" });
+      }
+      // Find referrer by code
+      const refQuery = await getDb().collection("users").where("referralCode", "==", referralCode).limit(1).get();
+      if (refQuery.empty) {
+        return sendJson(res, 404, { error: "Referral code not found" });
+      }
+      const referrerDoc = refQuery.docs[0];
+      const referrerId = referrerDoc.id;
+      const referredId = user.uid;
+      // Prevent self-referral
+      if (referrerId === referredId) {
+        return sendJson(res, 400, { error: "Cannot refer yourself" });
+      }
+      // Store referral relationship
+      await getDb().collection("referrals").add({
+        referrerId,
+        referredId,
+        referralCode,
+        claimedAt: new Date().toISOString(),
+        status: "pending" // pending until referred user upgrades
+      });
+      // Mark referral on referred user
+      await getDb().collection("users").doc(referredId).set({ referredBy: referralCode }, { merge: true });
+      return sendJson(res, 200, { success: true });
+    } catch (error) {
+      console.error("Referral claim error:", error);
+      return sendJson(res, 500, { error: error.message });
     }
   }
 

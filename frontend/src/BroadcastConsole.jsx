@@ -248,6 +248,7 @@ export default function BroadcastConsole() {
   const [gamesPlayed, setGamesPlayed] = useState(0);
   const [checkoutStatus, setCheckoutStatus] = useState('');
   const [billingCycle, setBillingCycle] = useState('monthly');
+  const [myReferralCode, setMyReferralCode] = useState('');
   const [notifPermission, setNotifPermission] = useState(() =>
     typeof Notification !== 'undefined' ? Notification.permission : 'default'
   );
@@ -374,6 +375,24 @@ export default function BroadcastConsole() {
           if (res.ok) {
             const data = await res.json();
             setUserPlan(data.plan || 'free');
+          }
+          // Ensure referral code exists
+          await ensureReferralCode(currentUser.uid);
+          // Handle referral if present in URL
+          const params = new URLSearchParams(window.location.search);
+          const refCode = params.get('ref');
+          if (refCode && refCode.length === 6) {
+            try {
+              await fetch(`${apiBaseUrl}/api/user/referral-claim`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ referralCode: refCode })
+              });
+              // Clean URL after claiming
+              window.history.replaceState({}, document.title, window.location.pathname);
+            } catch (e) {
+              console.error('Failed to claim referral:', e);
+            }
           }
           const limRes = await fetch(`${apiBaseUrl}/api/user/limits`, {
             headers: { Authorization: `Bearer ${token}` }
@@ -2183,6 +2202,33 @@ export default function BroadcastConsole() {
     } catch (err) {
       console.error(err);
       setCheckoutStatus('error');
+    }
+  };
+
+  // Generate a short, memorable referral code (6 chars, uppercase letters + numbers)
+  const generateReferralCode = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  };
+
+  // Ensure user has a referral code; generate if missing
+  const ensureReferralCode = async (uid) => {
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`${apiBaseUrl}/api/user/referral`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMyReferralCode(data.referralCode);
+      }
+    } catch (e) {
+      console.error('Failed to ensure referral code:', e);
     }
   };
 
@@ -4463,6 +4509,34 @@ export default function BroadcastConsole() {
             </div>
 
           </div>
+
+          {/* REFERRAL SECTION */}
+          {user && myReferralCode && (
+            <div style={{ marginTop: '48px', background: '#0f172a', border: '1px solid #1e293b', borderRadius: '14px', padding: '24px', textAlign: 'center' }}>
+              <div style={{ fontSize: '14px', fontWeight: '900', color: '#fff', marginBottom: '8px' }}>🎁 Refer a Coach & Get 1 Month Free</div>
+              <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 16px', lineHeight: 1.5 }}>
+                Share your link with another coach. When they upgrade to Pro, you get a free month.
+              </p>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center', background: '#020617', border: '1px solid #334155', borderRadius: '10px', padding: '8px 12px', maxWidth: '400px', margin: '0 auto' }}>
+                <input
+                  type="text"
+                  readOnly
+                  value={`https://diamondconnectpro.com?ref=${myReferralCode}`}
+                  style={{ flex: 1, background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '12px', outline: 'none' }}
+                  onClick={(e) => e.target.select()}
+                />
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(`https://diamondconnectpro.com?ref=${myReferralCode}`);
+                    alert('Referral link copied!');
+                  }}
+                  style={{ background: '#38bdf8', color: '#020617', border: 'none', borderRadius: '6px', padding: '6px 12px', fontWeight: '700', fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* COMPARISON TABLE */}
           <div style={{ marginTop: '40px', marginBottom: '32px', overflowX: 'auto' }}>
