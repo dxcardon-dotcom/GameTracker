@@ -16,6 +16,7 @@ import AnimatedStatsCard from './components/AnimatedStatsCard';
 import ModernDashboard from './components/ModernDashboard';
 import RealTimeCollaboration from './components/RealTimeCollaboration';
 import AIInsights from './components/AIInsights';
+import AdminDashboard from './components/AdminDashboard';
 import { colors, spacing, borderRadius, transitions, typography } from './styles/designSystem';
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
@@ -2916,6 +2917,24 @@ export default function BroadcastConsole() {
         >
           🤖 AI Insights
         </AnimatedButton>
+        <AnimatedButton 
+          variant={activeTab === 'admin' ? 'primary' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveTab('admin')}
+          style={{ 
+            backgroundColor: activeTab === 'admin' ? colors.primary[600] : 'transparent',
+            color: activeTab === 'admin' ? 'white' : colors.neutral[400],
+            border: 'none',
+            borderRadius: '0.5rem',
+            padding: '0.75rem 1rem',
+            fontSize: '0.875rem',
+            fontWeight: '600',
+            transition: transitions.all,
+            borderBottom: activeTab === 'admin' ? `3px solid ${colors.primary[400]}` : '3px solid transparent',
+          }}
+        >
+          🛠️ Admin
+        </AnimatedButton>
         <button className={`${styles.tabBarBtn} ${activeTab === 'leaderboard' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('leaderboard')}>🏆 Leaderboard</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'analytics' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('analytics')}>📊 Analytics</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'team-chat' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('team-chat')}>💬 Team Chat</button>
@@ -4605,6 +4624,14 @@ export default function BroadcastConsole() {
           gameData={seasonSchedule}
           pitchData={pitchLog}
           teamData={{ name: teamDisplayName, sport: 'Baseball' }}
+          isLoading={false}
+        />
+      )}
+      {/* ADMIN DASHBOARD TAB */}
+      {activeTab === 'admin' && (
+        <AdminDashboard
+          user={user}
+          adminData={{}}
           isLoading={false}
         />
       )}
