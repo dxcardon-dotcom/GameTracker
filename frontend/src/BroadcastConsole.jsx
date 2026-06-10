@@ -138,10 +138,15 @@ export default function BroadcastConsole() {
   const [sprayDots, setSprayDots] = useState([]);
   const [sprayPending, setSprayPending] = useState(null); // { xPct, yPct } — pending click on spray chart
 
-  // ⚾ Pitch Velocity & Type
+  // ⚾ Enhanced Pitch Velocity & Type Tracking
   const [pitchVelo, setPitchVelo] = useState('');
   const [pitchType, setPitchType] = useState('FB');
   const [pitchLog, setPitchLog] = useState([]);
+  const [showPitchDetails, setShowPitchDetails] = useState(false);
+  const [pitchLocation, setPitchLocation] = useState(''); // 'high', 'low', 'inside', 'outside', 'middle'
+  const [pitchResult, setPitchResult] = useState(''); // 'swinging', 'looking', 'foul', 'contact'
+  const [atBatCount, setAtBatCount] = useState(0);
+  const [pitcherStats, setPitcherStats] = useState({ strikes: 0, balls: 0, kCount: 0, bbCount: 0 });
 
   // 📋 Game Day Checklist
   const [checklistItems, setChecklistItems] = useState([
@@ -831,6 +836,40 @@ export default function BroadcastConsole() {
     if (!user) return;
 
     try {
+      // Enhanced play-by-play data with detailed metrics
+      const enhancedEvent = {
+        ...event,
+        // Enhanced pitch tracking data
+        pitchData: event.pitchSequence ? {
+          sequence: event.pitchSequence,
+          avgVelocity: pitchLog.slice(-event.pitchSequence.length).reduce((sum, p) => sum + (p.velocity || 0), 0) / event.pitchSequence.length || 0,
+          pitchTypes: [...new Set(pitchLog.slice(-event.pitchSequence.length).map(p => p.type))],
+          locations: [...new Set(pitchLog.slice(-event.pitchSequence.length).map(p => p.location).filter(Boolean))]
+        } : null,
+        // Game context
+        gameContext: {
+          score: { our: ourLiveScore, their: theirLiveScore },
+          inning: currentInning,
+          half: isTopInning ? 'top' : 'bottom',
+          count: { balls, strikes },
+          outs,
+          runners: { first: runnerOnFirst, second: runnerOnSecond, third: runnerOnThird },
+          pitcherStats,
+          atBatCount
+        },
+        // Timestamp and metadata
+        timestamp: new Date().toISOString(),
+        gameId: liveGameId,
+        season: selectedSeason,
+        // Enhanced player context
+        playerContext: {
+          batter: currentBatter,
+          pitcher: currentPitcher,
+          battingOrder: lineupBatterIndex + 1,
+          lineupPosition: lineupEntries[lineupBatterIndex]?.position || ''
+        }
+      };
+
       await authenticatedPost(`/api/games/${liveGameId}/events`, {
         eventType,
         inning: currentInning,
@@ -862,7 +901,7 @@ export default function BroadcastConsole() {
         batterLabel: currentBatter || null,
         pitcherLabel: currentPitcher || null,
         note: playNote.trim() || null,
-        ...event
+        ...enhancedEvent
       });
       setPlayNote('');
     } catch (error) {
@@ -1151,15 +1190,31 @@ export default function BroadcastConsole() {
     let nextOuts = outs;
     let autoResult = null; // 'walk' or 'strikeout'
 
+    // Enhanced pitch tracking data
+    const pitchData = {
+      type: pitchType,
+      result,
+      velocity: pitchVelo ? Number(pitchVelo) : null,
+      location: pitchLocation,
+      count: { balls, strikes },
+      timestamp: new Date().toISOString(),
+      pitcher: currentPitcher,
+      batter: currentBatter,
+      inning: currentInning,
+      isTopInning
+    };
+
     if (result === 'ball') {
       if (balls === 3) {
         // Auto-walk
         autoResult = 'walk';
         nextBalls = 0;
         nextStrikes = 0;
+        setPitcherStats(prev => ({ ...prev, bbCount: prev.bbCount + 1 }));
       } else {
         nextBalls = balls + 1;
       }
+      setPitcherStats(prev => ({ ...prev, balls: prev.balls + 1 }));
     }
     if (result === 'called_strike' || result === 'swinging_strike') {
       if (strikes === 2) {
@@ -1168,18 +1223,26 @@ export default function BroadcastConsole() {
         nextStrikes = 0;
         nextBalls = 0;
         nextOuts = Math.min(3, outs + 1);
+        setPitcherStats(prev => ({ ...prev, kCount: prev.kCount + 1 }));
       } else {
         nextStrikes = strikes + 1;
       }
+      setPitcherStats(prev => ({ ...prev, strikes: prev.strikes + 1 }));
+      setPitchResult(result === 'called_strike' ? 'looking' : 'swinging');
     }
-    if (result === 'foul' && strikes < 2) nextStrikes = strikes + 1;
+    if (result === 'foul' && strikes < 2) {
+      nextStrikes = strikes + 1;
+      setPitchResult('foul');
+    }
     if (['in_play', 'hit_by_pitch'].includes(result)) {
       nextBalls = 0;
       nextStrikes = 0;
+      setPitchResult('contact');
     }
     if (result === 'hit_by_pitch') {
       // Treat like walk for baserunners
       autoResult = 'hbp';
+      setPitcherStats(prev => ({ ...prev, bbCount: prev.bbCount + 1 }));
     }
 
     setBalls(nextBalls);
@@ -1191,7 +1254,11 @@ export default function BroadcastConsole() {
       else if (next >= pitchWarningLimit) setPitchAlert('warning');
       return next;
     });
+    
+    // Enhanced pitch logging
+    setPitchLog(prev => [...prev, pitchData]);
     setCurrentPASequence(prev => [...prev, { type: pitchType, result, balls, strikes }]);
+    setAtBatCount(prev => prev + 1);
 
     if (autoResult === 'walk' || autoResult === 'hbp') {
       applyWalkOrHitByPitch();
@@ -3743,6 +3810,10 @@ export default function BroadcastConsole() {
 
                 {/* Field view + full-screen toggles */}
                 <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                  <button onClick={() => setShowPitchDetails(v => !v)}
+                    style={{ background: showPitchDetails ? 'rgba(56,189,248,0.15)' : '#0f172a', border: `1px solid ${showPitchDetails ? '#38bdf8' : '#334155'}`, borderRadius: '8px', color: showPitchDetails ? '#38bdf8' : '#64748b', cursor: 'pointer', fontSize: '14px', padding: '6px 9px' }} title="Toggle pitch details">
+                    ⚡
+                  </button>
                   <button onClick={() => setShowFieldView(v => !v)}
                     style={{ background: showFieldView ? 'rgba(56,189,248,0.15)' : '#0f172a', border: `1px solid ${showFieldView ? '#38bdf8' : '#334155'}`, borderRadius: '8px', color: showFieldView ? '#38bdf8' : '#64748b', cursor: 'pointer', fontSize: '14px', padding: '6px 9px' }} title="Toggle field view">
                     ⬡
@@ -4280,6 +4351,361 @@ export default function BroadcastConsole() {
                       </>
                     )}
 
+                    {/* ── ENHANCED PITCH TRACKING PANEL ── */}
+                    {showPitchDetails && (
+                      <div style={{ background: '#0a0f1f', border: '1px solid #1e293b', borderRadius: '12px', padding: '12px', marginBottom: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                          <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '800', textTransform: 'uppercase' }}>⚡ Pitch Details</span>
+                          <button onClick={() => setShowPitchDetails(false)} style={{ background: 'transparent', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '14px' }}>✕</button>
+                        </div>
+                        
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '10px' }}>
+                          <div>
+                            <label style={{ fontSize: '9px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Velocity</label>
+                            <input 
+                              type="number" 
+                              value={pitchVelo} 
+                              onChange={e => setPitchVelo(e.target.value)}
+                              placeholder="mph"
+                              style={{ 
+                                background: '#0f172a', 
+                                border: '1px solid #334155', 
+                                borderRadius: '6px', 
+                                color: '#fff', 
+                                padding: '4px 6px', 
+                                fontSize: '11px', 
+                                width: '100%' 
+                              }}
+                            />
+                          </div>
+                          
+                          <div>
+                            <label style={{ fontSize: '9px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Type</label>
+                            <select 
+                              value={pitchType} 
+                              onChange={e => setPitchType(e.target.value)}
+                              style={{ 
+                                background: '#0f172a', 
+                                border: '1px solid #334155', 
+                                borderRadius: '6px', 
+                                color: '#fff', 
+                                padding: '4px 6px', 
+                                fontSize: '11px', 
+                                width: '100%' 
+                              }}
+                            >
+                              <option value="FB">FB</option>
+                              <option value="CH">CH</option>
+                              <option value="CU">CU</option>
+                              <option value="SL">SL</option>
+                              <option value="SI">SI</option>
+                              <option value="KC">KC</option>
+                            </select>
+                          </div>
+                          
+                          <div>
+                            <label style={{ fontSize: '9px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Location</label>
+                            <select 
+                              value={pitchLocation} 
+                              onChange={e => setPitchLocation(e.target.value)}
+                              style={{ 
+                                background: '#0f172a', 
+                                border: '1px solid #334155', 
+                                borderRadius: '6px', 
+                                color: '#fff', 
+                                padding: '4px 6px', 
+                                fontSize: '11px', 
+                                width: '100%' 
+                              }}
+                            >
+                              <option value="">--</option>
+                              <option value="high">High</option>
+                              <option value="low">Low</option>
+                              <option value="inside">Inside</option>
+                              <option value="outside">Outside</option>
+                              <option value="middle">Middle</option>
+                            </select>
+                          </div>
+                          
+                          <div>
+                            <label style={{ fontSize: '9px', color: '#64748b', display: 'block', marginBottom: '2px' }}>Result</label>
+                            <select 
+                              value={pitchResult} 
+                              onChange={e => setPitchResult(e.target.value)}
+                              style={{ 
+                                background: '#0f172a', 
+                                border: '1px solid #334155', 
+                                borderRadius: '6px', 
+                                color: '#fff', 
+                                padding: '4px 6px', 
+                                fontSize: '11px', 
+                                width: '100%' 
+                              }}
+                            >
+                              <option value="">--</option>
+                              <option value="swinging">Swinging</option>
+                              <option value="looking">Looking</option>
+                              <option value="foul">Foul</option>
+                              <option value="contact">Contact</option>
+                            </select>
+                          </div>
+                        </div>
+                        
+                        {/* Pitcher Stats Summary */}
+                        <div style={{ display: 'flex', gap: '12px', fontSize: '10px', color: '#64748b' }}>
+                          <span>⚾ {pitcherStats.strikes} K</span>
+                          <span>🎯 {pitcherStats.balls} B</span>
+                          <span>💨 {pitcherStats.kCount} Ks</span>
+                          <span>🚶 {pitcherStats.bbCount} BBs</span>
+                          <span>📊 {atBatCount} PA</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── ADVANCED SCORING SHORTCUTS ── */}
+                    <div style={{ background: '#0a0f1f', border: '1px solid #1e293b', borderRadius: '12px', padding: '12px', marginBottom: '10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '800', textTransform: 'uppercase' }}>⚡ Quick Actions</span>
+                      </div>
+                      
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+                        {/* Common scoring shortcuts */}
+                        <button
+                          disabled={!user}
+                          onClick={() => {
+                            // Quick strikeout
+                            setStrikes(2);
+                            recordPitch('swinging_strike');
+                          }}
+                          style={{ 
+                            background: '#ef4444', 
+                            color: '#fff', 
+                            border: 'none', 
+                            borderRadius: '6px', 
+                            padding: '8px 6px', 
+                            fontSize: '10px', 
+                            fontWeight: '700', 
+                            cursor: 'pointer' 
+                          }}
+                        >
+                          K
+                        </button>
+                        
+                        <button
+                          disabled={!user}
+                          onClick={() => {
+                            // Quick walk
+                            setBalls(3);
+                            recordPitch('ball');
+                          }}
+                          style={{ 
+                            background: '#38bdf8', 
+                            color: '#fff', 
+                            border: 'none', 
+                            borderRadius: '6px', 
+                            padding: '8px 6px', 
+                            fontSize: '10px', 
+                            fontWeight: '700', 
+                            cursor: 'pointer' 
+                          }}
+                        >
+                          BB
+                        </button>
+                        
+                        <button
+                          disabled={!user}
+                          onClick={() => {
+                            // Quick single
+                            recordPitch('in_play');
+                            setTimeout(() => recordPlateAppearance(plateAppearanceResults.find(r => r.result === 'single')), 100);
+                          }}
+                          style={{ 
+                            background: '#22c55e', 
+                            color: '#fff', 
+                            border: 'none', 
+                            borderRadius: '6px', 
+                            padding: '8px 6px', 
+                            fontSize: '10px', 
+                            fontWeight: '700', 
+                            cursor: 'pointer' 
+                          }}
+                        >
+                          1B
+                        </button>
+                        
+                        <button
+                          disabled={!user}
+                          onClick={() => {
+                            // Quick double
+                            recordPitch('in_play');
+                            setTimeout(() => recordPlateAppearance(plateAppearanceResults.find(r => r.result === 'double')), 100);
+                          }}
+                          style={{ 
+                            background: '#22c55e', 
+                            color: '#fff', 
+                            border: 'none', 
+                            borderRadius: '6px', 
+                            padding: '8px 6px', 
+                            fontSize: '10px', 
+                            fontWeight: '700', 
+                            cursor: 'pointer' 
+                          }}
+                        >
+                          2B
+                        </button>
+                        
+                        <button
+                          disabled={!user}
+                          onClick={() => {
+                            // Quick groundout
+                            recordPitch('in_play');
+                            setTimeout(() => recordPlateAppearance(plateAppearanceResults.find(r => r.result === 'groundout')), 100);
+                          }}
+                          style={{ 
+                            background: '#64748b', 
+                            color: '#fff', 
+                            border: 'none', 
+                            borderRadius: '6px', 
+                            padding: '8px 6px', 
+                            fontSize: '10px', 
+                            fontWeight: '700', 
+                            cursor: 'pointer' 
+                          }}
+                        >
+                          GO
+                        </button>
+                        
+                        <button
+                          disabled={!user}
+                          onClick={() => {
+                            // Quick flyout
+                            recordPitch('in_play');
+                            setTimeout(() => recordPlateAppearance(plateAppearanceResults.find(r => r.result === 'flyout')), 100);
+                          }}
+                          style={{ 
+                            background: '#64748b', 
+                            color: '#fff', 
+                            border: 'none', 
+                            borderRadius: '6px', 
+                            padding: '8px 6px', 
+                            fontSize: '10px', 
+                            fontWeight: '700', 
+                            cursor: 'pointer' 
+                          }}
+                        >
+                          FO
+                        </button>
+                      </div>
+                      
+                      {/* Advanced controls */}
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+                        <button
+                          disabled={!user}
+                          onClick={() => {
+                            // Clear count
+                            setBalls(0);
+                            setStrikes(0);
+                            setLastPlaySummary('Count cleared');
+                          }}
+                          style={{ 
+                            background: '#0f172a', 
+                            color: '#64748b', 
+                            border: '1px solid #334155', 
+                            borderRadius: '6px', 
+                            padding: '6px 10px', 
+                            fontSize: '9px', 
+                            fontWeight: '600', 
+                            cursor: 'pointer' 
+                          }}
+                        >
+                          Clear Count
+                        </button>
+                        
+                        <button
+                          disabled={!user}
+                          onClick={() => {
+                            // Undo last pitch
+                            if (pitchLog.length > 0) {
+                              const lastPitch = pitchLog[pitchLog.length - 1];
+                              setPitchLog(pitchLog.slice(0, -1));
+                              setPitchCount(Math.max(0, pitchCount - 1));
+                              setLastPlaySummary('Last pitch removed');
+                            }
+                          }}
+                          style={{ 
+                            background: '#0f172a', 
+                            color: '#64748b', 
+                            border: '1px solid #334155', 
+                            borderRadius: '6px', 
+                            padding: '6px 10px', 
+                            fontSize: '9px', 
+                            fontWeight: '600', 
+                            cursor: 'pointer' 
+                          }}
+                        >
+                          Undo Pitch
+                        </button>
+                        
+                        <button
+                          disabled={!user}
+                          onClick={() => {
+                            // Advance batter
+                            advanceBatterInLineup();
+                            setBalls(0);
+                            setStrikes(0);
+                            setLastPlaySummary('Batter advanced');
+                          }}
+                          style={{ 
+                            background: '#0f172a', 
+                            color: '#64748b', 
+                            border: '1px solid #334155', 
+                            borderRadius: '6px', 
+                            padding: '6px 10px', 
+                            fontSize: '9px', 
+                            fontWeight: '600', 
+                            cursor: 'pointer' 
+                          }}
+                        >
+                          Next Batter
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* ── SCORING ANALYTICS PANEL ── */}
+                    <div style={{ background: '#0a0f1f', border: '1px solid #1e293b', borderRadius: '12px', padding: '12px', marginBottom: '10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '800', textTransform: 'uppercase' }}>📊 Live Analytics</span>
+                      </div>
+                      
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '10px' }}>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: '16px', fontWeight: '900', color: '#f59e0b' }}>{pitchCount}</div>
+                          <div style={{ fontSize: '9px', color: '#64748b' }}>Pitches</div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: '16px', fontWeight: '900', color: '#22c55e' }}>{ourLiveScore}-{theirLiveScore}</div>
+                          <div style={{ fontSize: '9px', color: '#64748b' }}>Score</div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: '16px', fontWeight: '900', color: '#38bdf8' }}>{ourHits}-{theirHits}</div>
+                          <div style={{ fontSize: '9px', color: '#64748b' }}>Hits</div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: '16px', fontWeight: '900', color: '#ef4444' }}>{outs}</div>
+                          <div style={{ fontSize: '9px', color: '#64748b' }}>Outs</div>
+                        </div>
+                      </div>
+                      
+                      {/* Pitch Efficiency */}
+                      {pitchCount > 0 && (
+                        <div style={{ display: 'flex', gap: '12px', fontSize: '10px', color: '#64748b', borderTop: '1px solid #1e293b', paddingTop: '8px' }}>
+                          <span>⚡ P/IP: {Math.round(pitchCount / Math.max(1, currentInning - (isTopInning ? 0 : 0.5)))}</span>
+                          <span>🎯 K%: {pitcherStats.strikes > 0 ? Math.round((pitcherStats.kCount / pitcherStats.strikes) * 100) : 0}%</span>
+                          <span>🚶 BB%: {pitcherStats.balls > 0 ? Math.round((pitcherStats.bbCount / pitcherStats.balls) * 100) : 0}%</span>
+                        </div>
+                      )}
+                    </div>
+                    
                     {/* ── RUNNERS & DEFENSE (always visible below pitch/outcome) ── */}
                     <div style={{ borderTop: '1px solid #1e293b', paddingTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                       <span style={{ fontSize: '10px', color: '#334155', fontWeight: '800', textTransform: 'uppercase' }}>Runners:</span>
