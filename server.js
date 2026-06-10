@@ -625,7 +625,7 @@ function readRawBody(req) {
   });
 }
 
-async function createCheckoutSession({ uid, email, tier = "pro", billingCycle = "monthly" }) {
+async function createCheckoutSession({ uid, email, tier = "pro", billingCycle = "monthly", couponCode = null }) {
   if (!stripeSecretKey) {
     throw new Error("Missing STRIPE_SECRET_KEY in .env");
   }
@@ -641,13 +641,28 @@ async function createCheckoutSession({ uid, email, tier = "pro", billingCycle = 
     throw new Error("Missing Stripe price ID in .env");
   }
 
+  let discounts = [];
+  if (couponCode && stripe) {
+    try {
+      // Try to retrieve the coupon by code
+      const coupons = await stripe.coupons.list({ limit: 100 });
+      const coupon = coupons.data.find(c => c.metadata?.code === couponCode.toUpperCase());
+      if (coupon) {
+        discounts = [{ coupon: coupon.id }];
+      }
+    } catch (e) {
+      console.error('Coupon lookup failed:', e);
+    }
+  }
+
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     payment_method_types: ["card"],
     customer_email: email,
     client_reference_id: uid,
     line_items: [{ price: priceId, quantity: 1 }],
-    metadata: { uid, tier },
+    discounts,
+    metadata: { uid, tier, ...(couponCode && { couponCode }) },
     subscription_data: { metadata: { uid, tier } },
     success_url: `${clientUrl}?checkout=success&tier=${tier}`,
     cancel_url: `${clientUrl}?checkout=canceled`,
@@ -853,8 +868,9 @@ const server = http.createServer(async (req, res) => {
       const email = user.email;
       const tier = body.tier || "pro";
       const billingCycle = body.billingCycle || "monthly";
+      const couponCode = body.couponCode || null;
 
-      const session = await createCheckoutSession({ uid, email, tier, billingCycle });
+      const session = await createCheckoutSession({ uid, email, tier, billingCycle, couponCode });
 
       return sendJson(res, 200, { id: session.id });
     } catch (error) {

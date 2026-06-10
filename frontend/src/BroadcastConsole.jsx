@@ -249,6 +249,8 @@ export default function BroadcastConsole() {
   const [checkoutStatus, setCheckoutStatus] = useState('');
   const [billingCycle, setBillingCycle] = useState('monthly');
   const [myReferralCode, setMyReferralCode] = useState('');
+  const [couponCode, setCouponCode] = useState('');
+  const [couponStatus, setCouponStatus] = useState('');
   const [notifPermission, setNotifPermission] = useState(() =>
     typeof Notification !== 'undefined' ? Notification.permission : 'default'
   );
@@ -2174,7 +2176,7 @@ export default function BroadcastConsole() {
       const res = await fetch(`${apiBaseUrl}/create-checkout`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tier, billingCycle })
+        body: JSON.stringify({ tier, billingCycle, couponCode: couponCode.trim() || null })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Checkout failed');
@@ -4428,6 +4430,31 @@ export default function BroadcastConsole() {
             {user && (
               <div style={{ marginTop: '12px', display: 'inline-block', padding: '6px 18px', borderRadius: '20px', background: userPlan === 'free' ? '#1e293b' : userPlan === 'org' ? '#7c3aed' : '#1d4ed8', color: '#fff', fontSize: '13px', fontWeight: 'bold' }}>
                 Current plan: {userPlan === 'free' ? 'Free' : userPlan === 'org' ? 'Organization' : 'Pro Coach'}
+              </div>
+            )}
+          </div>
+
+          {/* COUPON INPUT */}
+          <div style={{ marginBottom: '32px', textAlign: 'center' }}>
+            <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '8px' }}>Have a promo code?</div>
+            <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center', background: '#0f172a', border: '1px solid #334155', borderRadius: '10px', padding: '6px 12px', maxWidth: '300px' }}>
+              <input
+                type="text"
+                placeholder="Enter code"
+                value={couponCode}
+                onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                style={{ flex: 1, background: 'transparent', border: 'none', color: '#fff', fontSize: '14px', outline: 'none', textTransform: 'uppercase' }}
+              />
+              <button
+                onClick={() => setCouponCode('')}
+                style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '12px', padding: '2px 6px' }}
+              >
+                Clear
+              </button>
+            </div>
+            {couponStatus && (
+              <div style={{ fontSize: '12px', color: couponStatus.includes('invalid') ? '#ef4444' : '#22c55e', marginTop: '6px' }}>
+                {couponStatus}
               </div>
             )}
           </div>
