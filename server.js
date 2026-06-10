@@ -1638,6 +1638,285 @@ const checkRateLimit = (req, res, next) => {
 // Apply rate limiting to all partner routes
 app.use('/api/partner', checkRateLimit);
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 🏢 MULTI-TENANT ARCHITECTURE
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Organization management endpoints
+app.post('/api/organizations', async (req, res) => {
+  try {
+    const { name, description, adminEmail, plan = 'free' } = req.body;
+    
+    if (!name || !adminEmail) {
+      return res.status(400).json({ error: 'Name and admin email are required' });
+    }
+    
+    const orgData = {
+      name,
+      description,
+      adminEmail,
+      plan,
+      createdAt: new Date().toISOString(),
+      teamCount: 0,
+      userCount: 1,
+      settings: {
+        allowPublicTeams: false,
+        requireApprovalForNewTeams: true,
+        defaultSeason: '2024'
+      }
+    };
+    
+    const orgRef = await db.collection('organizations').add(orgData);
+    
+    res.json({
+      id: orgRef.id,
+      ...orgData,
+      message: 'Organization created successfully'
+    });
+  } catch (error) {
+    console.error('Organization creation error:', error);
+    res.status(500).json({ error: 'Failed to create organization' });
+  }
+});
+
+app.get('/api/organizations/:orgId', async (req, res) => {
+  try {
+    const { orgId } = req.params;
+    
+    const orgDoc = await db.collection('organizations').doc(orgId).get();
+    if (!orgDoc.exists) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+    
+    const orgData = orgDoc.data();
+    
+    // Get teams for this organization
+    const teamsSnapshot = await db.collection('teams')
+      .where('organizationId', '==', orgId)
+      .get();
+    
+    const teams = teamsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      name: doc.data().displayName,
+      sport: doc.data().sport,
+      ageGroup: doc.data().ageGroup,
+      location: doc.data().location,
+      createdAt: doc.data().createdAt,
+      playerCount: doc.data().rosterCount || 0
+    }));
+    
+    // Get users for this organization
+    const usersSnapshot = await db.collection('users')
+      .where('organizationId', '==', orgId)
+      .get();
+    
+    const users = usersSnapshot.docs.map(doc => ({
+      id: doc.id,
+      email: doc.data().email,
+      name: doc.data().name,
+      role: doc.data().role || 'member',
+      joinedAt: doc.data().joinedAt
+    }));
+    
+    res.json({
+      ...orgData,
+      id: orgDoc.id,
+      teams,
+      users,
+      teamCount: teams.length,
+      userCount: users.length
+    });
+  } catch (error) {
+    console.error('Organization fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch organization' });
+  }
+});
+
+// Add team to organization
+app.post('/api/organizations/:orgId/teams', async (req, res) => {
+  try {
+    const { orgId } = req.params;
+    const { teamName, sport, ageGroup, location } = req.body;
+    
+    if (!teamName || !sport) {
+      return res.status(400).json({ error: 'Team name and sport are required' });
+    }
+    
+    // Verify organization exists
+    const orgDoc = await db.collection('organizations').doc(orgId).get();
+    if (!orgDoc.exists) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+    
+    // Create team with organization reference
+    const teamData = {
+      displayName: teamName,
+      sport,
+      ageGroup,
+      location,
+      organizationId: orgId,
+      createdAt: new Date().toISOString(),
+      createdBy: req.user?.uid || 'system',
+      seasons: {
+        '2024': {
+          roster: [],
+          schedule: [],
+          events: [],
+          wins: 0,
+          losses: 0
+        }
+      }
+    };
+    
+    const teamRef = await db.collection('teams').add(teamData);
+    
+    // Update organization team count
+    await db.collection('organizations').doc(orgId).update({
+      teamCount: admin.firestore.FieldValue.increment(1)
+    });
+    
+    res.json({
+      id: teamRef.id,
+      ...teamData,
+      message: 'Team added to organization successfully'
+    });
+  } catch (error) {
+    console.error('Add team to organization error:', error);
+    res.status(500).json({ error: 'Failed to add team to organization' });
+  }
+});
+
+// User management within organizations
+app.post('/api/organizations/:orgId/users', async (req, res) => {
+  try {
+    const { orgId } = req.params;
+    const { email, name, role = 'member' } = req.body;
+    
+    if (!email || !name) {
+      return res.status(400).json({ error: 'Email and name are required' });
+    }
+    
+    // Verify organization exists
+    const orgDoc = await db.collection('organizations').doc(orgId).get();
+    if (!orgDoc.exists) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+    
+    // Add user to organization
+    const userData = {
+      email,
+      name,
+      role,
+      organizationId: orgId,
+      joinedAt: new Date().toISOString(),
+      status: 'active'
+    };
+    
+    const userRef = await db.collection('users').add(userData);
+    
+    // Update organization user count
+    await db.collection('organizations').doc(orgId).update({
+      userCount: admin.firestore.FieldValue.increment(1)
+    });
+    
+    res.json({
+      id: userRef.id,
+      ...userData,
+      message: 'User added to organization successfully'
+    });
+  } catch (error) {
+    console.error('Add user to organization error:', error);
+    res.status(500).json({ error: 'Failed to add user to organization' });
+  }
+});
+
+// Organization analytics
+app.get('/api/organizations/:orgId/analytics', async (req, res) => {
+  try {
+    const { orgId } = req.params;
+    const { season = '2024' } = req.query;
+    
+    // Get all teams for the organization
+    const teamsSnapshot = await db.collection('teams')
+      .where('organizationId', '==', orgId)
+      .get();
+    
+    let totalGames = 0;
+    let totalWins = 0;
+    let totalLosses = 0;
+    let totalPlayers = 0;
+    const sportStats = {};
+    
+    teamsSnapshot.forEach(teamDoc => {
+      const teamData = teamDoc.data();
+      const seasonData = teamData.seasons?.[season] || {};
+      
+      totalGames += seasonData.schedule?.length || 0;
+      totalWins += seasonData.wins || 0;
+      totalLosses += seasonData.losses || 0;
+      totalPlayers += seasonData.roster?.length || 0;
+      
+      const sport = teamData.sport;
+      if (!sportStats[sport]) {
+        sportStats[sport] = { teams: 0, games: 0, players: 0 };
+      }
+      sportStats[sport].teams += 1;
+      sportStats[sport].games += seasonData.schedule?.length || 0;
+      sportStats[sport].players += seasonData.roster?.length || 0;
+    });
+    
+    const analytics = {
+      summary: {
+        totalTeams: teamsSnapshot.size,
+        totalGames,
+        totalWins,
+        totalLosses,
+        totalPlayers,
+        winPercentage: totalGames > 0 ? ((totalWins / totalGames) * 100).toFixed(1) : 0
+      },
+      sportBreakdown: sportStats,
+      season: season,
+      generatedAt: new Date().toISOString()
+    };
+    
+    res.json(analytics);
+  } catch (error) {
+    console.error('Organization analytics error:', error);
+    res.status(500).json({ error: 'Failed to fetch organization analytics' });
+  }
+});
+
+// Middleware to check organization membership
+const checkOrganizationAccess = async (req, res, next) => {
+  try {
+    const { orgId } = req.params;
+    const userId = req.user?.uid;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    // Check if user is member of organization
+    const userSnapshot = await db.collection('users')
+      .where('organizationId', '==', orgId)
+      .where('id', '==', userId)
+      .get();
+    
+    if (userSnapshot.empty) {
+      return res.status(403).json({ error: 'Access denied to organization' });
+    }
+    
+    next();
+  } catch (error) {
+    console.error('Organization access check error:', error);
+    res.status(500).json({ error: 'Failed to check organization access' });
+  }
+};
+
+// Apply organization access check to sensitive endpoints
+app.use('/api/organizations/:orgId/users', checkOrganizationAccess);
+app.use('/api/organizations/:orgId/analytics', checkOrganizationAccess);
+
 server.listen(port, () => {
   console.log(`GameTracker backend running on http://localhost:${port}`);
   if (allowLocalAuthWrites) {
