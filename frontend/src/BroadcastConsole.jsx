@@ -2451,6 +2451,7 @@ export default function BroadcastConsole() {
         <button className={`${styles.tabBarBtn} ${activeTab === 'leaderboard' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('leaderboard')}>🏆 Leaderboard</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'analytics' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('analytics')}>📊 Analytics</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'team-chat' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('team-chat')}>💬 Team Chat</button>
+        <button className={`${styles.tabBarBtn} ${activeTab === 'tournaments' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('tournaments')}>🏟️ Tournaments</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'upgrade' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('upgrade')} style={{ marginLeft: 'auto', color: activeTab === 'upgrade' ? '#fff' : '#f59e0b', background: activeTab === 'upgrade' ? '#854d0e' : 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.4)' }}>⭐ Upgrade</button>
       </div>
 
@@ -4756,6 +4757,170 @@ export default function BroadcastConsole() {
               <li>Share schedule changes, game highlights, and team celebrations</li>
             </ul>
           </div>
+        </div>
+      )}
+
+      {/* TOURNAMENTS TAB */}
+      {activeTab === 'tournaments' && (
+        <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+            <h2 style={{ color: '#fff', fontSize: '28px', margin: '0 0 8px' }}>🏟️ Tournaments & Leagues</h2>
+            <p style={{ color: '#94a3b8', margin: 0, fontSize: '14px' }}>Create brackets, manage schedules, and track standings</p>
+          </div>
+
+          {!user && (
+            <div style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '12px', padding: '20px', textAlign: 'center', marginBottom: '32px' }}>
+              <p style={{ color: '#94a3b8', margin: '0 0 16px' }}>Sign in to create and manage tournaments</p>
+              <button onClick={() => setShowAuthModal(true)} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px 24px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>Sign In</button>
+            </div>
+          )}
+
+          {user && (
+            <>
+              {/* Tournament Creation */}
+              <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '24px', marginBottom: '24px' }}>
+                <h3 style={{ color: '#fff', margin: '0 0 16px', fontSize: '18px' }}>🏆 Create New Tournament</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+                  <input
+                    type="text"
+                    placeholder="Tournament Name"
+                    style={{ background: '#020617', border: '1px solid #334155', borderRadius: '8px', padding: '12px', color: '#fff', fontSize: '14px' }}
+                  />
+                  <select style={{ background: '#020617', border: '1px solid #334155', borderRadius: '8px', padding: '12px', color: '#fff', fontSize: '14px' }}>
+                    <option>Single Elimination</option>
+                    <option>Double Elimination</option>
+                    <option>Round Robin</option>
+                    <option>Pool Play</option>
+                  </select>
+                  <input
+                    type="number"
+                    placeholder="Max Teams"
+                    min="4"
+                    max="64"
+                    style={{ background: '#020617', border: '1px solid #334155', borderRadius: '8px', padding: '12px', color: '#fff', fontSize: '14px' }}
+                  />
+                  <input
+                    type="date"
+                    style={{ background: '#020617', border: '1px solid #334155', borderRadius: '8px', padding: '12px', color: '#fff', fontSize: '14px' }}
+                  />
+                </div>
+                <button style={{ background: '#38bdf8', color: '#020617', border: 'none', borderRadius: '8px', padding: '12px 24px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>
+                  Create Tournament
+                </button>
+              </div>
+
+              {/* Active Tournaments */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '24px' }}>
+                {/* Tournament 1 */}
+                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <h3 style={{ color: '#fff', margin: 0, fontSize: '16px' }}>Spring Classic 2024</h3>
+                    <span style={{ background: '#22c55e', color: '#020617', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>Active</span>
+                  </div>
+                  <div style={{ color: '#64748b', fontSize: '12px', marginBottom: '16px' }}>
+                    Single Elimination • 16 Teams • May 15-17
+                  </div>
+                  
+                  {/* Mini Bracket */}
+                  <div style={{ background: '#020617', border: '1px solid #334155', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '8px', alignItems: 'center', fontSize: '11px' }}>
+                      <div style={{ textAlign: 'right', color: '#94a3b8' }}>
+                        <div>Team A</div>
+                        <div>Team B</div>
+                      </div>
+                      <div style={{ color: '#64748b' }}>vs</div>
+                      <div style={{ color: '#94a3b8' }}>
+                        <div>Team C</div>
+                        <div>Team D</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button style={{ flex: 1, background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', padding: '8px', color: '#94a3b8', fontSize: '12px', cursor: 'pointer' }}>
+                      View Bracket
+                    </button>
+                    <button style={{ flex: 1, background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', padding: '8px', color: '#94a3b8', fontSize: '12px', cursor: 'pointer' }}>
+                      Manage Teams
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tournament 2 */}
+                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <h3 style={{ color: '#fff', margin: 0, fontSize: '16px' }}>Summer Showdown</h3>
+                    <span style={{ background: '#f59e0b', color: '#020617', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>Upcoming</span>
+                  </div>
+                  <div style={{ color: '#64748b', fontSize: '12px', marginBottom: '16px' }}>
+                    Double Elimination • 8 Teams • June 1-3
+                  </div>
+                  
+                  <div style={{ background: '#020617', border: '1px solid #334155', borderRadius: '8px', padding: '16px', marginBottom: '16px', textAlign: 'center' }}>
+                    <p style={{ color: '#64748b', margin: 0, fontSize: '12px' }}>Registration Open</p>
+                    <p style={{ color: '#38bdf8', margin: '4px 0 0', fontSize: '14px', fontWeight: 'bold' }}>6/8 Spots Filled</p>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button style={{ flex: 1, background: '#38bdf8', border: 'none', borderRadius: '6px', padding: '8px', color: '#020617', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
+                      Register Team
+                    </button>
+                    <button style={{ flex: 1, background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', padding: '8px', color: '#94a3b8', fontSize: '12px', cursor: 'pointer' }}>
+                      View Details
+                    </button>
+                  </div>
+                </div>
+
+                {/* League Standings */}
+                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <h3 style={{ color: '#fff', margin: 0, fontSize: '16px' }}>📊 League Standings</h3>
+                    <select style={{ background: '#020617', border: '1px solid #334155', borderRadius: '4px', padding: '4px 8px', color: '#fff', fontSize: '11px' }}>
+                      <option>Spring 2024</option>
+                      <option>Fall 2023</option>
+                    </select>
+                  </div>
+                  
+                  <div style={{ fontSize: '12px', color: '#64748b' }}>
+                    {[
+                      { rank: 1, team: 'Irvin Rockets', w: 12, l: 2, pct: '.857', gb: '-' },
+                      { rank: 2, team: 'Westlake Warriors', w: 10, l: 4, pct: '.714', gb: '2.0' },
+                      { rank: 3, team: 'Austin Colts', w: 8, l: 6, pct: '.571', gb: '4.0' },
+                      { rank: 4, team: 'Lake Travis Cavs', w: 6, l: 8, pct: '.429', gb: '6.0' },
+                      { rank: 5, team: 'Bowie Bulldogs', w: 4, l: 10, pct: '.286', gb: '8.0' }
+                    ].map(team => (
+                      <div key={team.rank} style={{ display: 'flex', gap: '8px', padding: '6px 0', borderBottom: team.rank < 5 ? '1px solid #1e293b' : 'none' }}>
+                        <span style={{ color: team.rank <= 3 ? '#22c55e' : '#64748b', width: '20px' }}>#{team.rank}</span>
+                        <span style={{ color: '#e2e8f0', flex: 1 }}>{team.team}</span>
+                        <span style={{ color: '#94a3b8', width: '30px', textAlign: 'right' }}>{team.w}-{team.l}</span>
+                        <span style={{ color: '#38bdf8', width: '35px', textAlign: 'right' }}>{team.pct}</span>
+                        <span style={{ color: '#64748b', width: '25px', textAlign: 'right' }}>{team.gb}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Tournament Features */}
+              <div style={{ marginTop: '32px', padding: '20px', background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }}>
+                <h3 style={{ color: '#fff', margin: '0 0 16px', fontSize: '16px' }}>🎯 Tournament Features</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                  {[
+                    { icon: '🏆', title: 'Multiple Formats', desc: 'Single/double elimination, round robin, pool play' },
+                    { icon: '📅', title: 'Smart Scheduling', desc: 'Automatic bracket generation and game scheduling' },
+                    { icon: '📊', title: 'Live Updates', desc: 'Real-time scores and standings during tournaments' },
+                    { icon: '🏅', title: 'Championship Tracking', desc: 'Trophy history and championship records' }
+                  ].map((feature, i) => (
+                    <div key={i} style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '24px', marginBottom: '8px' }}>{feature.icon}</div>
+                      <h4 style={{ color: '#fff', margin: '0 0 4px', fontSize: '14px' }}>{feature.title}</h4>
+                      <p style={{ color: '#64748b', margin: 0, fontSize: '12px' }}>{feature.desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 
