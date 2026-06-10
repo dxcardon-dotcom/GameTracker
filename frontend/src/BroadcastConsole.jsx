@@ -278,6 +278,9 @@ export default function BroadcastConsole() {
     const saved = localStorage.getItem('gt_offline_data');
     return saved ? JSON.parse(saved) : {};
   });
+
+  // 📊 Data Export
+  const [exportStatus, setExportStatus] = useState('');
   const [referralCopied, setReferralCopied] = useState(false);
   const [onboardingDismissed, setOnboardingDismissed] = useState(() => localStorage.getItem('gt_onboarding_done') === 'true');
 
@@ -470,6 +473,167 @@ export default function BroadcastConsole() {
       syncOfflineQueue();
     }
   }, [isOnline, offlineQueue.length, syncOfflineQueue]);
+
+  // 📊 Data Export Functions
+  const exportToCSV = useCallback((data, filename) => {
+    try {
+      const csv = [
+        Object.keys(data[0]).join(','),
+        ...data.map(row => Object.values(row).map(val => `"${val}"`).join(','))
+      ].join('\n');
+      
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      setExportStatus('CSV exported successfully!');
+      setTimeout(() => setExportStatus(''), 3000);
+    } catch (error) {
+      setExportStatus('Failed to export CSV');
+      setTimeout(() => setExportStatus(''), 3000);
+    }
+  }, []);
+
+  const exportPlayerStatsCSV = useCallback(() => {
+    const playerData = processedRoster.map(player => ({
+      Name: player.name,
+      Number: player.number,
+      Position: player.primaryPosition,
+      Games: player.gamesPlayed,
+      'Batting Avg': player.avg,
+      'Home Runs': player.hr,
+      RBIs: player.rbi,
+      OBP: player.obp,
+      SLG: player.slg,
+      OPS: player.ops,
+      StolenBases: player.sb
+    }));
+    
+    exportToCSV(playerData, `${teamDisplayName.replace(/\s+/g, '_')}_Player_Stats_${selectedSeason}.csv`);
+  }, [processedRoster, teamDisplayName, selectedSeason, exportToCSV]);
+
+  const exportScheduleCSV = useCallback(() => {
+    const scheduleData = seasonSchedule.map(game => ({
+      Date: game.date,
+      Opponent: game.opponent,
+      Location: game.location,
+      Result: game.result || '',
+      Score: game.score || '',
+      Status: game.status
+    }));
+    
+    exportToCSV(scheduleData, `${teamDisplayName.replace(/\s+/g, '_')}_Schedule_${selectedSeason}.csv`);
+  }, [seasonSchedule, teamDisplayName, selectedSeason, exportToCSV]);
+
+  const generatePDFReport = useCallback(async () => {
+    try {
+      setExportStatus('Generating PDF report...');
+      
+      // Create a simple HTML template for the PDF
+      const htmlContent = `
+        <html>
+          <head>
+            <title>${teamDisplayName} Season Report</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 20px; }
+              h1 { color: #1e40af; }
+              h2 { color: #374151; margin-top: 30px; }
+              table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+              th, td { border: 1px solid #d1d5db; padding: 8px; text-align: left; }
+              th { background-color: #f3f4f6; }
+              .summary { background-color: #f9fafb; padding: 15px; border-radius: 5px; margin: 20px 0; }
+            </style>
+          </head>
+          <body>
+            <h1>${teamDisplayName} Season Report ${selectedSeason}</h1>
+            <div class="summary">
+              <h2>Season Summary</h2>
+              <p><strong>Record:</strong> ${seasonWins}-${seasonLosses}</p>
+              <p><strong>Games Played:</strong> ${seasonSchedule.length}</p>
+              <p><strong>Generated:</strong> ${new Date().toLocaleDateString()}</p>
+            </div>
+            
+            <h2>Player Statistics</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>#</th>
+                  <th>Position</th>
+                  <th>AVG</th>
+                  <th>HR</th>
+                  <th>RBI</th>
+                  <th>OBP</th>
+                  <th>SLG</th>
+                  <th>OPS</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${processedRoster.map(player => `
+                  <tr>
+                    <td>${player.name}</td>
+                    <td>${player.number}</td>
+                    <td>${player.primaryPosition}</td>
+                    <td>${player.avg}</td>
+                    <td>${player.hr}</td>
+                    <td>${player.rbi}</td>
+                    <td>${player.obp}</td>
+                    <td>${player.slg}</td>
+                    <td>${player.ops}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            
+            <h2>Game Schedule</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Opponent</th>
+                  <th>Location</th>
+                  <th>Result</th>
+                  <th>Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${seasonSchedule.map(game => `
+                  <tr>
+                    <td>${game.date}</td>
+                    <td>${game.opponent}</td>
+                    <td>${game.location}</td>
+                    <td>${game.result || '-'}</td>
+                    <td>${game.score || '-'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </body>
+        </html>
+      `;
+      
+      // Create a temporary window and print to PDF
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          printWindow.print();
+          printWindow.close();
+        }, 500);
+        
+        setExportStatus('PDF report generated! Check your downloads.');
+        setTimeout(() => setExportStatus(''), 3000);
+      }
+    } catch (error) {
+      setExportStatus('Failed to generate PDF report');
+      setTimeout(() => setExportStatus(''), 3000);
+    }
+  }, [teamDisplayName, selectedSeason, seasonWins, seasonLosses, seasonSchedule, processedRoster]);
 
   // ─────────────────────────────────────────────────────────────────────────
 

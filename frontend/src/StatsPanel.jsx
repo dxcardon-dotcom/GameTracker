@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import SprayChart from './SprayChart';
 
 export default function StatsPanel({
@@ -17,8 +17,250 @@ export default function StatsPanel({
   ourHits, theirHits, ourErrors, theirErrors,
   currentInning, styles,
 }) {
+  const [exportStatus, setExportStatus] = useState('');
+
+  // 📊 Data Export Functions
+  const exportToCSV = useCallback((data, filename) => {
+    try {
+      const csv = [
+        Object.keys(data[0]).join(','),
+        ...data.map(row => Object.values(row).map(val => `"${val}"`).join(','))
+      ].join('\n');
+      
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      setExportStatus('CSV exported successfully!');
+      setTimeout(() => setExportStatus(''), 3000);
+    } catch (error) {
+      setExportStatus('Failed to export CSV');
+      setTimeout(() => setExportStatus(''), 3000);
+    }
+  }, []);
+
+  const exportPlayerStatsCSV = useCallback(() => {
+    const playerData = processedRoster.map(player => ({
+      Name: player.name,
+      Number: player.number,
+      Position: player.primaryPosition,
+      Games: player.gamesPlayed,
+      'Batting Avg': player.avg,
+      'Home Runs': player.hr,
+      RBIs: player.rbi,
+      OBP: player.obp,
+      SLG: player.slg,
+      OPS: player.ops,
+      StolenBases: player.sb
+    }));
+    
+    exportToCSV(playerData, `${teamDisplayName.replace(/\s+/g, '_')}_Player_Stats_${selectedSeason}.csv`);
+  }, [processedRoster, teamDisplayName, selectedSeason, exportToCSV]);
+
+  const exportScheduleCSV = useCallback(() => {
+    const scheduleData = seasonSchedule.map(game => ({
+      Date: game.date,
+      Opponent: game.opponent,
+      Location: game.location,
+      Result: game.result || '',
+      Score: game.score || '',
+      Status: game.status
+    }));
+    
+    exportToCSV(scheduleData, `${teamDisplayName.replace(/\s+/g, '_')}_Schedule_${selectedSeason}.csv`);
+  }, [seasonSchedule, teamDisplayName, selectedSeason, exportToCSV]);
+
+  const generatePDFReport = useCallback(async () => {
+    try {
+      setExportStatus('Generating PDF report...');
+      
+      const htmlContent = `
+        <html>
+          <head>
+            <title>${teamDisplayName} Season Report</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 20px; }
+              h1 { color: #1e40af; }
+              h2 { color: #374151; margin-top: 30px; }
+              table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+              th, td { border: 1px solid #d1d5db; padding: 8px; text-align: left; }
+              th { background-color: #f3f4f6; }
+              .summary { background-color: #f9fafb; padding: 15px; border-radius: 5px; margin: 20px 0; }
+            </style>
+          </head>
+          <body>
+            <h1>${teamDisplayName} Season Report ${selectedSeason}</h1>
+            <div class="summary">
+              <h2>Season Summary</h2>
+              <p><strong>Record:</strong> ${seasonWins}-${seasonLosses}</p>
+              <p><strong>Games Played:</strong> ${seasonSchedule.length}</p>
+              <p><strong>Generated:</strong> ${new Date().toLocaleDateString()}</p>
+            </div>
+            
+            <h2>Player Statistics</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>#</th>
+                  <th>Position</th>
+                  <th>AVG</th>
+                  <th>HR</th>
+                  <th>RBI</th>
+                  <th>OBP</th>
+                  <th>SLG</th>
+                  <th>OPS</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${processedRoster.map(player => `
+                  <tr>
+                    <td>${player.name}</td>
+                    <td>${player.number}</td>
+                    <td>${player.primaryPosition}</td>
+                    <td>${player.avg}</td>
+                    <td>${player.hr}</td>
+                    <td>${player.rbi}</td>
+                    <td>${player.obp}</td>
+                    <td>${player.slg}</td>
+                    <td>${player.ops}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            
+            <h2>Game Schedule</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Opponent</th>
+                  <th>Location</th>
+                  <th>Result</th>
+                  <th>Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${seasonSchedule.map(game => `
+                  <tr>
+                    <td>${game.date}</td>
+                    <td>${game.opponent}</td>
+                    <td>${game.location}</td>
+                    <td>${game.result || '-'}</td>
+                    <td>${game.score || '-'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </body>
+        </html>
+      `;
+      
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          printWindow.print();
+          printWindow.close();
+        }, 500);
+        
+        setExportStatus('PDF report generated! Check your downloads.');
+        setTimeout(() => setExportStatus(''), 3000);
+      }
+    } catch (error) {
+      setExportStatus('Failed to generate PDF report');
+      setTimeout(() => setExportStatus(''), 3000);
+    }
+  }, [teamDisplayName, selectedSeason, seasonWins, seasonLosses, seasonSchedule, processedRoster]);
   return (
         <div>
+          {/* Export Status */}
+          {exportStatus && (
+            <div style={{ 
+              background: exportStatus.includes('success') ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', 
+              border: `1px solid ${exportStatus.includes('success') ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`, 
+              borderRadius: '8px', 
+              padding: '12px 16px', 
+              marginBottom: '20px',
+              color: exportStatus.includes('success') ? '#22c55e' : '#ef4444',
+              fontSize: '14px',
+              fontWeight: 'bold'
+            }}>
+              {exportStatus}
+            </div>
+          )}
+
+          {/* Export Controls */}
+          <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px', marginBottom: '24px' }}>
+            <h3 style={{ color: '#fff', margin: '0 0 16px', fontSize: '18px' }}>📊 Export Data</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+              <button 
+                onClick={exportPlayerStatsCSV}
+                style={{ 
+                  background: '#3b82f6', 
+                  color: '#fff', 
+                  border: 'none', 
+                  borderRadius: '8px', 
+                  padding: '12px 16px', 
+                  fontSize: '14px', 
+                  fontWeight: 'bold', 
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
+              >
+                📄 Player Stats (CSV)
+              </button>
+              <button 
+                onClick={exportScheduleCSV}
+                style={{ 
+                  background: '#10b981', 
+                  color: '#fff', 
+                  border: 'none', 
+                  borderRadius: '8px', 
+                  padding: '12px 16px', 
+                  fontSize: '14px', 
+                  fontWeight: 'bold', 
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
+              >
+                📅 Schedule (CSV)
+              </button>
+              <button 
+                onClick={generatePDFReport}
+                style={{ 
+                  background: '#ef4444', 
+                  color: '#fff', 
+                  border: 'none', 
+                  borderRadius: '8px', 
+                  padding: '12px 16px', 
+                  fontSize: '14px', 
+                  fontWeight: 'bold', 
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
+              >
+                📋 Full Report (PDF)
+              </button>
+            </div>
+            <p style={{ color: '#64748b', margin: '12px 0 0', fontSize: '12px' }}>
+              Export your team data for analysis, recruiting, or record-keeping. CSV files open in Excel/Google Sheets, PDF reports are formatted for printing.
+            </p>
+          </div>
 
           {/* SEASON LEADERBOARD */}
           {processedRoster.length > 0 && (() => {
