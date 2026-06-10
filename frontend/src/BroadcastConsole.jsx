@@ -193,6 +193,18 @@ export default function BroadcastConsole() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [messageLoading, setMessageLoading] = useState(false);
 
+  // 🎥 Video Integration Features
+  const [showVideoPanel, setShowVideoPanel] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordedClips, setRecordedClips] = useState([]);
+  const [videoStream, setVideoStream] = useState(null);
+  const [recordingStartTime, setRecordingStartTime] = useState(null);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [selectedClip, setSelectedClip] = useState(null);
+  const [videoAnalysis, setVideoAnalysis] = useState({});
+  const [clipTags, setClipTags] = useState([]);
+  const [newTag, setNewTag] = useState('');
+
   // 📋 Game Day Checklist
   const [checklistItems, setChecklistItems] = useState([
     { id: 1, label: 'Equipment packed (bats, helmets, catchers gear)', done: false },
@@ -1635,6 +1647,157 @@ export default function BroadcastConsole() {
       // unsubscribe();
     };
   }, [showTeamChat]);
+
+  // 🎥 Video Integration Functions
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        }, 
+        audio: true 
+      });
+      
+      setVideoStream(stream);
+      setIsRecording(true);
+      setRecordingStartTime(Date.now());
+      
+      // Start recording duration timer
+      const durationTimer = setInterval(() => {
+        setRecordingDuration(Math.floor((Date.now() - Date.now()) / 1000));
+      }, 1000);
+      
+      // In production, use MediaRecorder API
+      // const mediaRecorder = new MediaRecorder(stream);
+      // mediaRecorder.start();
+      
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+      alert('Camera access denied or not available');
+    }
+  };
+
+  const stopRecording = () => {
+    if (videoStream) {
+      videoStream.getTracks().forEach(track => track.stop());
+      setVideoStream(null);
+    }
+    
+    setIsRecording(false);
+    
+    // Create a mock clip for demonstration
+    const newClip = {
+      id: Date.now(),
+      title: `Clip ${recordedClips.length + 1}`,
+      duration: recordingDuration,
+      timestamp: new Date().toISOString(),
+      gameContext: {
+        gameId: liveGameId,
+        inning: currentInning,
+        isTopInning,
+        score: {
+          our: sumRuns(game.ourInnings),
+          their: sumRuns(game.theirInnings)
+        }
+      },
+      tags: ['game-action'],
+      url: '#mock-video-url',
+      thumbnail: '#mock-thumbnail'
+    };
+    
+    setRecordedClips(prev => [newClip, ...prev]);
+    setRecordingDuration(0);
+    setRecordingStartTime(null);
+  };
+
+  const deleteClip = (clipId) => {
+    setRecordedClips(prev => prev.filter(clip => clip.id !== clipId));
+    if (selectedClip?.id === clipId) {
+      setSelectedClip(null);
+    }
+  };
+
+  const addTagToClip = (clipId, tag) => {
+    if (!tag.trim()) return;
+    
+    setRecordedClips(prev => prev.map(clip => 
+      clip.id === clipId 
+        ? { ...clip, tags: [...new Set([...clip.tags, tag.trim()])] }
+        : clip
+    ));
+    setNewTag('');
+  };
+
+  const removeTagFromClip = (clipId, tagToRemove) => {
+    setRecordedClips(prev => prev.map(clip => 
+      clip.id === clipId 
+        ? { ...clip, tags: clip.tags.filter(tag => tag !== tagToRemove) }
+        : clip
+    ));
+  };
+
+  const analyzeClip = (clip) => {
+    // Mock video analysis
+    const analysis = {
+      pitchCount: Math.floor(Math.random() * 20) + 5,
+      swingCount: Math.floor(Math.random() * 15) + 3,
+      hitQuality: ['Excellent', 'Good', 'Average', 'Poor'][Math.floor(Math.random() * 4)],
+      mechanics: ['Smooth', 'Needs Work', 'Improving', 'Excellent'][Math.floor(Math.random() * 4)],
+      recommendations: [
+        'Focus on hip rotation',
+        'Keep eye on the ball',
+        'Improve follow-through',
+        'Work on timing'
+      ].slice(0, Math.floor(Math.random() * 3) + 1)
+    };
+    
+    setVideoAnalysis(prev => ({ ...prev, [clip.id]: analysis }));
+  };
+
+  const exportClip = (clip) => {
+    // Mock export functionality
+    const exportData = {
+      clip: clip,
+      analysis: videoAnalysis[clip.id],
+      exportDate: new Date().toISOString(),
+      format: 'mp4'
+    };
+    
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `video-clip-${clip.id}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const getPopularTags = () => {
+    const tagCounts = {};
+    recordedClips.forEach(clip => {
+      clip.tags.forEach(tag => {
+        tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+      });
+    });
+    
+    return Object.entries(tagCounts)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 10)
+      .map(([tag]) => tag);
+  };
+
+  // Recording duration timer
+  useEffect(() => {
+    let timer;
+    if (isRecording && recordingStartTime) {
+      timer = setInterval(() => {
+        setRecordingDuration(Math.floor((Date.now() - recordingStartTime) / 1000));
+      }, 1000);
+    }
+    
+    return () => clearInterval(timer);
+  }, [isRecording, recordingStartTime]);
 
   const isOurTeamBatting = () => (scoringLocation === 'Away' ? isTopInning : !isTopInning);
 
@@ -4536,6 +4699,22 @@ export default function BroadcastConsole() {
 
                 {/* Field view + full-screen toggles */}
                 <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                  <button onClick={() => setShowVideoPanel(v => !v)}
+                    style={{ background: showVideoPanel ? 'rgba(56,189,248,0.15)' : '#0f172a', border: `1px solid ${showVideoPanel ? '#38bdf8' : '#334155'}`, borderRadius: '8px', color: showVideoPanel ? '#38bdf8' : '#64748b', cursor: 'pointer', fontSize: '14px', padding: '6px 9px', position: 'relative' }} title="Video recording and analysis">
+                    🎥
+                    {isRecording && (
+                      <span style={{ 
+                        position: 'absolute', 
+                        top: '2px', 
+                        right: '2px', 
+                        background: '#ef4444', 
+                        borderRadius: '50%', 
+                        width: '8px', 
+                        height: '8px',
+                        animation: 'pulse 1.5s infinite'
+                      }} />
+                    )}
+                  </button>
                   <button onClick={() => setShowTeamChat(v => !v)}
                     style={{ background: showTeamChat ? 'rgba(56,189,248,0.15)' : '#0f172a', border: `1px solid ${showTeamChat ? '#38bdf8' : '#334155'}`, borderRadius: '8px', color: showTeamChat ? '#38bdf8' : '#64748b', cursor: 'pointer', fontSize: '14px', padding: '6px 9px', position: 'relative' }} title="Team communication">
                     💬
@@ -6694,6 +6873,360 @@ export default function BroadcastConsole() {
                           <span>📱 Team Chat Active</span>
                           <span>{teamMessages.length} messages</span>
                         </div>
+                      </div>
+                    )}
+
+                    {/* ── VIDEO RECORDING PANEL ── */}
+                    {showVideoPanel && (
+                      <div style={{ background: '#0a0f1f', border: '1px solid #1e293b', borderRadius: '12px', padding: '12px', marginBottom: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                          <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '800', textTransform: 'uppercase' }}>🎥 Video Recording</span>
+                          <button onClick={() => setShowVideoPanel(false)} style={{ background: 'transparent', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '14px' }}>✕</button>
+                        </div>
+                        
+                        {/* Recording Controls */}
+                        <div style={{ marginBottom: '12px' }}>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
+                            {!isRecording ? (
+                              <button
+                                onClick={startRecording}
+                                style={{ 
+                                  background: '#ef4444', 
+                                  color: '#fff', 
+                                  border: '1px solid #334155', 
+                                  borderRadius: '6px', 
+                                  padding: '6px 12px', 
+                                  fontSize: '9px', 
+                                  fontWeight: '600', 
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                              >
+                                🔴 Start Recording
+                              </button>
+                            ) : (
+                              <button
+                                onClick={stopRecording}
+                                style={{ 
+                                  background: '#334155', 
+                                  color: '#fff', 
+                                  border: '1px solid #334155', 
+                                  borderRadius: '6px', 
+                                  padding: '6px 12px', 
+                                  fontSize: '9px', 
+                                  fontWeight: '600', 
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                              >
+                                ⏹️ Stop Recording
+                              </button>
+                            )}
+                            
+                            {isRecording && (
+                              <span style={{ 
+                                color: '#ef4444', 
+                                fontSize: '9px', 
+                                fontWeight: '600',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}>
+                                <span style={{ 
+                                  width: '8px', 
+                                  height: '8px', 
+                                  background: '#ef4444', 
+                                  borderRadius: '50%',
+                                  animation: 'pulse 1.5s infinite'
+                                }} />
+                                {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}
+                              </span>
+                            )}
+                          </div>
+                          
+                          {/* Recording Status */}
+                          <div style={{ fontSize: '8px', color: '#64748b' }}>
+                            {isRecording ? '🔴 Recording in progress...' : '📹 Ready to record'}
+                            {recordedClips.length > 0 && ` • ${recordedClips.length} clips recorded`}
+                          </div>
+                        </div>
+                        
+                        {/* Video Preview (Mock) */}
+                        {isRecording && (
+                          <div style={{ 
+                            background: '#000', 
+                            border: '2px solid #ef4444', 
+                            borderRadius: '8px', 
+                            height: '120px', 
+                            marginBottom: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            position: 'relative'
+                          }}>
+                            <div style={{ color: '#ef4444', fontSize: '12px', fontWeight: 'bold' }}>
+                              🔴 LIVE
+                            </div>
+                            <div style={{ 
+                              position: 'absolute', 
+                              top: '4px', 
+                              right: '4px', 
+                              background: '#ef4444', 
+                              color: '#fff', 
+                              borderRadius: '4px', 
+                              padding: '2px 6px', 
+                              fontSize: '8px',
+                              fontWeight: 'bold'
+                            }}>
+                              REC
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Recorded Clips */}
+                        {recordedClips.length > 0 && (
+                          <div style={{ marginBottom: '12px' }}>
+                            <div style={{ fontSize: '10px', color: '#e2e8f0', fontWeight: '600', marginBottom: '6px' }}>📼 Recorded Clips</div>
+                            <div style={{ 
+                              background: '#0f172a', 
+                              border: '1px solid #1e293b', 
+                              borderRadius: '8px', 
+                              padding: '8px', 
+                              maxHeight: '200px', 
+                              overflowY: 'auto' 
+                            }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {recordedClips.map(clip => (
+                                  <div 
+                                    key={clip.id}
+                                    onClick={() => setSelectedClip(clip)}
+                                    style={{ 
+                                      background: selectedClip?.id === clip.id ? '#2563eb20' : '#1e293b', 
+                                      border: `1px solid ${selectedClip?.id === clip.id ? '#38bdf8' : '#334155'}`, 
+                                      borderRadius: '6px', 
+                                      padding: '6px 8px',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                      <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#e2e8f0' }}>
+                                        {clip.title}
+                                      </span>
+                                      <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '7px', color: '#64748b' }}>
+                                          {Math.floor(clip.duration / 60)}:{(clip.duration % 60).toString().padStart(2, '0')}
+                                        </span>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            deleteClip(clip.id);
+                                          }}
+                                          style={{ 
+                                            background: 'transparent', 
+                                            border: 'none', 
+                                            color: '#ef4444', 
+                                            cursor: 'pointer', 
+                                            fontSize: '10px' 
+                                          }}
+                                        >
+                                          🗑️
+                                        </button>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Clip Tags */}
+                                    <div style={{ display: 'flex', gap: '2px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                                      {clip.tags.map(tag => (
+                                        <span 
+                                          key={tag}
+                                          style={{ 
+                                            background: '#334155', 
+                                            color: '#94a3b8', 
+                                            borderRadius: '3px', 
+                                            padding: '1px 4px', 
+                                            fontSize: '7px' 
+                                          }}
+                                        >
+                                          {tag}
+                                        </span>
+                                      ))}
+                                    </div>
+                                    
+                                    {/* Game Context */}
+                                    <div style={{ fontSize: '7px', color: '#64748b' }}>
+                                      🏟️ Inning {clip.gameContext.inning} • Score: {clip.gameContext.score.our}-{clip.gameContext.score.their}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Clip Details and Analysis */}
+                        {selectedClip && (
+                          <div style={{ marginBottom: '12px' }}>
+                            <div style={{ fontSize: '10px', color: '#e2e8f0', fontWeight: '600', marginBottom: '6px' }}>
+                              📊 {selectedClip.title} - Analysis
+                            </div>
+                            <div style={{ 
+                              background: '#0f172a', 
+                              border: '1px solid #1e293b', 
+                              borderRadius: '8px', 
+                              padding: '8px' 
+                            }}>
+                              {/* Tag Management */}
+                              <div style={{ marginBottom: '8px' }}>
+                                <div style={{ fontSize: '8px', color: '#64748b', marginBottom: '4px' }}>Tags:</div>
+                                <div style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}>
+                                  <input
+                                    type="text"
+                                    value={newTag}
+                                    onChange={e => setNewTag(e.target.value)}
+                                    onKeyPress={e => e.key === 'Enter' && addTagToClip(selectedClip.id, newTag)}
+                                    placeholder="Add tag..."
+                                    style={{ 
+                                      flex: 1, 
+                                      background: '#1e293b', 
+                                      border: '1px solid #334155', 
+                                      borderRadius: '4px', 
+                                      color: '#fff', 
+                                      padding: '2px 6px', 
+                                      fontSize: '8px' 
+                                    }}
+                                  />
+                                  <button
+                                    onClick={() => addTagToClip(selectedClip.id, newTag)}
+                                    style={{ 
+                                      background: '#38bdf8', 
+                                      color: '#020617', 
+                                      border: '1px solid #334155', 
+                                      borderRadius: '4px', 
+                                      padding: '2px 8px', 
+                                      fontSize: '8px', 
+                                      cursor: 'pointer' 
+                                    }}
+                                  >
+                                    Add
+                                  </button>
+                                </div>
+                                <div style={{ display: 'flex', gap: '2px', flexWrap: 'wrap' }}>
+                                  {selectedClip.tags.map(tag => (
+                                    <span 
+                                      key={tag}
+                                      style={{ 
+                                        background: '#334155', 
+                                        color: '#94a3b8', 
+                                        borderRadius: '3px', 
+                                        padding: '1px 4px', 
+                                        fontSize: '7px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '2px'
+                                      }}
+                                    >
+                                      {tag}
+                                      <button
+                                        onClick={() => removeTagFromClip(selectedClip.id, tag)}
+                                        style={{ 
+                                          background: 'transparent', 
+                                          border: 'none', 
+                                          color: '#ef4444', 
+                                          cursor: 'pointer', 
+                                          fontSize: '6px',
+                                          padding: '0'
+                                        }}
+                                      >
+                                        ×
+                                      </button>
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                              
+                              {/* Analysis Results */}
+                              {videoAnalysis[selectedClip.id] ? (
+                                <div style={{ fontSize: '8px', color: '#e2e8f0' }}>
+                                  <div style={{ marginBottom: '4px' }}>
+                                    <strong>Analysis Results:</strong>
+                                  </div>
+                                  <div style={{ marginLeft: '8px' }}>
+                                    <div>• Pitches: {videoAnalysis[selectedClip.id].pitchCount}</div>
+                                    <div>• Swings: {videoAnalysis[selectedClip.id].swingCount}</div>
+                                    <div>• Hit Quality: {videoAnalysis[selectedClip.id].hitQuality}</div>
+                                    <div>• Mechanics: {videoAnalysis[selectedClip.id].mechanics}</div>
+                                    {videoAnalysis[selectedClip.id].recommendations.length > 0 && (
+                                      <div style={{ marginTop: '4px' }}>
+                                        <strong>Recommendations:</strong>
+                                        {videoAnalysis[selectedClip.id].recommendations.map(rec => (
+                                          <div key={rec} style={{ marginLeft: '8px' }}>• {rec}</div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => analyzeClip(selectedClip)}
+                                  style={{ 
+                                    background: '#22c55e', 
+                                    color: '#fff', 
+                                    border: '1px solid #334155', 
+                                    borderRadius: '4px', 
+                                    padding: '4px 8px', 
+                                    fontSize: '8px', 
+                                    cursor: 'pointer' 
+                                  }}
+                                >
+                                  📊 Analyze Clip
+                                </button>
+                              )}
+                              
+                              {/* Export Options */}
+                              <div style={{ marginTop: '8px', display: 'flex', gap: '4px' }}>
+                                <button
+                                  onClick={() => exportClip(selectedClip)}
+                                  style={{ 
+                                    background: '#f59e0b', 
+                                    color: '#020617', 
+                                    border: '1px solid #334155', 
+                                    borderRadius: '4px', 
+                                    padding: '4px 8px', 
+                                    fontSize: '8px', 
+                                    cursor: 'pointer' 
+                                  }}
+                                >
+                                  💾 Export
+                                </button>
+                                <button
+                                  onClick={() => alert('Share functionality coming soon!')}
+                                  style={{ 
+                                    background: '#38bdf8', 
+                                    color: '#020617', 
+                                    border: '1px solid #334155', 
+                                    borderRadius: '4px', 
+                                    padding: '4px 8px', 
+                                    fontSize: '8px', 
+                                    cursor: 'pointer' 
+                                  }}
+                                >
+                                  🔗 Share
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Popular Tags */}
+                        {recordedClips.length > 0 && (
+                          <div style={{ fontSize: '8px', color: '#64748b' }}>
+                            Popular tags: {getPopularTags().slice(0, 5).join(', ')}
+                          </div>
+                        )}
                       </div>
                     )}
 
