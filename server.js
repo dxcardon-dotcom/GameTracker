@@ -1334,6 +1334,310 @@ app.get('/api/marketing/analytics', async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔗 PARTNER INTEGRATIONS API
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Partner API authentication middleware
+const authenticatePartner = (req, res, next) => {
+  const apiKey = req.headers['x-api-key'];
+  
+  // In production, validate against database of partner API keys
+  const validApiKeys = [
+    'pk_test_1234567890abcdef', // Test partner
+    'pk_live_abcdef1234567890', // Production partner
+  ];
+  
+  if (!apiKey || !validApiKeys.includes(apiKey)) {
+    return res.status(401).json({ error: 'Invalid or missing API key' });
+  }
+  
+  next();
+};
+
+// Partner integration endpoints
+app.get('/api/partner/teams', authenticatePartner, async (req, res) => {
+  try {
+    const { limit = 50, offset = 0, sport } = req.query;
+    
+    let query = db.collection('teams').limit(parseInt(limit)).offset(parseInt(offset));
+    
+    if (sport) {
+      query = query.where('sport', '==', sport);
+    }
+    
+    const snapshot = await query.get();
+    const teams = snapshot.docs.map(doc => ({
+      id: doc.id,
+      name: doc.data().displayName,
+      sport: doc.data().sport,
+      location: doc.data().location,
+      ageGroup: doc.data().ageGroup,
+      type: doc.data().teamType,
+      createdAt: doc.data().createdAt,
+      playerCount: doc.data().rosterCount || 0
+    }));
+    
+    res.json({
+      teams,
+      pagination: {
+        limit: parseInt(limit),
+        offset: parseInt(offset),
+        total: teams.length
+      }
+    });
+  } catch (error) {
+    console.error('Partner teams fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch teams' });
+  }
+});
+
+app.get('/api/partner/teams/:teamId/stats', authenticatePartner, async (req, res) => {
+  try {
+    const { teamId } = req.params;
+    const { season } = req.query;
+    
+    const teamDoc = await db.collection('teams').doc(teamId).get();
+    if (!teamDoc.exists) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+    
+    const seasonData = teamDoc.data().seasons?.[season || '2024'] || {};
+    
+    const stats = {
+      team: {
+        name: teamDoc.data().displayName,
+        sport: teamDoc.data().sport,
+        season: season || '2024'
+      },
+      record: {
+        wins: seasonData.wins || 0,
+        losses: seasonData.losses || 0,
+        gamesPlayed: seasonData.schedule?.length || 0
+      },
+      players: seasonData.roster?.map(player => ({
+        id: player.id,
+        name: player.name,
+        number: player.number,
+        position: player.primaryPosition,
+        battingAvg: player.avg || 0,
+        homeRuns: player.hr || 0,
+        rbis: player.rbi || 0,
+        era: player.era || 0,
+        strikeouts: player.strikeouts || 0
+      })) || []
+    };
+    
+    res.json(stats);
+  } catch (error) {
+    console.error('Partner team stats error:', error);
+    res.status(500).json({ error: 'Failed to fetch team stats' });
+  }
+});
+
+app.get('/api/partner/games', authenticatePartner, async (req, res) => {
+  try {
+    const { teamId, startDate, endDate, limit = 50, offset = 0 } = req.query;
+    
+    let query = db.collection('teams').limit(parseInt(limit));
+    
+    if (teamId) {
+      query = query.where('teamId', '==', teamId);
+    }
+    
+    const snapshot = await query.get();
+    const games = [];
+    
+    snapshot.forEach(teamDoc => {
+      const teamData = teamDoc.data();
+      const seasons = teamData.seasons || {};
+      
+      Object.values(seasons).forEach(seasonData => {
+        const schedule = seasonData.schedule || [];
+        
+        schedule.forEach(game => {
+          const gameDate = new Date(game.date);
+          
+          if (startDate && gameDate < new Date(startDate)) return;
+          if (endDate && gameDate > new Date(endDate)) return;
+          
+          games.push({
+            id: `${teamDoc.id}_${game.date}`,
+            teamId: teamDoc.id,
+            teamName: teamData.displayName,
+            opponent: game.opponent,
+            date: game.date,
+            location: game.location,
+            result: game.result,
+            score: game.score,
+            status: game.status
+          });
+        });
+      });
+    });
+    
+    // Sort by date and paginate
+    games.sort((a, b) => new Date(b.date) - new Date(a.date));
+    const paginatedGames = games.slice(parseInt(offset), parseInt(offset) + parseInt(limit));
+    
+    res.json({
+      games: paginatedGames,
+      pagination: {
+        limit: parseInt(limit),
+        offset: parseInt(offset),
+        total: games.length
+      }
+    });
+  } catch (error) {
+    console.error('Partner games fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch games' });
+  }
+});
+
+// Webhook for external systems to push data to GameTracker
+app.post('/api/partner/webhook/game-result', authenticatePartner, async (req, res) => {
+  try {
+    const { teamId, gameData } = req.body;
+    
+    if (!teamId || !gameData) {
+      return res.status(400).json({ error: 'teamId and gameData are required' });
+    }
+    
+    const teamRef = db.collection('teams').doc(teamId);
+    const teamDoc = await teamRef.get();
+    
+    if (!teamDoc.exists) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+    
+    // Update game result in team's schedule
+    const currentSeason = '2024'; // Could be dynamic
+    const seasons = teamDoc.data().seasons || {};
+    const schedule = seasons[currentSeason]?.schedule || [];
+    
+    const gameIndex = schedule.findIndex(g => g.date === gameData.date);
+    if (gameIndex !== -1) {
+      schedule[gameIndex] = { ...schedule[gameIndex], ...gameData };
+    } else {
+      schedule.push(gameData);
+    }
+    
+    await teamRef.update({
+      [`seasons.${currentSeason}.schedule`]: schedule
+    });
+    
+    res.json({ message: 'Game result updated successfully' });
+  } catch (error) {
+    console.error('Webhook game result error:', error);
+    res.status(500).json({ error: 'Failed to update game result' });
+  }
+});
+
+// Partner API documentation endpoint
+app.get('/api/partner/docs', (req, res) => {
+  const docs = {
+    title: 'GameTracker Partner API',
+    version: 'v1',
+    baseUrl: `${req.protocol}://${req.get('host')}/api/partner`,
+    authentication: {
+      type: 'API Key',
+      header: 'X-API-Key',
+      description: 'Include your partner API key in the X-API-Key header'
+    },
+    endpoints: [
+      {
+        method: 'GET',
+        path: '/teams',
+        description: 'Get list of teams',
+        parameters: {
+          limit: 'Number of teams to return (default: 50)',
+          offset: 'Number of teams to skip (default: 0)',
+          sport: 'Filter by sport (Baseball, Softball, etc.)'
+        },
+        response: 'Array of team objects with basic information'
+      },
+      {
+        method: 'GET',
+        path: '/teams/{teamId}/stats',
+        description: 'Get team statistics and player data',
+        parameters: {
+          teamId: 'Team identifier',
+          season: 'Season year (default: 2024)'
+        },
+        response: 'Team stats with player roster and performance data'
+      },
+      {
+        method: 'GET',
+        path: '/games',
+        description: 'Get games across all teams',
+        parameters: {
+          teamId: 'Filter by specific team',
+          startDate: 'Filter games from this date',
+          endDate: 'Filter games until this date',
+          limit: 'Number of games to return (default: 50)',
+          offset: 'Number of games to skip (default: 0)'
+        },
+        response: 'Array of game objects with results and scores'
+      },
+      {
+        method: 'POST',
+        path: '/webhook/game-result',
+        description: 'Update game results via webhook',
+        body: {
+          teamId: 'Team identifier',
+          gameData: 'Game object with result, score, etc.'
+        },
+        response: 'Success confirmation'
+      }
+    ],
+    rateLimit: {
+      requests: '1000',
+      period: 'hour',
+      description: 'Maximum requests per hour per API key'
+    },
+    support: {
+      email: 'partners@gametracker.com',
+      documentation: 'https://docs.gametracker.com/api'
+    }
+  };
+  
+  res.json(docs);
+});
+
+// Rate limiting for partner API
+const partnerRateLimit = new Map();
+const checkRateLimit = (req, res, next) => {
+  const apiKey = req.headers['x-api-key'];
+  const now = Date.now();
+  const hour = 60 * 60 * 1000; // 1 hour in milliseconds
+  
+  if (!partnerRateLimit.has(apiKey)) {
+    partnerRateLimit.set(apiKey, { count: 1, resetTime: now + hour });
+    return next();
+  }
+  
+  const rateLimitData = partnerRateLimit.get(apiKey);
+  
+  if (now > rateLimitData.resetTime) {
+    rateLimitData.count = 1;
+    rateLimitData.resetTime = now + hour;
+    return next();
+  }
+  
+  if (rateLimitData.count >= 1000) {
+    return res.status(429).json({ 
+      error: 'Rate limit exceeded',
+      resetTime: rateLimitData.resetTime 
+    });
+  }
+  
+  rateLimitData.count++;
+  next();
+};
+
+// Apply rate limiting to all partner routes
+app.use('/api/partner', checkRateLimit);
+
 server.listen(port, () => {
   console.log(`GameTracker backend running on http://localhost:${port}`);
   if (allowLocalAuthWrites) {
