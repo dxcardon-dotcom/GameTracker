@@ -2445,6 +2445,7 @@ export default function BroadcastConsole() {
         <button className={`${styles.tabBarBtn} ${activeTab === 'bracket' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('bracket')}>🏆 Bracket</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'gameday' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('gameday')}>📋 Game Day</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'changelog' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('changelog')} style={{ color: activeTab === 'changelog' ? '#a78bfa' : '#64748b' }}>🆕 What's New</button>
+        <button className={`${styles.tabBarBtn} ${activeTab === 'leaderboard' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('leaderboard')}>🏆 Leaderboard</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'upgrade' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('upgrade')} style={{ marginLeft: 'auto', color: activeTab === 'upgrade' ? '#fff' : '#f59e0b', background: activeTab === 'upgrade' ? '#854d0e' : 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.4)' }}>⭐ Upgrade</button>
       </div>
 
@@ -4386,6 +4387,79 @@ export default function BroadcastConsole() {
           </div>
         );
       })()}
+
+      {/* LEADERBOARD TAB */}
+      {activeTab === 'leaderboard' && (
+        <div style={{ maxWidth: '1000px', margin: '30px auto', padding: '0 20px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+            <h2 style={{ color: '#fff', fontSize: '28px', margin: '0 0 8px' }}>🏆 Season Leaderboard</h2>
+            <p style={{ color: '#94a3b8', margin: 0, fontSize: '14px' }}>Top performers across all stat categories</p>
+          </div>
+
+          {/* Stat Category Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '32px' }}>
+            {[
+              { key: 'avg', label: 'Batting Average', icon: '🎯' },
+              { key: 'hr', label: 'Home Runs', icon: '💥' },
+              { key: 'rbi', label: 'RBIs', icon: '🏃' },
+              { key: 'sb', label: 'Stolen Bases', icon: '⚡' },
+              { key: 'era', label: 'ERA (Pitching)', icon: '🎾' },
+              { key: 'k', label: 'Strikeouts', icon: '🔥' }
+            ].map(category => (
+              <div key={category.key} style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                  <span style={{ fontSize: '20px' }}>{category.icon}</span>
+                  <h3 style={{ color: '#fff', margin: 0, fontSize: '16px' }}>{category.label}</h3>
+                </div>
+                <div style={{ fontSize: '13px', color: '#64748b' }}>
+                  {processedRoster
+                    .filter(p => {
+                      const val = Number(p[category.key] || 0);
+                      return category.key === 'era' ? val > 0 && p.ip > 0 : val > 0;
+                    })
+                    .sort((a, b) => {
+                      const aVal = Number(a[category.key] || 0);
+                      const bVal = Number(b[category.key] || 0);
+                      return category.key === 'era' ? aVal - bVal : bVal - aVal;
+                    })
+                    .slice(0, 3)
+                    .map((player, index) => {
+                      const value = Number(player[category.key] || 0);
+                      const displayValue = category.key === 'avg' ? value.toFixed(3) : 
+                                         category.key === 'era' && player.ip > 0 ? (value * 9 / player.ip).toFixed(2) : 
+                                         value;
+                      const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉';
+                      return (
+                        <div key={player.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: index < 2 ? '1px solid #1e293b' : 'none' }}>
+                          <span style={{ color: '#e2e8f0' }}>
+                            {medal} {player.firstName} {player.lastName}
+                          </span>
+                          <span style={{ color: '#38bdf8', fontWeight: 'bold' }}>
+                            {displayValue}
+                          </span>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Share Button */}
+          <div style={{ textAlign: 'center' }}>
+            <button
+              onClick={() => {
+                const text = `🏆 ${teamDisplayName || 'Our Team'} Season Leaders\nCheck out our top performers!\n${window.location.href}`;
+                navigator.clipboard.writeText(text);
+                alert('Leaderboard copied to clipboard! Share it with your team.');
+              }}
+              style={{ background: '#38bdf8', color: '#020617', border: 'none', borderRadius: '8px', padding: '12px 24px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}
+            >
+              📤 Share Leaderboard
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* UPGRADE / PRICING TAB */}
       {activeTab === 'upgrade' && (
