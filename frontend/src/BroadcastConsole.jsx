@@ -255,6 +255,8 @@ export default function BroadcastConsole() {
     typeof Notification !== 'undefined' ? Notification.permission : 'default'
   );
   const [selectedAnalyticsPlayer, setSelectedAnalyticsPlayer] = useState('');
+  const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+  const [announcementText, setAnnouncementText] = useState('');
 
   // 🔥 Heatmap filters
   const [hmPitcher, setHmPitcher] = useState('all');
@@ -2448,6 +2450,7 @@ export default function BroadcastConsole() {
         <button className={`${styles.tabBarBtn} ${activeTab === 'changelog' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('changelog')} style={{ color: activeTab === 'changelog' ? '#a78bfa' : '#64748b' }}>🆕 What's New</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'leaderboard' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('leaderboard')}>🏆 Leaderboard</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'analytics' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('analytics')}>📊 Analytics</button>
+        <button className={`${styles.tabBarBtn} ${activeTab === 'team-chat' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('team-chat')}>💬 Team Chat</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'upgrade' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('upgrade')} style={{ marginLeft: 'auto', color: activeTab === 'upgrade' ? '#fff' : '#f59e0b', background: activeTab === 'upgrade' ? '#854d0e' : 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.4)' }}>⭐ Upgrade</button>
       </div>
 
@@ -4644,6 +4647,118 @@ export default function BroadcastConsole() {
         </div>
       )}
 
+      {/* TEAM CHAT TAB */}
+      {activeTab === 'team-chat' && (
+        <div style={{ maxWidth: '800px', margin: '30px auto', padding: '0 20px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+            <h2 style={{ color: '#fff', fontSize: '28px', margin: '0 0 8px' }}>💬 Team Chat</h2>
+            <p style={{ color: '#94a3b8', margin: 0, fontSize: '14px' }}>Stay connected with your team and families</p>
+          </div>
+
+          {!user && (
+            <div style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '12px', padding: '20px', textAlign: 'center' }}>
+              <p style={{ color: '#94a3b8', margin: '0 0 16px' }}>Sign in to access team chat and announcements</p>
+              <button onClick={() => setShowAuthModal(true)} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px 24px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>Sign In</button>
+            </div>
+          )}
+
+          {user && (
+            <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', height: '600px', display: 'flex', flexDirection: 'column' }}>
+              {/* Chat Header */}
+              <div style={{ padding: '16px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h3 style={{ color: '#fff', margin: 0, fontSize: '16px' }}>{teamDisplayName || 'Team'} Chat</h3>
+                  <p style={{ color: '#64748b', margin: 0, fontSize: '12px' }}>Coaches, players, and families</p>
+                </div>
+                <button
+                  onClick={() => setShowAnnouncementModal(true)}
+                  style={{ background: '#38bdf8', color: '#020617', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                >
+                  📢 Announcement
+                </button>
+              </div>
+
+              {/* Messages Area */}
+              <div style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {/* Welcome Message */}
+                <div style={{ textAlign: 'center', padding: '20px', background: '#020617', borderRadius: '8px' }}>
+                  <p style={{ color: '#64748b', margin: 0, fontSize: '13px' }}>
+                    Welcome to Team Chat! Share updates, coordinate schedules, and celebrate wins together.
+                  </p>
+                </div>
+
+                {/* Sample Messages */}
+                {[
+                  { id: 1, type: 'announcement', author: 'Coach Miller', message: '📅 Reminder: Practice moved to 4pm tomorrow due to field maintenance', time: '2:30 PM', isCoach: true },
+                  { id: 2, type: 'message', author: 'Sarah Johnson', message: 'Great game today everyone! The teamwork was amazing 🎉', time: '3:45 PM', isCoach: false },
+                  { id: 3, type: 'message', author: 'Mike Chen', message: 'Can anyone help with carpool to Saturday\'s game?', time: '4:15 PM', isCoach: false },
+                  { id: 4, type: 'announcement', author: 'Coach Miller', message: '🏆 Player of the Game: Jake Rodriguez - 3 for 3 with 2 RBIs!', time: '5:00 PM', isCoach: true }
+                ].map(msg => (
+                  <div key={msg.id} style={{ display: 'flex', gap: '12px', maxWidth: '80%' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: msg.isCoach ? '#38bdf8' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: '#fff', flexShrink: 0 }}>
+                      {msg.author.charAt(0)}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      {msg.type === 'announcement' && (
+                        <div style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.3)', borderRadius: '8px', padding: '12px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                            <span style={{ color: '#38bdf8', fontSize: '12px', fontWeight: 'bold' }}>📢 {msg.author}</span>
+                            <span style={{ color: '#64748b', fontSize: '11px' }}>{msg.time}</span>
+                          </div>
+                          <p style={{ color: '#e2e8f0', margin: 0, fontSize: '13px' }}>{msg.message}</p>
+                        </div>
+                      )}
+                      {msg.type === 'message' && (
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                            <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 'bold' }}>{msg.author}</span>
+                            <span style={{ color: '#64748b', fontSize: '11px' }}>{msg.time}</span>
+                          </div>
+                          <div style={{ background: '#1e293b', borderRadius: '8px', padding: '8px 12px' }}>
+                            <p style={{ color: '#e2e8f0', margin: 0, fontSize: '13px' }}>{msg.message}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Message Input */}
+              <div style={{ padding: '16px 20px', borderTop: '1px solid #1e293b' }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    placeholder="Type a message..."
+                    style={{ flex: 1, background: '#020617', border: '1px solid #334155', borderRadius: '8px', padding: '10px 12px', color: '#fff', fontSize: '14px' }}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        // Handle message send
+                        e.target.value = '';
+                      }
+                    }}
+                  />
+                  <button style={{ background: '#38bdf8', color: '#020617', border: 'none', borderRadius: '8px', padding: '10px 16px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>
+                    Send
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Chat Guidelines */}
+          <div style={{ marginTop: '24px', padding: '16px', background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px' }}>
+            <h4 style={{ color: '#fff', margin: '0 0 8px', fontSize: '14px' }}>💬 Chat Guidelines</h4>
+            <ul style={{ color: '#64748b', margin: 0, paddingLeft: '16px', fontSize: '12px', lineHeight: '1.5' }}>
+              <li>Be respectful and supportive of all team members</li>
+              <li>Keep conversations focused on team-related topics</li>
+              <li>Coaches can send official announcements (highlighted in blue)</li>
+              <li>Share schedule changes, game highlights, and team celebrations</li>
+            </ul>
+          </div>
+        </div>
+      )}
+
       {/* UPGRADE / PRICING TAB */}
       {activeTab === 'upgrade' && (
         <div style={{ maxWidth: '960px', margin: '30px auto', padding: '0 20px' }}>
@@ -5161,6 +5276,43 @@ export default function BroadcastConsole() {
           </form>
         </div>
       )}
+
+    {/* ANNOUNCEMENT MODAL */}
+    {showAnnouncementModal && (
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+        <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '24px', maxWidth: '500px', width: '90%' }}>
+          <h3 style={{ color: '#fff', margin: '0 0 16px', fontSize: '18px' }}>📢 Send Team Announcement</h3>
+          <textarea
+            value={announcementText}
+            onChange={(e) => setAnnouncementText(e.target.value)}
+            placeholder="Share important updates with the team..."
+            style={{ width: '100%', height: '120px', background: '#020617', border: '1px solid #334155', borderRadius: '8px', padding: '12px', color: '#fff', fontSize: '14px', resize: 'vertical', marginBottom: '16px' }}
+          />
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => {
+                setShowAnnouncementModal(false);
+                setAnnouncementText('');
+              }}
+              style={{ background: 'transparent', border: '1px solid #334155', borderRadius: '6px', padding: '8px 16px', color: '#94a3b8', fontSize: '14px', cursor: 'pointer' }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                // Handle announcement send
+                console.log('Sending announcement:', announcementText);
+                setShowAnnouncementModal(false);
+                setAnnouncementText('');
+              }}
+              style={{ background: '#38bdf8', color: '#020617', border: 'none', borderRadius: '6px', padding: '8px 16px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}
+            >
+              Send Announcement
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
 
     </div>
   );
