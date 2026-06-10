@@ -8,6 +8,13 @@ import ScoutingReportTab from './ScoutingReportTab';
 import TournamentBracketTab from './TournamentBracketTab';
 import SprayChart from './SprayChart';
 import StatsPanel from './StatsPanel';
+import AnimatedButton from './components/AnimatedButton';
+import AnimatedCard from './components/AnimatedCard';
+import LoadingSpinner from './components/LoadingSpinner';
+import NotificationSystem from './components/NotificationSystem';
+import AnimatedStatsCard from './components/AnimatedStatsCard';
+import ModernDashboard from './components/ModernDashboard';
+import { colors, spacing, borderRadius, transitions, typography } from './styles/designSystem';
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 const defaultTeamId = import.meta.env.VITE_DEFAULT_TEAM_ID || 'e3UukXkIjMHcr0uB5rZ3';
@@ -2703,6 +2710,8 @@ export default function BroadcastConsole() {
 
   return (
     <div className={styles.container}>
+      {/* Notification System */}
+      <NotificationSystem />
 
       {/* EMAIL DIGEST BANNER */}
       {user && !digestOptIn && !digestBannerDismissed && (
@@ -2724,13 +2733,150 @@ export default function BroadcastConsole() {
 
       {/* NAVBAR */}
       <div className={`${styles.appTabBarNav} ${styles.hideOnPrint}`}>
-        <button className={`${styles.tabBarBtn} ${activeTab === 'live-game' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('live-game')}>🎮 Live Scoring Engine</button>
-        <button className={`${styles.tabBarBtn} ${activeTab === 'schedule' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('schedule')}>📅 Results &amp; Records</button>
-        <button className={`${styles.tabBarBtn} ${activeTab === 'stats' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('stats')}>📈 Stat Sheets</button>
-        <button className={`${styles.tabBarBtn} ${activeTab === 'scouting' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('scouting')}>🔍 Scouting</button>
-        <button className={`${styles.tabBarBtn} ${activeTab === 'bracket' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('bracket')}>🏆 Bracket</button>
-        <button className={`${styles.tabBarBtn} ${activeTab === 'gameday' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('gameday')}>📋 Game Day</button>
-        <button className={`${styles.tabBarBtn} ${activeTab === 'changelog' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('changelog')} style={{ color: activeTab === 'changelog' ? '#a78bfa' : '#64748b' }}>🆕 What's New</button>
+        <AnimatedButton 
+          variant={activeTab === 'live-game' ? 'primary' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveTab('live-game')}
+          style={{ 
+            backgroundColor: activeTab === 'live-game' ? colors.primary[600] : 'transparent',
+            color: activeTab === 'live-game' ? 'white' : colors.neutral[400],
+            border: 'none',
+            borderRadius: '0.5rem',
+            padding: '0.75rem 1rem',
+            fontSize: '0.875rem',
+            fontWeight: '600',
+            transition: transitions.all,
+            borderBottom: activeTab === 'live-game' ? `3px solid ${colors.primary[400]}` : '3px solid transparent',
+          }}
+        >
+          🎮 Live Scoring Engine
+        </AnimatedButton>
+        <AnimatedButton 
+          variant={activeTab === 'schedule' ? 'primary' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveTab('schedule')}
+          style={{ 
+            backgroundColor: activeTab === 'schedule' ? colors.primary[600] : 'transparent',
+            color: activeTab === 'schedule' ? 'white' : colors.neutral[400],
+            border: 'none',
+            borderRadius: '0.5rem',
+            padding: '0.75rem 1rem',
+            fontSize: '0.875rem',
+            fontWeight: '600',
+            transition: transitions.all,
+            borderBottom: activeTab === 'schedule' ? `3px solid ${colors.primary[400]}` : '3px solid transparent',
+          }}
+        >
+          📅 Results &amp; Records
+        </AnimatedButton>
+        <AnimatedButton 
+          variant={activeTab === 'stats' ? 'primary' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveTab('stats')}
+          style={{ 
+            backgroundColor: activeTab === 'stats' ? colors.primary[600] : 'transparent',
+            color: activeTab === 'stats' ? 'white' : colors.neutral[400],
+            border: 'none',
+            borderRadius: '0.5rem',
+            padding: '0.75rem 1rem',
+            fontSize: '0.875rem',
+            fontWeight: '600',
+            transition: transitions.all,
+            borderBottom: activeTab === 'stats' ? `3px solid ${colors.primary[400]}` : '3px solid transparent',
+          }}
+        >
+          📈 Stat Sheets
+        </AnimatedButton>
+        <AnimatedButton 
+          variant={activeTab === 'scouting' ? 'primary' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveTab('scouting')}
+          style={{ 
+            backgroundColor: activeTab === 'scouting' ? colors.primary[600] : 'transparent',
+            color: activeTab === 'scouting' ? 'white' : colors.neutral[400],
+            border: 'none',
+            borderRadius: '0.5rem',
+            padding: '0.75rem 1rem',
+            fontSize: '0.875rem',
+            fontWeight: '600',
+            transition: transitions.all,
+            borderBottom: activeTab === 'scouting' ? `3px solid ${colors.primary[400]}` : '3px solid transparent',
+          }}
+        >
+          🔍 Scouting
+        </AnimatedButton>
+        <AnimatedButton 
+          variant={activeTab === 'bracket' ? 'primary' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveTab('bracket')}
+          style={{ 
+            backgroundColor: activeTab === 'bracket' ? colors.primary[600] : 'transparent',
+            color: activeTab === 'bracket' ? 'white' : colors.neutral[400],
+            border: 'none',
+            borderRadius: '0.5rem',
+            padding: '0.75rem 1rem',
+            fontSize: '0.875rem',
+            fontWeight: '600',
+            transition: transitions.all,
+            borderBottom: activeTab === 'bracket' ? `3px solid ${colors.primary[400]}` : '3px solid transparent',
+          }}
+        >
+          🏆 Bracket
+        </AnimatedButton>
+        <AnimatedButton 
+          variant={activeTab === 'gameday' ? 'primary' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveTab('gameday')}
+          style={{ 
+            backgroundColor: activeTab === 'gameday' ? colors.primary[600] : 'transparent',
+            color: activeTab === 'gameday' ? 'white' : colors.neutral[400],
+            border: 'none',
+            borderRadius: '0.5rem',
+            padding: '0.75rem 1rem',
+            fontSize: '0.875rem',
+            fontWeight: '600',
+            transition: transitions.all,
+            borderBottom: activeTab === 'gameday' ? `3px solid ${colors.primary[400]}` : '3px solid transparent',
+          }}
+        >
+          📋 Game Day
+        </AnimatedButton>
+        <AnimatedButton 
+          variant={activeTab === 'changelog' ? 'primary' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveTab('changelog')}
+          style={{ 
+            backgroundColor: activeTab === 'changelog' ? colors.primary[600] : 'transparent',
+            color: activeTab === 'changelog' ? 'white' : colors.neutral[400],
+            border: 'none',
+            borderRadius: '0.5rem',
+            padding: '0.75rem 1rem',
+            fontSize: '0.875rem',
+            fontWeight: '600',
+            transition: transitions.all,
+            borderBottom: activeTab === 'changelog' ? `3px solid ${colors.primary[400]}` : '3px solid transparent',
+          }}
+        >
+          🆕 What's New
+        </AnimatedButton>
+        <AnimatedButton 
+          variant={activeTab === 'dashboard' ? 'primary' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveTab('dashboard')}
+          style={{ 
+            backgroundColor: activeTab === 'dashboard' ? colors.primary[600] : 'transparent',
+            color: activeTab === 'dashboard' ? 'white' : colors.neutral[400],
+            border: 'none',
+            borderRadius: '0.5rem',
+            padding: '0.75rem 1rem',
+            fontSize: '0.875rem',
+            fontWeight: '600',
+            transition: transitions.all,
+            borderBottom: activeTab === 'dashboard' ? `3px solid ${colors.primary[400]}` : '3px solid transparent',
+          }}
+        >
+          📊 Dashboard
+        </AnimatedButton>
         <button className={`${styles.tabBarBtn} ${activeTab === 'leaderboard' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('leaderboard')}>🏆 Leaderboard</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'analytics' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('analytics')}>📊 Analytics</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'team-chat' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('team-chat')}>💬 Team Chat</button>
@@ -4397,6 +4543,20 @@ export default function BroadcastConsole() {
           ourLiveScore={ourLiveScore} theirLiveScore={theirLiveScore}
           ourHits={ourHits} theirHits={theirHits} ourErrors={ourErrors} theirErrors={theirErrors}
           currentInning={currentInning} styles={styles}
+        />
+      )}
+      {/* MODERN DASHBOARD TAB */}
+      {activeTab === 'dashboard' && (
+        <ModernDashboard
+          teamData={{ name: teamDisplayName, sport: 'Baseball' }}
+          seasonData={{ 
+            schedule: seasonSchedule, 
+            wins: seasonWins, 
+            losses: seasonLosses 
+          }}
+          recentGames={seasonSchedule.slice(-10)}
+          playerStats={processedRoster}
+          isLoading={false}
         />
       )}
       {/* SCOUTING REPORT TAB */}
