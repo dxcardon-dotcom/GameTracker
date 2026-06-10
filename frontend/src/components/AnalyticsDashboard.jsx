@@ -955,7 +955,7 @@ const AnalyticsDashboard = ({
         display: 'flex', 
         gap: spacing[2], 
         justifyContent: 'center',
-        marginBottom: spacing[8},
+        marginBottom: spacing[8],
         flexWrap: 'wrap'
       }}>
         <AnimatedButton
@@ -964,7 +964,7 @@ const AnalyticsDashboard = ({
           onClick={() => setActiveSection('overview')}
           style={{
             borderRadius: borderRadius.lg,
-            padding: `${spacing[3]} ${spacing[4]}`
+            padding: spacing[3] + 'px ' + spacing[4] + 'px'
           }}
         >
           📊 Overview
@@ -975,7 +975,7 @@ const AnalyticsDashboard = ({
           onClick={() => setActiveSection('users')}
           style={{
             borderRadius: borderRadius.lg,
-            padding: `${spacing[3]} ${spacing[4]}`
+            padding: spacing[3] + 'px ' + spacing[4] + 'px'
           }}
         >
           👥 Users
@@ -986,7 +986,7 @@ const AnalyticsDashboard = ({
           onClick={() => setActiveSection('revenue')}
           style={{
             borderRadius: borderRadius.lg,
-            padding: `${spacing[3]} ${spacing[4]}`
+            padding: spacing[3] + 'px ' + spacing[4] + 'px'
           }}
         >
           💰 Revenue
@@ -997,7 +997,7 @@ const AnalyticsDashboard = ({
           onClick={() => setActiveSection('engagement')}
           style={{
             borderRadius: borderRadius.lg,
-            padding: `${spacing[3]} ${spacing[4]}`
+            padding: spacing[3] + 'px ' + spacing[4] + 'px'
           }}
         >
           📈 Engagement
@@ -1008,7 +1008,7 @@ const AnalyticsDashboard = ({
           onClick={() => setActiveSection('performance')}
           style={{
             borderRadius: borderRadius.lg,
-            padding: `${spacing[3]} ${spacing[4]}`
+            padding: spacing[3] + 'px ' + spacing[4] + 'px'
           }}
         >
           ⚡ Performance

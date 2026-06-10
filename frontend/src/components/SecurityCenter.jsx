@@ -242,7 +242,7 @@ const SecurityCenter = ({
               padding: spacing[4],
               backgroundColor: colors.warning[50],
               borderRadius: borderRadius.lg,
-              borderLeft: `4px solid ${colors.warning[500]}`
+              borderLeft: '4px solid ' + colors.warning[500]
             }}>
               <div style={{ 
                 display: 'flex', 
@@ -277,7 +277,7 @@ const SecurityCenter = ({
             padding: spacing[4],
             backgroundColor: colors.info[50],
             borderRadius: borderRadius.lg,
-            borderLeft: `4px solid ${colors.primary[500]}`
+            borderLeft: '4px solid ' + colors.primary[500]
           }}>
             <h4 style={{ 
               fontSize: typography.fontSize.base,
@@ -354,7 +354,7 @@ const SecurityCenter = ({
           padding: spacing[4],
           backgroundColor: colors.success[50],
           borderRadius: borderRadius.lg,
-          border: `1px solid ${colors.success[200]}`
+          border: '1px solid ' + colors.success[200]
         }}>
           <h5 style={{ 
             fontSize: typography.fontSize.sm,
@@ -383,7 +383,7 @@ const SecurityCenter = ({
                 padding: spacing[2],
                 backgroundColor: 'white',
                 borderRadius: borderRadius.lg,
-                border: `1px solid ${colors.success[200]}`,
+                border: '1px solid ' + colors.success[200],
                 textAlign: 'center'
               }}>
                 {code}
@@ -420,7 +420,7 @@ const SecurityCenter = ({
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr style={{ borderBottom: `1px solid ${colors.neutral[200]}` }}>
+            <tr style={{ borderBottom: '1px solid ' + colors.neutral[200] }}>
               <th style={{ 
                 textAlign: 'left', 
                 padding: spacing[3], 
@@ -475,7 +475,7 @@ const SecurityCenter = ({
           <tbody>
             {auditLogs.map((log) => (
               <tr key={log.id} style={{ 
-                borderBottom: `1px solid ${colors.neutral[100]}`,
+                borderBottom: '1px solid ' + colors.neutral[100],
                 transition: transitions.colors
               }}>
                 <td style={{ padding: spacing[3] }}>
@@ -530,7 +530,7 @@ const SecurityCenter = ({
                 <td style={{ padding: spacing[3] }}>
                   <span style={{
                     fontSize: typography.fontSize.xs,
-                    padding: `${spacing[1]} ${spacing[2]}`,
+                    padding: spacing[1] + 'px ' + spacing[2] + 'px',
                     borderRadius: borderRadius.full,
                     backgroundColor: getSeverityBackground(log.severity),
                     color: getSeverityColor(log.severity),
@@ -564,7 +564,7 @@ const SecurityCenter = ({
         {activeSessions.map((session) => (
           <div key={session.id} style={{
             padding: spacing[4],
-            border: `1px solid ${session.current ? colors.primary[300] : colors.neutral[200]}`,
+            border: '1px solid ' + (session.current ? colors.primary[300] : colors.neutral[200]),
             borderRadius: borderRadius.lg,
             backgroundColor: session.current ? colors.primary[50] : colors.neutral[50]
           }}>
@@ -587,7 +587,7 @@ const SecurityCenter = ({
                       fontSize: typography.fontSize.xs,
                       backgroundColor: colors.primary[500],
                       color: 'white',
-                      padding: `${spacing[1]} ${spacing[2]}`,
+                      padding: spacing[1] + 'px ' + spacing[2] + 'px',
                       borderRadius: borderRadius.full,
                       marginLeft: spacing[2]
                     }}>
@@ -635,7 +635,7 @@ const SecurityCenter = ({
           {Object.entries(complianceStatus).map(([framework, status]) => (
             <div key={framework} style={{
               padding: spacing[4],
-              border: `1px solid ${colors.neutral[200]`,
+              border: '1px solid ' + colors.neutral[200],
               borderRadius: borderRadius.lg,
               backgroundColor: colors.neutral[50]
             }}>
@@ -655,7 +655,7 @@ const SecurityCenter = ({
                 </h4>
                 <span style={{
                   fontSize: typography.fontSize.sm,
-                  padding: `${spacing[1]} ${spacing[2]}`,
+                  padding: spacing[1] + 'px ' + spacing[2] + 'px',
                   borderRadius: borderRadius.full,
                   backgroundColor: status.compliant ? colors.success[100] : colors.error[100],
                   color: status.compliant ? colors.success[700] : colors.error[700],
@@ -689,7 +689,7 @@ const SecurityCenter = ({
             padding: spacing[4],
             backgroundColor: colors.neutral[50],
             borderRadius: borderRadius.lg,
-            border: `1px solid ${colors.neutral[200]}`
+            border: '1px solid ' + colors.neutral[200]
           }}>
             <h4 style={{ 
               fontSize: typography.fontSize.base,
@@ -716,7 +716,7 @@ const SecurityCenter = ({
             padding: spacing[4],
             backgroundColor: colors.neutral[50],
             borderRadius: borderRadius.lg,
-            border: `1px solid ${colors.neutral[200]}`
+            border: '1px solid ' + colors.neutral[200]
           }}>
             <h4 style={{ 
               fontSize: typography.fontSize.base,
@@ -800,7 +800,7 @@ const SecurityCenter = ({
             width: '200px',
             height: '200px',
             backgroundColor: colors.neutral[100],
-            border: `2px solid ${colors.neutral[300]}`,
+            border: '2px solid ' + colors.neutral[300],
             borderRadius: borderRadius.lg,
             margin: '0 auto ' + spacing[4] + 'px',
             display: 'flex',
@@ -906,7 +906,7 @@ const SecurityCenter = ({
           onClick={() => setActiveTab('overview')}
           style={{
             borderRadius: borderRadius.lg,
-            padding: `${spacing[3]} ${spacing[4]}`
+            padding: spacing[3] + 'px ' + spacing[4] + 'px'
           }}
         >
           📊 Overview
@@ -917,7 +917,7 @@ const SecurityCenter = ({
           onClick={() => setActiveTab('2fa')}
           style={{
             borderRadius: borderRadius.lg,
-            padding: `${spacing[3]} ${spacing[4]}`
+            padding: spacing[3] + 'px ' + spacing[4] + 'px'
           }}
         >
           🔐 2FA
@@ -928,7 +928,7 @@ const SecurityCenter = ({
           onClick={() => setActiveTab('audit')}
           style={{
             borderRadius: borderRadius.lg,
-            padding: `${spacing[3]} ${spacing[4]}`
+            padding: spacing[3] + 'px ' + spacing[4] + 'px'
           }}
         >
           📋 Audit Logs
@@ -939,7 +939,7 @@ const SecurityCenter = ({
           onClick={() => setActiveTab('sessions')}
           style={{
             borderRadius: borderRadius.lg,
-            padding: `${spacing[3]} ${spacing[4]}`
+            padding: spacing[3] + 'px ' + spacing[4] + 'px'
           }}
         >
           💻 Sessions
@@ -950,7 +950,7 @@ const SecurityCenter = ({
           onClick={() => setActiveTab('compliance')}
           style={{
             borderRadius: borderRadius.lg,
-            padding: `${spacing[3]} ${spacing[4]}`
+            padding: spacing[3] + 'px ' + spacing[4] + 'px'
           }}
         >
           🛡️ Compliance

@@ -992,7 +992,7 @@ const AdminDashboard = ({
         </div>
         
         <div style={{ 
-          border: `1px solid ${colors.neutral[200]`,
+          border: '1px solid ' + colors.neutral[200],
           borderRadius: borderRadius.lg,
           overflow: 'hidden'
         }}>
