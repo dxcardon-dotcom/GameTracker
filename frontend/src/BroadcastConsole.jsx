@@ -19,6 +19,7 @@ import AIInsights from './components/AIInsights';
 import AdminDashboard from './components/AdminDashboard';
 import GamificationSystem from './components/GamificationSystem';
 import SecurityCenter from './components/SecurityCenter';
+import CommunityHub from './components/CommunityHub';
 import { colors, spacing, borderRadius, transitions, typography } from './styles/designSystem';
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
@@ -2973,6 +2974,24 @@ export default function BroadcastConsole() {
         >
           🔒 Security
         </AnimatedButton>
+        <AnimatedButton 
+          variant={activeTab === 'community' ? 'primary' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveTab('community')}
+          style={{ 
+            backgroundColor: activeTab === 'community' ? colors.primary[600] : 'transparent',
+            color: activeTab === 'community' ? 'white' : colors.neutral[400],
+            border: 'none',
+            borderRadius: '0.5rem',
+            padding: '0.75rem 1rem',
+            fontSize: '0.875rem',
+            fontWeight: '600',
+            transition: transitions.all,
+            borderBottom: activeTab === 'community' ? `3px solid ${colors.primary[400]}` : '3px solid transparent',
+          }}
+        >
+          🌐 Community
+        </AnimatedButton>
         <button className={`${styles.tabBarBtn} ${activeTab === 'leaderboard' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('leaderboard')}>🏆 Leaderboard</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'analytics' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('analytics')}>📊 Analytics</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'team-chat' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('team-chat')}>💬 Team Chat</button>
@@ -4705,6 +4724,14 @@ export default function BroadcastConsole() {
             auditLogging: true,
             encryption: true
           }}
+          isLoading={false}
+        />
+      )}
+      {/* COMMUNITY TAB */}
+      {activeTab === 'community' && (
+        <CommunityHub
+          user={user}
+          communityData={{}}
           isLoading={false}
         />
       )}
