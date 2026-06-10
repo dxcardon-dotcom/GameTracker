@@ -170,6 +170,13 @@ export default function BroadcastConsole() {
   const [teamAnalytics, setTeamAnalytics] = useState({});
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
+  // 🎯 Pitch Chart Visualization
+  const [showPitchChart, setShowPitchChart] = useState(false);
+  const [pitchChartView, setPitchChartView] = useState('spray'); // 'spray', 'zone', 'heatmap'
+  const [selectedPitchChartPlayer, setSelectedPitchChartPlayer] = useState('');
+  const [pitchData, setPitchData] = useState([]);
+  const [pitchChartLoading, setPitchChartLoading] = useState(false);
+
   // 📋 Game Day Checklist
   const [checklistItems, setChecklistItems] = useState([
     { id: 1, label: 'Equipment packed (bats, helmets, catchers gear)', done: false },
@@ -1300,6 +1307,119 @@ export default function BroadcastConsole() {
     
     setAnalyticsLoading(false);
   }, [showAnalytics, selectedTimeRange, processedRoster, calculatePlayerAnalytics, calculateTeamAnalytics]);
+
+  // 🎯 Pitch Chart Functions
+  const generatePitchData = useCallback(() => {
+    // Generate sample pitch data for visualization
+    const pitchTypes = ['FB', 'CB', 'CH', 'SL', 'CT', 'SP'];
+    const outcomes = ['hit', 'strike', 'ball', 'foul', 'out'];
+    
+    const data = [];
+    for (let i = 0; i < 100; i++) {
+      data.push({
+        id: i,
+        type: pitchTypes[Math.floor(Math.random() * pitchTypes.length)],
+        velocity: 70 + Math.random() * 30,
+        location: {
+          x: (Math.random() - 0.5) * 2, // -1 to 1 (horizontal)
+          y: (Math.random() - 0.5) * 2  // -1 to 1 (vertical)
+        },
+        outcome: outcomes[Math.floor(Math.random() * outcomes.length)],
+        batter: selectedPitchChartPlayer || 'All Batters',
+        timestamp: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString()
+      });
+    }
+    
+    return data;
+  }, [selectedPitchChartPlayer]);
+
+  const calculateSprayChart = useCallback((pitches) => {
+    // Calculate spray chart data from pitch locations
+    return pitches.map(pitch => ({
+      ...pitch,
+      angle: Math.atan2(pitch.location.y, pitch.location.x) * (180 / Math.PI),
+      distance: Math.sqrt(pitch.location.x ** 2 + pitch.location.y ** 2),
+      quadrant: getQuadrant(pitch.location.x, pitch.location.y)
+    }));
+  }, []);
+
+  const calculateStrikeZone = useCallback((pitches) => {
+    // Calculate strike zone analysis
+    const strikeZonePitches = pitches.filter(p => 
+      Math.abs(p.location.x) <= 0.5 && Math.abs(p.location.y) <= 0.5
+    );
+    
+    const zones = {
+      'high-inside': 0, 'high-middle': 0, 'high-outside': 0,
+      'middle-inside': 0, 'middle-middle': 0, 'middle-outside': 0,
+      'low-inside': 0, 'low-middle': 0, 'low-outside': 0,
+      'outside': 0
+    };
+    
+    pitches.forEach(pitch => {
+      const x = pitch.location.x;
+      const y = pitch.location.y;
+      
+      if (Math.abs(x) <= 0.5 && Math.abs(y) <= 0.5) {
+        const vertical = y > 0.17 ? 'high' : y < -0.17 ? 'low' : 'middle';
+        const horizontal = x < -0.17 ? 'inside' : x > 0.17 ? 'outside' : 'middle';
+        zones[`${vertical}-${horizontal}`]++;
+      } else {
+        zones['outside']++;
+      }
+    });
+    
+    return {
+      total: pitches.length,
+      strikeZone: strikeZonePitches.length,
+      zones,
+      strikeRate: (strikeZonePitches.length / pitches.length * 100).toFixed(1)
+    };
+  }, []);
+
+  const calculateHeatMap = useCallback((pitches) => {
+    // Create heat map grid data
+    const gridSize = 10;
+    const grid = Array(gridSize).fill(null).map(() => Array(gridSize).fill(0));
+    
+    pitches.forEach(pitch => {
+      const x = Math.floor((pitch.location.x + 1) * gridSize / 2);
+      const y = Math.floor((pitch.location.y + 1) * gridSize / 2);
+      
+      if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
+        grid[y][x]++;
+      }
+    });
+    
+    // Find max value for normalization
+    const maxValue = Math.max(...grid.flat());
+    
+    return {
+      grid: grid.map(row => row.map(value => maxValue > 0 ? value / maxValue : 0)),
+      gridSize,
+      maxValue
+    };
+  }, []);
+
+  const getQuadrant = (x, y) => {
+    if (x >= 0 && y >= 0) return 'pull';
+    if (x < 0 && y >= 0) return 'opposite';
+    if (x < 0 && y < 0) return 'opposite';
+    return 'pull';
+  };
+
+  // Load pitch chart data
+  useEffect(() => {
+    if (!showPitchChart) return;
+    
+    setPitchChartLoading(true);
+    
+    // Generate or load pitch data
+    const data = generatePitchData();
+    setPitchData(data);
+    
+    setPitchChartLoading(false);
+  }, [showPitchChart, generatePitchData]);
 
   const isOurTeamBatting = () => (scoringLocation === 'Away' ? isTopInning : !isTopInning);
 
@@ -4201,6 +4321,10 @@ export default function BroadcastConsole() {
 
                 {/* Field view + full-screen toggles */}
                 <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                  <button onClick={() => setShowPitchChart(v => !v)}
+                    style={{ background: showPitchChart ? 'rgba(56,189,248,0.15)' : '#0f172a', border: `1px solid ${showPitchChart ? '#38bdf8' : '#334155'}`, borderRadius: '8px', color: showPitchChart ? '#38bdf8' : '#64748b', cursor: 'pointer', fontSize: '14px', padding: '6px 9px' }} title="Pitch chart visualization">
+                    🎯
+                  </button>
                   <button onClick={() => setShowAnalytics(v => !v)}
                     style={{ background: showAnalytics ? 'rgba(56,189,248,0.15)' : '#0f172a', border: `1px solid ${showAnalytics ? '#38bdf8' : '#334155'}`, borderRadius: '8px', color: showAnalytics ? '#38bdf8' : '#64748b', cursor: 'pointer', fontSize: '14px', padding: '6px 9px' }} title="Analytics dashboard">
                     📊
@@ -5701,6 +5825,259 @@ export default function BroadcastConsole() {
                                         );
                                       })}
                                   </div>
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ── PITCH CHART VISUALIZATION ── */}
+                    {showPitchChart && (
+                      <div style={{ background: '#0a0f1f', border: '1px solid #1e293b', borderRadius: '12px', padding: '12px', marginBottom: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                          <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '800', textTransform: 'uppercase' }}>🎯 Pitch Chart</span>
+                          <button onClick={() => setShowPitchChart(false)} style={{ background: 'transparent', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '14px' }}>✕</button>
+                        </div>
+                        
+                        {/* Pitch Chart Controls */}
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                          <select
+                            value={selectedPitchChartPlayer}
+                            onChange={e => setSelectedPitchChartPlayer(e.target.value)}
+                            style={{ 
+                              background: '#0f172a', 
+                              border: '1px solid #334155', 
+                              borderRadius: '6px', 
+                              color: '#fff', 
+                              padding: '4px 8px', 
+                              fontSize: '10px' 
+                            }}
+                          >
+                            <option value="">All Players</option>
+                            {processedRoster.map(player => (
+                              <option key={player.id} value={`${player.firstName} ${player.lastName}`}>
+                                {player.firstName} {player.lastName}
+                              </option>
+                            ))}
+                          </select>
+                          
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            {['spray', 'zone', 'heatmap'].map(view => (
+                              <button
+                                key={view}
+                                onClick={() => setPitchChartView(view)}
+                                style={{ 
+                                  background: pitchChartView === view ? '#38bdf8' : '#0f172a', 
+                                  color: pitchChartView === view ? '#020617' : '#64748b', 
+                                  border: '1px solid #334155', 
+                                  borderRadius: '6px', 
+                                  padding: '4px 8px', 
+                                  fontSize: '9px', 
+                                  fontWeight: '600', 
+                                  cursor: 'pointer',
+                                  textTransform: 'capitalize'
+                                }}
+                              >
+                                {view === 'spray' ? 'Spray Chart' : view === 'zone' ? 'Strike Zone' : 'Heat Map'}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        {pitchChartLoading ? (
+                          <div style={{ textAlign: 'center', color: '#64748b', fontSize: '11px', padding: '20px' }}>
+                            Loading pitch data...
+                          </div>
+                        ) : (
+                          <>
+                            {/* Spray Chart */}
+                            {pitchChartView === 'spray' && (
+                              <div>
+                                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '16px', marginBottom: '12px' }}>
+                                  <div style={{ position: 'relative', width: '100%', height: '300px' }}>
+                                    {/* Baseball field visualization */}
+                                    <svg viewBox="0 0 400 300" style={{ width: '100%', height: '100%' }}>
+                                      {/* Field outline */}
+                                      <polygon points="200,50 350,150 200,250 50,150" 
+                                               fill="none" stroke="#334155" strokeWidth="2"/>
+                                      
+                                      {/* Bases */}
+                                      <circle cx="200" cy="50" r="8" fill="#f59e0b"/> {/* Home */}
+                                      <circle cx="350" cy="150" r="8" fill="#ef4444"/> {/* First */}
+                                      <circle cx="200" cy="250" r="8" fill="#ef4444"/> {/* Second */}
+                                      <circle cx="50" cy="150" r="8" fill="#ef4444"/> {/* Third */}
+                                      
+                                      {/* Pitch locations */}
+                                      {calculateSprayChart(pitchData).map((pitch, index) => (
+                                        <circle
+                                          key={pitch.id}
+                                          cx={200 + pitch.location.x * 100}
+                                          cy={150 - pitch.location.y * 100}
+                                          r="4"
+                                          fill={
+                                            pitch.outcome === 'hit' ? '#22c55e' :
+                                            pitch.outcome === 'strike' ? '#ef4444' :
+                                            pitch.outcome === 'ball' ? '#64748b' :
+                                            pitch.outcome === 'foul' ? '#f59e0b' : '#38bdf8'
+                                          }
+                                          opacity="0.7"
+                                        />
+                                      ))}
+                                      
+                                      {/* Labels */}
+                                      <text x="200" y="40" textAnchor="middle" fill="#e2e8f0" fontSize="12">Home</text>
+                                      <text x="360" y="155" fill="#e2e8f0" fontSize="12">1B</text>
+                                      <text x="200" y="270" textAnchor="middle" fill="#e2e8f0" fontSize="12">2B</text>
+                                      <text x="40" y="155" textAnchor="end" fill="#e2e8f0" fontSize="12">3B</text>
+                                    </svg>
+                                  </div>
+                                </div>
+                                
+                                {/* Legend */}
+                                <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e' }} />
+                                    <span style={{ fontSize: '9px', color: '#64748b' }}>Hit</span>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444' }} />
+                                    <span style={{ fontSize: '9px', color: '#64748b' }}>Strike</span>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#64748b' }} />
+                                    <span style={{ fontSize: '9px', color: '#64748b' }}>Ball</span>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f59e0b' }} />
+                                    <span style={{ fontSize: '9px', color: '#64748b' }}>Foul</span>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#38bdf8' }} />
+                                    <span style={{ fontSize: '9px', color: '#64748b' }}>Out</span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* Strike Zone Analysis */}
+                            {pitchChartView === 'zone' && (
+                              <div>
+                                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '16px', marginBottom: '12px' }}>
+                                  <div style={{ position: 'relative', width: '100%', height: '300px' }}>
+                                    <svg viewBox="0 0 200 250" style={{ width: '100%', height: '100%' }}>
+                                      {/* Strike zone */}
+                                      <rect x="50" y="75" width="100" height="100" 
+                                            fill="none" stroke="#38bdf8" strokeWidth="2"/>
+                                      
+                                      {/* Zone grid */}
+                                      <line x1="50" y1="125" x2="150" y2="125" stroke="#1e293b" strokeWidth="1"/>
+                                      <line x1="100" y1="75" x2="100" y2="175" stroke="#1e293b" strokeWidth="1"/>
+                                      
+                                      {/* Pitch locations */}
+                                      {pitchData.map((pitch, index) => (
+                                        <circle
+                                          key={pitch.id}
+                                          cx={100 + pitch.location.x * 50}
+                                          cy={125 - pitch.location.y * 50}
+                                          r="3"
+                                          fill={
+                                            pitch.outcome === 'hit' ? '#22c55e' :
+                                            pitch.outcome === 'strike' ? '#ef4444' :
+                                            pitch.outcome === 'ball' ? '#64748b' :
+                                            pitch.outcome === 'foul' ? '#f59e0b' : '#38bdf8'
+                                          }
+                                          opacity="0.7"
+                                        />
+                                      ))}
+                                      
+                                      {/* Labels */}
+                                      <text x="100" y="60" textAnchor="middle" fill="#e2e8f0" fontSize="10">Strike Zone</text>
+                                      <text x="25" y="80" fill="#64748b" fontSize="8">High</text>
+                                      <text x="25" y="130" fill="#64748b" fontSize="8">Middle</text>
+                                      <text x="25" y="180" fill="#64748b" fontSize="8">Low</text>
+                                    </svg>
+                                  </div>
+                                </div>
+                                
+                                {/* Strike Zone Stats */}
+                                {(() => {
+                                  const zoneAnalysis = calculateStrikeZone(pitchData);
+                                  return (
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                                      <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '6px', padding: '8px', textAlign: 'center' }}>
+                                        <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px' }}>Total Pitches</div>
+                                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#38bdf8' }}>
+                                          {zoneAnalysis.total}
+                                        </div>
+                                      </div>
+                                      <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '6px', padding: '8px', textAlign: 'center' }}>
+                                        <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px' }}>In Zone</div>
+                                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#22c55e' }}>
+                                          {zoneAnalysis.strikeZone}
+                                        </div>
+                                      </div>
+                                      <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '6px', padding: '8px', textAlign: 'center' }}>
+                                        <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px' }}>Strike Rate</div>
+                                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#ef4444' }}>
+                                          {zoneAnalysis.strikeRate}%
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            )}
+                            
+                            {/* Heat Map */}
+                            {pitchChartView === 'heatmap' && (
+                              <div>
+                                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '16px', marginBottom: '12px' }}>
+                                  <div style={{ position: 'relative', width: '100%', height: '300px' }}>
+                                    <svg viewBox="0 0 200 250" style={{ width: '100%', height: '100%' }}>
+                                      {/* Heat map grid */}
+                                      {(() => {
+                                        const heatMap = calculateHeatMap(pitchData);
+                                        return heatMap.grid.map((row, y) => 
+                                          row.map((intensity, x) => (
+                                            <rect
+                                              key={`${x}-${y}`}
+                                              x={x * 20}
+                                              y={y * 25}
+                                              width="20"
+                                              height="25"
+                                              fill={`rgba(239, 68, 68, ${intensity})`}
+                                              stroke="#1e293b"
+                                              strokeWidth="0.5"
+                                            />
+                                          ))
+                                        );
+                                      })()}
+                                      
+                                      {/* Strike zone outline */}
+                                      <rect x="50" y="75" width="100" height="100" 
+                                            fill="none" stroke="#38bdf8" strokeWidth="2"/>
+                                      
+                                      <text x="100" y="20" textAnchor="middle" fill="#e2e8f0" fontSize="10">Pitch Density Heat Map</text>
+                                    </svg>
+                                  </div>
+                                </div>
+                                
+                                {/* Heat Map Legend */}
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                  <span style={{ fontSize: '9px', color: '#64748b' }}>Low</span>
+                                  <div style={{ display: 'flex', gap: '2px' }}>
+                                    {[0, 0.25, 0.5, 0.75, 1].map(intensity => (
+                                      <div key={intensity} style={{ 
+                                        width: '20px', 
+                                        height: '12px', 
+                                        background: `rgba(239, 68, 68, ${intensity})`,
+                                        border: '1px solid #1e293b'
+                                      }} />
+                                    ))}
+                                  </div>
+                                  <span style={{ fontSize: '9px', color: '#64748b' }}>High</span>
                                 </div>
                               </div>
                             )}
