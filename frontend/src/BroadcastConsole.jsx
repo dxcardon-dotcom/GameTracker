@@ -177,6 +177,13 @@ export default function BroadcastConsole() {
   const [pitchData, setPitchData] = useState([]);
   const [pitchChartLoading, setPitchChartLoading] = useState(false);
 
+  // 📝 Game Recap Generator
+  const [showRecapGenerator, setShowRecapGenerator] = useState(false);
+  const [recapFormat, setRecapFormat] = useState('summary'); // 'summary', 'detailed', 'highlights'
+  const [generatedRecap, setGeneratedRecap] = useState('');
+  const [recapLoading, setRecapLoading] = useState(false);
+  const [recapCopied, setRecapCopied] = useState(false);
+
   // 📋 Game Day Checklist
   const [checklistItems, setChecklistItems] = useState([
     { id: 1, label: 'Equipment packed (bats, helmets, catchers gear)', done: false },
@@ -1420,6 +1427,86 @@ export default function BroadcastConsole() {
     
     setPitchChartLoading(false);
   }, [showPitchChart, generatePitchData]);
+
+  // 📝 Game Recap Functions
+  const generateGameRecap = useCallback(() => {
+    setRecapLoading(true);
+    
+    const teamName = currentSeasonData.teamProfile?.name || 'Our Team';
+    const opponentName = game.opponentName || 'Opponent';
+    const isHome = game.location !== 'Away';
+    const ourRuns = isHome ? sumRuns(game.ourInnings) : sumRuns(game.theirInnings);
+    const theirRuns = isHome ? sumRuns(game.theirInnings) : sumRuns(game.ourInnings);
+    const result = ourRuns > theirRuns ? 'WON' : ourRuns < theirRuns ? 'LOST' : 'TIED';
+    
+    let recap = '';
+    
+    if (recapFormat === 'summary') {
+      recap = `${teamName} ${result} ${ourRuns}-${theirRuns} against ${opponentName}\n\n`;
+      recap += `📊 Final Score: ${teamName} ${ourRuns} - ${opponentName} ${theirRuns}\n`;
+      recap += `🏟️ Location: ${game.location || 'Away'}\n`;
+      recap += `📅 Date: ${game.gameDate || new Date().toLocaleDateString()}\n\n`;
+      recap += `🔑 Key Stats:\n`;
+      recap += `• Total Hits: ${ourHits || 0}\n`;
+      recap += `• Total Errors: ${ourErrors || 0}\n`;
+      recap += `• Innings Played: ${currentInning || 7}\n`;
+    } else if (recapFormat === 'detailed') {
+      recap = `📝 GAME RECAP - ${teamName} vs ${opponentName}\n`;
+      recap += `${'='.repeat(50)}\n\n`;
+      recap += `🏆 Final Result: ${teamName} ${result} ${ourRuns}-${theirRuns}\n`;
+      recap += `📅 Date: ${game.gameDate || new Date().toLocaleDateString()}\n`;
+      recap += `🏟️ Location: ${game.location || 'Away'} Game\n\n`;
+      
+      recap += `📊 INNING BY INNING:\n`;
+      const maxInnings = Math.max(game.ourInnings?.length || 0, game.theirInnings?.length || 0);
+      for (let i = 0; i < maxInnings; i++) {
+        const ourScore = game.ourInnings?.[i] || 0;
+        const theirScore = game.theirInnings?.[i] || 0;
+        recap += `Inning ${i + 1}: ${teamName} ${ourScore} - ${opponentName} ${theirScore}\n`;
+      }
+      
+      recap += `\n🔑 TEAM STATISTICS:\n`;
+      recap += `• Hits: ${ourHits || 0}\n`;
+      recap += `• Errors: ${ourErrors || 0}\n`;
+      recap += `• Walks: ${processedRoster.reduce((sum, p) => sum + (p.bb || 0), 0)}\n`;
+      recap += `• Strikeouts: ${processedRoster.reduce((sum, p) => sum + (p.strikeouts || 0), 0)}\n`;
+    } else if (recapFormat === 'highlights') {
+      recap = `🌟 GAME HIGHLIGHTS - ${teamName} ${ourRuns} vs ${opponentName} ${theirRuns}\n`;
+      recap += `${'='.repeat(60)}\n\n`;
+      
+      recap += `🏆 FINAL: ${teamName} ${result} ${ourRuns}-${theirRuns}\n\n`;
+      
+      recap += `⭐ TOP PERFORMERS:\n`;
+      const topHitters = processedRoster
+        .filter(p => p.hits > 0)
+        .sort((a, b) => b.hits - a.hits)
+        .slice(0, 3);
+      
+      topHitters.forEach((player, index) => {
+        recap += `${index + 1}. ${player.firstName} ${player.lastName}: ${player.hits} hits, `;
+        recap += `${player.rbi || 0} RBI, .${player.avg || '000'} avg\n`;
+      });
+      
+      recap += `\n🎯 KEY MOMENTS:\n`;
+      recap += `• Final Score: ${ourRuns}-${theirRuns}\n`;
+      recap += `• Total Team Hits: ${ourHits || 0}\n`;
+      recap += `• Fielding: ${ourErrors || 0} errors\n`;
+      recap += `• Game Duration: ${currentInning || 7} innings\n`;
+    }
+    
+    setGeneratedRecap(recap);
+    setRecapLoading(false);
+  }, [recapFormat, game, currentSeasonData, processedRoster, ourHits, ourErrors, currentInning]);
+
+  const copyRecapToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(generatedRecap);
+      setRecapCopied(true);
+      setTimeout(() => setRecapCopied(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy recap:', error);
+    }
+  };
 
   const isOurTeamBatting = () => (scoringLocation === 'Away' ? isTopInning : !isTopInning);
 
@@ -4321,6 +4408,10 @@ export default function BroadcastConsole() {
 
                 {/* Field view + full-screen toggles */}
                 <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                  <button onClick={() => setShowRecapGenerator(v => !v)}
+                    style={{ background: showRecapGenerator ? 'rgba(56,189,248,0.15)' : '#0f172a', border: `1px solid ${showRecapGenerator ? '#38bdf8' : '#334155'}`, borderRadius: '8px', color: showRecapGenerator ? '#38bdf8' : '#64748b', cursor: 'pointer', fontSize: '14px', padding: '6px 9px' }} title="Game recap generator">
+                    📄
+                  </button>
                   <button onClick={() => setShowPitchChart(v => !v)}
                     style={{ background: showPitchChart ? 'rgba(56,189,248,0.15)' : '#0f172a', border: `1px solid ${showPitchChart ? '#38bdf8' : '#334155'}`, borderRadius: '8px', color: showPitchChart ? '#38bdf8' : '#64748b', cursor: 'pointer', fontSize: '14px', padding: '6px 9px' }} title="Pitch chart visualization">
                     🎯
@@ -6082,6 +6173,146 @@ export default function BroadcastConsole() {
                               </div>
                             )}
                           </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ── GAME RECAP GENERATOR ── */}
+                    {showRecapGenerator && (
+                      <div style={{ background: '#0a0f1f', border: '1px solid #1e293b', borderRadius: '12px', padding: '12px', marginBottom: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                          <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '800', textTransform: 'uppercase' }}>📄 Game Recap</span>
+                          <button onClick={() => setShowRecapGenerator(false)} style={{ background: 'transparent', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '14px' }}>✕</button>
+                        </div>
+                        
+                        {/* Recap Controls */}
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            {['summary', 'detailed', 'highlights'].map(format => (
+                              <button
+                                key={format}
+                                onClick={() => setRecapFormat(format)}
+                                style={{ 
+                                  background: recapFormat === format ? '#38bdf8' : '#0f172a', 
+                                  color: recapFormat === format ? '#020617' : '#64748b', 
+                                  border: '1px solid #334155', 
+                                  borderRadius: '6px', 
+                                  padding: '4px 8px', 
+                                  fontSize: '9px', 
+                                  fontWeight: '600', 
+                                  cursor: 'pointer',
+                                  textTransform: 'capitalize'
+                                }}
+                              >
+                                {format}
+                              </button>
+                            ))}
+                          </div>
+                          
+                          <button
+                            onClick={generateGameRecap}
+                            disabled={recapLoading}
+                            style={{ 
+                              background: recapLoading ? '#334155' : '#22c55e', 
+                              color: '#fff', 
+                              border: '1px solid #334155', 
+                              borderRadius: '6px', 
+                              padding: '4px 12px', 
+                              fontSize: '9px', 
+                              fontWeight: '600', 
+                              cursor: recapLoading ? 'not-allowed' : 'pointer'
+                            }}
+                          >
+                            {recapLoading ? 'Generating...' : 'Generate Recap'}
+                          </button>
+                        </div>
+                        
+                        {/* Generated Recap Display */}
+                        {generatedRecap && (
+                          <div>
+                            <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '12px', marginBottom: '8px' }}>
+                              <pre style={{ 
+                                color: '#e2e8f0', 
+                                fontSize: '10px', 
+                                lineHeight: '1.4', 
+                                margin: 0, 
+                                whiteSpace: 'pre-wrap', 
+                                fontFamily: 'monospace' 
+                              }}>
+                                {generatedRecap}
+                              </pre>
+                            </div>
+                            
+                            {/* Action Buttons */}
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                              <button
+                                onClick={copyRecapToClipboard}
+                                style={{ 
+                                  background: recapCopied ? '#22c55e' : '#38bdf8', 
+                                  color: '#020617', 
+                                  border: '1px solid #334155', 
+                                  borderRadius: '6px', 
+                                  padding: '6px 12px', 
+                                  fontSize: '9px', 
+                                  fontWeight: '600', 
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                              >
+                                {recapCopied ? '✓ Copied!' : '📋 Copy to Clipboard'}
+                              </button>
+                              
+                              <button
+                                onClick={() => {
+                                  const blob = new Blob([generatedRecap], { type: 'text/plain' });
+                                  const url = URL.createObjectURL(blob);
+                                  const a = document.createElement('a');
+                                  a.href = url;
+                                  a.download = `game-recap-${game.gameDate || new Date().toISOString().split('T')[0]}.txt`;
+                                  a.click();
+                                  URL.revokeObjectURL(url);
+                                }}
+                                style={{ 
+                                  background: '#f59e0b', 
+                                  color: '#020617', 
+                                  border: '1px solid #334155', 
+                                  borderRadius: '6px', 
+                                  padding: '6px 12px', 
+                                  fontSize: '9px', 
+                                  fontWeight: '600', 
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                              >
+                                💾 Download
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Format Info */}
+                        {!generatedRecap && (
+                          <div style={{ textAlign: 'center', color: '#64748b', fontSize: '10px', padding: '20px' }}>
+                            <div style={{ marginBottom: '8px' }}>📝 Generate a game recap in your preferred format</div>
+                            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                              <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: '12px', marginBottom: '2px' }}>📊 Summary</div>
+                                <div style={{ fontSize: '8px', color: '#475569' }}>Quick overview</div>
+                              </div>
+                              <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: '12px', marginBottom: '2px' }}>📋 Detailed</div>
+                                <div style={{ fontSize: '8px', color: '#475569' }}>Full statistics</div>
+                              </div>
+                              <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: '12px', marginBottom: '2px' }}>⭐ Highlights</div>
+                                <div style={{ fontSize: '8px', color: '#475569' }}>Top performers</div>
+                              </div>
+                            </div>
+                          </div>
                         )}
                       </div>
                     )}
