@@ -14,6 +14,7 @@ import LoadingSpinner from './components/LoadingSpinner';
 import NotificationSystem from './components/NotificationSystem';
 import AnimatedStatsCard from './components/AnimatedStatsCard';
 import ModernDashboard from './components/ModernDashboard';
+import RealTimeCollaboration from './components/RealTimeCollaboration';
 import { colors, spacing, borderRadius, transitions, typography } from './styles/designSystem';
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
@@ -2712,6 +2713,25 @@ export default function BroadcastConsole() {
     <div className={styles.container}>
       {/* Notification System */}
       <NotificationSystem />
+      
+      {/* Real-Time Collaboration */}
+      {user && activeTab === 'live-game' && (
+        <RealTimeCollaboration
+          gameId={defaultLiveGameId}
+          userId={user.uid}
+          userName={user.displayName || user.email}
+          onCollaboratorJoin={(data) => {
+            window.showNotification?.('info', `${data.userName} joined the game`, 'Collaboration');
+          }}
+          onCollaboratorLeave={(data) => {
+            window.showNotification?.('info', `${data.userName} left the game`, 'Collaboration');
+          }}
+          onSharedAction={(data) => {
+            // Handle shared actions like pitch recording, lineup changes, etc.
+            console.log('Shared action:', data);
+          }}
+        />
+      )}
 
       {/* EMAIL DIGEST BANNER */}
       {user && !digestOptIn && !digestBannerDismissed && (

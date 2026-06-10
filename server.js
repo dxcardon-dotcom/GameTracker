@@ -2387,6 +2387,226 @@ const checkPublicApiRateLimit = (req, res, next) => {
 // Apply rate limiting to all public API routes
 app.use('/api/v1', checkPublicApiRateLimit);
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔄 REAL-TIME COLLABORATION WEBSOCKET SERVER
+// ─────────────────────────────────────────────────────────────────────────────
+
+const WebSocket = require('ws');
+
+// Create WebSocket server
+const wss = new WebSocket.Server({ port: 8080 });
+
+// Store active connections and game rooms
+const connections = new Map(); // userId -> { ws, gameId, userName, color }
+const gameRooms = new Map(); // gameId -> Set of userIds
+
+// Generate random color for collaborators
+const generateUserColor = () => {
+  const colors = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+  return colors[Math.floor(Math.random() * colors.length)];
+};
+
+// WebSocket connection handler
+wss.on('connection', (ws, req) => {
+  console.log('New WebSocket connection established');
+  
+  let userId = null;
+  let gameId = null;
+  let userName = null;
+  let userColor = generateUserColor();
+  
+  // Parse URL parameters
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const pathParts = url.pathname.split('/');
+  
+  if (pathParts[1] === 'collaborate' && pathParts[2]) {
+    gameId = pathParts[2];
+    userId = url.searchParams.get('userId');
+    userName = url.searchParams.get('userName');
+  }
+  
+  if (!userId || !gameId || !userName) {
+    console.log('Invalid connection parameters, closing connection');
+    ws.close(1008, 'Invalid parameters');
+    return;
+  }
+  
+  // Store connection
+  connections.set(userId, { ws, gameId, userName, color: userColor });
+  
+  // Add to game room
+  if (!gameRooms.has(gameId)) {
+    gameRooms.set(gameId, new Set());
+  }
+  gameRooms.get(gameId).add(userId);
+  
+  console.log(`User ${userName} (${userId}) joined game ${gameId}`);
+  
+  // Notify others in the room
+  broadcastToGame(gameId, {
+    type: 'user_joined',
+    data: {
+      userId,
+      userName,
+      color: userColor,
+      timestamp: Date.now()
+    }
+  }, userId);
+  
+  // Send current room state to new user
+  const roomUsers = Array.from(gameRooms.get(gameId) || []).map(uid => {
+    const conn = connections.get(uid);
+    return conn ? {
+      userId: uid,
+      userName: conn.userName,
+      color: conn.color,
+      timestamp: Date.now()
+    } : null;
+  }).filter(Boolean);
+  
+  ws.send(JSON.stringify({
+    type: 'room_state',
+    data: {
+      gameId,
+      users: roomUsers,
+      timestamp: Date.now()
+    }
+  }));
+  
+  // Handle messages from client
+  ws.on('message', (message) => {
+    try {
+      const data = JSON.parse(message);
+      handleMessage(userId, gameId, data);
+    } catch (error) {
+      console.error('Error parsing message:', error);
+    }
+  });
+  
+  // Handle connection close
+  ws.on('close', () => {
+    console.log(`User ${userName} (${userId}) disconnected from game ${gameId}`);
+    
+    // Remove from connections
+    connections.delete(userId);
+    
+    // Remove from game room
+    if (gameRooms.has(gameId)) {
+      gameRooms.get(gameId).delete(userId);
+      
+      // Clean up empty rooms
+      if (gameRooms.get(gameId).size === 0) {
+        gameRooms.delete(gameId);
+      }
+    }
+    
+    // Notify others
+    broadcastToGame(gameId, {
+      type: 'user_left',
+      data: {
+        userId,
+        userName,
+        timestamp: Date.now()
+      }
+    });
+  });
+  
+  // Handle connection error
+  ws.on('error', (error) => {
+    console.error(`WebSocket error for user ${userId}:`, error);
+  });
+});
+
+// Handle incoming messages
+function handleMessage(userId, gameId, message) {
+  const { type, data } = message;
+  const connection = connections.get(userId);
+  
+  if (!connection) return;
+  
+  switch (type) {
+    case 'heartbeat':
+      // Respond to heartbeat
+      connection.ws.send(JSON.stringify({
+        type: 'heartbeat_response',
+        data: { timestamp: Date.now() }
+      }));
+      break;
+      
+    case 'presence':
+      // Update user presence
+      connection.ws.send(JSON.stringify({
+        type: 'presence_update',
+        data: { ...data, timestamp: Date.now() }
+      }));
+      break;
+      
+    case 'cursor':
+      // Broadcast cursor position to others
+      broadcastToGame(gameId, {
+        type: 'cursor',
+        data: {
+          userId,
+          ...data,
+          timestamp: Date.now()
+        }
+      }, userId);
+      break;
+      
+    case 'action':
+      // Broadcast shared action to others
+      broadcastToGame(gameId, {
+        type: 'action',
+        data: {
+          userId,
+          userName: connection.userName,
+          ...data,
+          timestamp: Date.now()
+        }
+      }, userId);
+      break;
+      
+    default:
+      console.log('Unknown message type:', type);
+  }
+}
+
+// Broadcast message to all users in a game room
+function broadcastToGame(gameId, message, excludeUserId = null) {
+  const roomUsers = gameRooms.get(gameId);
+  if (!roomUsers) return;
+  
+  const messageStr = JSON.stringify(message);
+  
+  roomUsers.forEach(userId => {
+    if (userId === excludeUserId) return;
+    
+    const connection = connections.get(userId);
+    if (connection && connection.ws.readyState === WebSocket.OPEN) {
+      connection.ws.send(messageStr);
+    }
+  });
+}
+
+// Clean up inactive connections periodically
+setInterval(() => {
+  const now = Date.now();
+  connections.forEach((connection, userId) => {
+    if (connection.ws.readyState === WebSocket.OPEN) {
+      // Send ping to check connection
+      connection.ws.ping();
+    } else {
+      // Remove dead connection
+      connections.delete(userId);
+      if (gameRooms.has(connection.gameId)) {
+        gameRooms.get(connection.gameId).delete(userId);
+      }
+    }
+  });
+}, 30000); // Check every 30 seconds
+
+console.log('WebSocket server started on port 8080');
+
 server.listen(port, () => {
   console.log(`GameTracker backend running on http://localhost:${port}`);
   if (allowLocalAuthWrites) {
