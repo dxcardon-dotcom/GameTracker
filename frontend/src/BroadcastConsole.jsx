@@ -15,6 +15,7 @@ import NotificationSystem from './components/NotificationSystem';
 import AnimatedStatsCard from './components/AnimatedStatsCard';
 import ModernDashboard from './components/ModernDashboard';
 import RealTimeCollaboration from './components/RealTimeCollaboration';
+import AIInsights from './components/AIInsights';
 import { colors, spacing, borderRadius, transitions, typography } from './styles/designSystem';
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
@@ -2897,6 +2898,24 @@ export default function BroadcastConsole() {
         >
           📊 Dashboard
         </AnimatedButton>
+        <AnimatedButton 
+          variant={activeTab === 'ai-insights' ? 'primary' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveTab('ai-insights')}
+          style={{ 
+            backgroundColor: activeTab === 'ai-insights' ? colors.primary[600] : 'transparent',
+            color: activeTab === 'ai-insights' ? 'white' : colors.neutral[400],
+            border: 'none',
+            borderRadius: '0.5rem',
+            padding: '0.75rem 1rem',
+            fontSize: '0.875rem',
+            fontWeight: '600',
+            transition: transitions.all,
+            borderBottom: activeTab === 'ai-insights' ? `3px solid ${colors.primary[400]}` : '3px solid transparent',
+          }}
+        >
+          🤖 AI Insights
+        </AnimatedButton>
         <button className={`${styles.tabBarBtn} ${activeTab === 'leaderboard' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('leaderboard')}>🏆 Leaderboard</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'analytics' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('analytics')}>📊 Analytics</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'team-chat' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('team-chat')}>💬 Team Chat</button>
@@ -4576,6 +4595,16 @@ export default function BroadcastConsole() {
           }}
           recentGames={seasonSchedule.slice(-10)}
           playerStats={processedRoster}
+          isLoading={false}
+        />
+      )}
+      {/* AI INSIGHTS TAB */}
+      {activeTab === 'ai-insights' && (
+        <AIInsights
+          playerStats={processedRoster}
+          gameData={seasonSchedule}
+          pitchData={pitchLog}
+          teamData={{ name: teamDisplayName, sport: 'Baseball' }}
           isLoading={false}
         />
       )}
