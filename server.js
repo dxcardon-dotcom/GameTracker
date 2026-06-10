@@ -951,6 +951,27 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  if (req.method === "POST" && requestUrl.pathname === "/api/user/subscribe-push") {
+    try {
+      const user = await requireUser(req);
+      const body = await readBody(req);
+      const { subscription } = body;
+      if (!subscription) {
+        return sendJson(res, 400, { error: "Missing subscription data" });
+      }
+      // Store subscription in Firebase
+      await getDb().collection("pushSubscriptions").doc(user.uid).set({
+        subscription,
+        createdAt: new Date().toISOString(),
+        userAgent: req.headers["user-agent"]
+      });
+      return sendJson(res, 200, { success: true });
+    } catch (error) {
+      console.error("Push subscription error:", error);
+      return sendJson(res, 500, { error: error.message });
+    }
+  }
+
   if (req.method === "POST" && requestUrl.pathname === "/create-portal") {
     try {
       const user = await requireUser(req);

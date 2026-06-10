@@ -2234,6 +2234,36 @@ export default function BroadcastConsole() {
     }
   };
 
+  const subscribeToPushNotifications = async () => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      alert('Push notifications are not supported in this browser.');
+      return;
+    }
+    try {
+      const permission = await Notification.requestPermission();
+      setNotifPermission(permission);
+      if (permission !== 'granted') {
+        alert('Please allow notifications to receive game alerts.');
+        return;
+      }
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: new Uint8Array(atob(import.meta.env.VITE_VAPID_PUBLIC_KEY || '').split('').map(c => c.charCodeAt(0)))
+      });
+      const token = await user.getIdToken();
+      await fetch(`${apiBaseUrl}/api/user/subscribe-push`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription })
+      });
+      alert('✅ Notifications enabled! You\'ll get alerts for live games.');
+    } catch (error) {
+      console.error('Failed to subscribe to push notifications:', error);
+      alert('Failed to enable notifications. Please try again.');
+    }
+  };
+
   const handleCreateTeam = async () => {
     if (!user || !newTeamName.trim()) return;
     setNewTeamStatus('Creating…');
@@ -2380,6 +2410,7 @@ export default function BroadcastConsole() {
     { label: 'Schedule a game', done: seasonSchedule.length > 0 },
     { label: 'Score a live game', done: pitchCount > 0 || recentEvents.length > 0 },
     { label: 'Share fan link with parents', done: Boolean(localStorage.getItem('gt_fan_shared')) },
+    { label: 'Enable push notifications', done: notifPermission === 'granted' },
   ];
   const onboardingPct = Math.round((onboardingSteps.filter(s => s.done).length / onboardingSteps.length) * 100);
   const onboardingComplete = onboardingSteps.every(s => s.done);
@@ -4391,6 +4422,9 @@ export default function BroadcastConsole() {
                   <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center', background: step.done ? 'rgba(34,197,94,0.07)' : '#020617', border: `1px solid ${step.done ? 'rgba(34,197,94,0.25)' : '#1e293b'}`, borderRadius: '8px', padding: '10px 12px' }}>
                     <span style={{ fontSize: '16px', flexShrink: 0 }}>{step.done ? '✅' : '⬜'}</span>
                     <span style={{ fontSize: '12px', color: step.done ? '#86efac' : '#64748b', fontWeight: step.done ? '700' : '400' }}>{step.label}</span>
+                    {step.label === 'Enable push notifications' && !step.done && userLimits.pushNotifications && (
+                      <button onClick={subscribeToPushNotifications} style={{ background: '#38bdf8', color: '#020617', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', marginLeft: 'auto' }}>Enable</button>
+                    )}
                   </div>
                 ))}
               </div>
