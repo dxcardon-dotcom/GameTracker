@@ -1,4 +1,6 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { doc, onSnapshot, collection, query, orderBy, limit } from 'firebase/firestore';
+import { db } from './firebase';
 import './FanGameStream.css';
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
@@ -67,15 +69,64 @@ export default function FanGameStream() {
   const [notifStatus, setNotifStatus] = useState(() =>
     typeof Notification !== 'undefined' ? Notification.permission : 'default'
   );
+  const [connected, setConnected] = useState(false);
+  const eventsEndRef = useRef(null);
 
   const gameId = new URLSearchParams(window.location.search).get('game') || defaultLiveGameId;
   const shareUrl = `${window.location.origin}/fan?game=${encodeURIComponent(gameId)}`;
   const playerProfileUrl = (player) => `/player?game=${encodeURIComponent(gameId)}&player=${encodeURIComponent(player?.id || '')}`;
 
+  // Real-time Firebase subscription
   useEffect(() => {
     let alive = true;
 
-    const loadStream = async () => {
+    // Subscribe to live game state
+    const gameRef = doc(db, 'liveGames', gameId);
+    const unsubscribeGame = onSnapshot(gameRef, (doc) => {
+      if (!alive) return;
+      
+      if (doc.exists()) {
+        const gameData = doc.data();
+        setStream(prev => ({
+          ...prev,
+          game: gameData,
+          teamProfile: gameData.teamProfile || {}
+        }));
+        setConnected(true);
+        setStatus('Live');
+      } else {
+        // Fallback to API if Firebase game not found
+        loadStreamFromAPI();
+      }
+    }, (err) => {
+      if (!alive) return;
+      console.error('Firebase game subscription error:', err);
+      // Fallback to API
+      loadStreamFromAPI();
+    });
+
+    // Subscribe to events
+    const eventsRef = collection(db, 'liveGames', gameId, 'events');
+    const eventsQuery = query(eventsRef, orderBy('timestamp', 'desc'), limit(50));
+    const unsubscribeEvents = onSnapshot(eventsQuery, (snapshot) => {
+      if (!alive) return;
+      
+      const eventsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })).reverse(); // Show oldest first
+      
+      setStream(prev => ({
+        ...prev,
+        events: eventsData
+      }));
+    }, (err) => {
+      if (!alive) return;
+      console.error('Firebase events subscription error:', err);
+    });
+
+    // Fallback API loader
+    const loadStreamFromAPI = async () => {
       try {
         const response = await fetch(`${apiBaseUrl}/api/public/games/${encodeURIComponent(gameId)}/stream`);
         const data = await response.json();
@@ -84,7 +135,8 @@ export default function FanGameStream() {
         if (!alive) return;
 
         setStream(data);
-        setStatus('Live');
+        setConnected(false);
+        setStatus('Live (Polling)');
       } catch (error) {
         if (!alive) return;
         console.error(error);
@@ -92,14 +144,17 @@ export default function FanGameStream() {
       }
     };
 
-    loadStream();
-    const interval = window.setInterval(loadStream, 4000);
-
     return () => {
       alive = false;
-      window.clearInterval(interval);
+      unsubscribeGame();
+      unsubscribeEvents();
     };
   }, [gameId]);
+
+  // Auto-scroll events to bottom
+  useEffect(() => {
+    eventsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [stream?.events]);
 
   const game = stream?.game || {};
   const roster = stream?.roster || [];
@@ -270,7 +325,18 @@ export default function FanGameStream() {
           </div>
         </div>
         <div className="fanHeroActions">
-          <span className={status === 'Live' ? 'fanLivePill' : 'fanOfflinePill'}>{status === 'Live' ? '🔴 LIVE' : status}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ 
+              width: '8px', 
+              height: '8px', 
+              borderRadius: '50%', 
+              background: connected ? '#22c55e' : '#f59e0b',
+              animation: connected ? 'pulse 2s infinite' : 'none'
+            }} />
+            <span className={status === 'Live' ? 'fanLivePill' : 'fanOfflinePill'}>
+              {status === 'Live' ? '🔴 LIVE' : status}
+            </span>
+          </div>
           {notifStatus !== 'granted' ? (
             <button onClick={subscribeNotifs} className="fanSubBtn">🔔 Subscribe</button>
           ) : (
