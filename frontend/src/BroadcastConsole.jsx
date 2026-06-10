@@ -17,6 +17,7 @@ import ModernDashboard from './components/ModernDashboard';
 import RealTimeCollaboration from './components/RealTimeCollaboration';
 import AIInsights from './components/AIInsights';
 import AdminDashboard from './components/AdminDashboard';
+import GamificationSystem from './components/GamificationSystem';
 import { colors, spacing, borderRadius, transitions, typography } from './styles/designSystem';
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
@@ -2935,6 +2936,24 @@ export default function BroadcastConsole() {
         >
           🛠️ Admin
         </AnimatedButton>
+        <AnimatedButton 
+          variant={activeTab === 'gamification' ? 'primary' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveTab('gamification')}
+          style={{ 
+            backgroundColor: activeTab === 'gamification' ? colors.primary[600] : 'transparent',
+            color: activeTab === 'gamification' ? 'white' : colors.neutral[400],
+            border: 'none',
+            borderRadius: '0.5rem',
+            padding: '0.75rem 1rem',
+            fontSize: '0.875rem',
+            fontWeight: '600',
+            transition: transitions.all,
+            borderBottom: activeTab === 'gamification' ? `3px solid ${colors.primary[400]}` : '3px solid transparent',
+          }}
+        >
+          🎮 Achievements
+        </AnimatedButton>
         <button className={`${styles.tabBarBtn} ${activeTab === 'leaderboard' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('leaderboard')}>🏆 Leaderboard</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'analytics' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('analytics')}>📊 Analytics</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'team-chat' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('team-chat')}>💬 Team Chat</button>
@@ -4632,6 +4651,27 @@ export default function BroadcastConsole() {
         <AdminDashboard
           user={user}
           adminData={{}}
+          isLoading={false}
+        />
+      )}
+      {/* GAMIFICATION TAB */}
+      {activeTab === 'gamification' && (
+        <GamificationSystem
+          user={user}
+          userStats={{
+            gamesScored: seasonSchedule?.length || 0,
+            perfectGames: 2,
+            collaborators: 8,
+            aiInsightsUsed: 15,
+            totalHomeRuns: processedRoster?.reduce((sum, p) => sum + (p.hr || 0), 0) || 0,
+            defensivePlays: 45,
+            stolenBases: 12,
+            streak: 5,
+            earlyGames: 3,
+            lateGames: 2
+          }}
+          teamData={{ name: teamDisplayName, sport: 'Baseball' }}
+          achievements={[]}
           isLoading={false}
         />
       )}
