@@ -22,10 +22,14 @@ import SecurityCenter from './components/SecurityCenter';
 import CommunityHub from './components/CommunityHub';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import { colors, spacing, borderRadius, transitions, typography } from './styles/designSystem';
+import './styles/animations.css';
 
 // Lazy load heavy components for better performance
 const AdvancedMetrics = lazy(() => import('./components/AdvancedMetrics'));
 const PlayerDevelopment = lazy(() => import('./components/PlayerDevelopment'));
+const UserOnboarding = lazy(() => import('./components/UserOnboarding'));
+const PushNotifications = lazy(() => import('./components/PushNotifications'));
+const EmailIntegration = lazy(() => import('./components/EmailIntegration'));
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 const defaultTeamId = import.meta.env.VITE_DEFAULT_TEAM_ID || 'e3UukXkIjMHcr0uB5rZ3';
@@ -238,6 +242,32 @@ export default function BroadcastConsole() {
   const [goalCategory, setGoalCategory] = useState('hitting'); // 'hitting', 'fielding', 'pitching', 'baseRunning'
   const [goalTarget, setGoalTarget] = useState('');
   const [goalDeadline, setGoalDeadline] = useState('');
+
+  // 🎨 UI/UX Enhancement States
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [animationsEnabled, setAnimationsEnabled] = useState(true);
+  const [theme, setTheme] = useState('dark'); // 'dark', 'light', 'auto'
+
+  // 🔔 Notification System States
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [notificationSettings, setNotificationSettings] = useState({
+    gameUpdates: true,
+    scoreChanges: true,
+    playerMilestones: true,
+    teamAchievements: true
+  });
+
+  // 📧 Email Integration States
+  const [emailEnabled, setEmailEnabled] = useState(false);
+  const [emailConfig, setEmailConfig] = useState({
+    recipientEmail: '',
+    gameReports: true,
+    weeklySummaries: true,
+    playerUpdates: true
+  });
+
+  // ⚙️ Settings Panel State
+  const [showSettings, setShowSettings] = useState(false);
 
   // 📋 Game Day Checklist
   const [checklistItems, setChecklistItems] = useState([
@@ -8429,6 +8459,24 @@ export default function BroadcastConsole() {
                       />
                     </Suspense>
 
+                    {/* ── EMAIL INTEGRATION PANEL ── */}
+                    <Suspense fallback={
+                      <div style={{ 
+                        background: '#0a0f1f', 
+                        border: '1px solid #1e293b', 
+                        borderRadius: '12px', 
+                        padding: '12px', 
+                        marginBottom: '10px',
+                        textAlign: 'center',
+                        color: '#64748b',
+                        fontSize: '9px'
+                      }}>
+                        📧 Loading Email Integration...
+                      </div>
+                    }>
+                      <EmailIntegration />
+                    </Suspense>
+
                     {/* ── EVENT EDIT MODAL ── */}
                     {editingEvent && (
                       <div style={{ 
@@ -10965,6 +11013,21 @@ export default function BroadcastConsole() {
         </div>
       </div>
     )}
+
+    {/* ── GLOBAL COMPONENTS ── */}
+    
+    {/* User Onboarding */}
+    <Suspense fallback={null}>
+      <UserOnboarding
+        isVisible={showOnboarding}
+        onComplete={() => setShowOnboarding(false)}
+      />
+    </Suspense>
+
+    {/* Push Notifications */}
+    <Suspense fallback={null}>
+      <PushNotifications />
+    </Suspense>
 
     </div>
   );

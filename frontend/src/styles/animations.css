@@ -1,0 +1,253 @@
+/* GameTracker Animations & Transitions */
+
+/* Keyframe Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes bounce {
+  0%, 20%, 53%, 80%, 100% { transform: translateY(0); }
+  40%, 43% { transform: translateY(-10px); }
+  70% { transform: translateY(-5px); }
+  90% { transform: translateY(-2px); }
+}
+
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 5px rgba(56, 189, 248, 0.5); }
+  50% { box-shadow: 0 0 20px rgba(56, 189, 248, 0.8); }
+}
+
+@keyframes slideDown {
+  from { max-height: 0; opacity: 0; }
+  to { max-height: 500px; opacity: 1; }
+}
+
+@keyframes countUp {
+  from { transform: scale(0.5); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+  20%, 40%, 60%, 80% { transform: translateX(2px); }
+}
+
+/* Utility Classes */
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+.pulse {
+  animation: pulse 2s infinite;
+}
+
+.bounce {
+  animation: bounce 1s infinite;
+}
+
+.glow {
+  animation: glow 2s infinite;
+}
+
+.slide-down {
+  animation: slideDown 0.3s ease-out;
+}
+
+.count-up {
+  animation: countUp 0.5s ease-out;
+}
+
+.shake {
+  animation: shake 0.5s ease-out;
+}
+
+/* Button Transitions */
+.btn-hover {
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+}
+
+.btn-hover:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(56, 189, 248, 0.2);
+}
+
+.btn-hover::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.btn-hover:hover::before {
+  width: 300px;
+  height: 300px;
+}
+
+/* Card Hover Effects */
+.card-hover {
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+
+.card-hover:active {
+  transform: translateY(-2px);
+}
+
+/* Loading Skeleton */
+.skeleton {
+  background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+}
+
+@keyframes skeleton-loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Smooth Scroll */
+.smooth-scroll {
+  scroll-behavior: smooth;
+}
+
+/* Notification Animations */
+.notification-enter {
+  animation: slideIn 0.3s ease-out;
+}
+
+.notification-exit {
+  animation: slideOut 0.3s ease-out;
+}
+
+@keyframes slideOut {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(100%); opacity: 0; }
+}
+
+/* Progress Bar Animation */
+.progress-fill {
+  transition: width 0.5s ease-out;
+}
+
+/* Score Update Animation */
+.score-update {
+  animation: countUp 0.5s ease-out, glow 1s ease-out;
+}
+
+/* Tab Switch Animation */
+.tab-switch {
+  transition: all 0.3s ease;
+}
+
+.tab-switch.active {
+  transform: scale(1.05);
+  box-shadow: 0 0 15px rgba(56, 189, 248, 0.5);
+}
+
+/* Modal Animation */
+.modal-enter {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.modal-backdrop {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Responsive Animations */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Performance Optimizations */
+.gpu-accelerated {
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+/* Loading Spinner */
+.spinner {
+  border: 2px solid #1e293b;
+  border-top: 2px solid #38bdf8;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Tooltip Animation */
+.tooltip {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.tooltip.show {
+  opacity: 1;
+}
+
+/* Badge Animation */
+.badge-bounce {
+  animation: bounce 0.5s ease-out;
+}
+
+/* Success/Error States */
+.success-flash {
+  animation: success-flash 0.5s ease-out;
+}
+
+@keyframes success-flash {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: rgba(34, 197, 94, 0.2); }
+}
+
+.error-flash {
+  animation: error-flash 0.5s ease-out;
+}
+
+@keyframes error-flash {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: rgba(239, 68, 68, 0.2); }
+}
