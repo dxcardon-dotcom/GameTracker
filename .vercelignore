@@ -1,0 +1,6 @@
+server.js
+src/
+scripts/
+node_modules/
+.env*
+firebase-service-account.json
