@@ -20,6 +20,7 @@ import AdminDashboard from './components/AdminDashboard';
 import GamificationSystem from './components/GamificationSystem';
 import SecurityCenter from './components/SecurityCenter';
 import CommunityHub from './components/CommunityHub';
+import AnalyticsDashboard from './components/AnalyticsDashboard';
 import { colors, spacing, borderRadius, transitions, typography } from './styles/designSystem';
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
@@ -2992,6 +2993,24 @@ export default function BroadcastConsole() {
         >
           🌐 Community
         </AnimatedButton>
+        <AnimatedButton 
+          variant={activeTab === 'analytics' ? 'primary' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveTab('analytics')}
+          style={{ 
+            backgroundColor: activeTab === 'analytics' ? colors.primary[600] : 'transparent',
+            color: activeTab === 'analytics' ? 'white' : colors.neutral[400],
+            border: 'none',
+            borderRadius: '0.5rem',
+            padding: '0.75rem 1rem',
+            fontSize: '0.875rem',
+            fontWeight: '600',
+            transition: transitions.all,
+            borderBottom: activeTab === 'analytics' ? `3px solid ${colors.primary[400]}` : '3px solid transparent',
+          }}
+        >
+          📊 Analytics
+        </AnimatedButton>
         <button className={`${styles.tabBarBtn} ${activeTab === 'leaderboard' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('leaderboard')}>🏆 Leaderboard</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'analytics' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('analytics')}>📊 Analytics</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'team-chat' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('team-chat')}>💬 Team Chat</button>
@@ -4732,6 +4751,14 @@ export default function BroadcastConsole() {
         <CommunityHub
           user={user}
           communityData={{}}
+          isLoading={false}
+        />
+      )}
+      {/* ANALYTICS TAB */}
+      {activeTab === 'analytics' && (
+        <AnalyticsDashboard
+          user={user}
+          analyticsData={{}}
           isLoading={false}
         />
       )}
