@@ -1,0 +1,86 @@
+{
+  "version": 2,
+  "name": "gametracker",
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/static/(.*)",
+      "headers": {
+        "cache-control": "s-maxage=31536000,immutable"
+      },
+      "dest": "/static/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/static/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/index.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
+      ]
+    }
+  ],
+  "env": {
+    "VITE_API_BASE_URL": "@api_base_url",
+    "VITE_DEFAULT_TEAM_ID": "@default_team_id",
+    "VITE_DEFAULT_LIVE_GAME_ID": "@default_live_game_id"
+  },
+  "build": {
+    "env": {
+      "VITE_API_BASE_URL": "@api_base_url",
+      "VITE_DEFAULT_TEAM_ID": "@default_team_id",
+      "VITE_DEFAULT_LIVE_GAME_ID": "@default_live_game_id"
+    }
+  },
+  "functions": {},
+  "regions": ["iad1"],
+  "framework": "vite"
+}
