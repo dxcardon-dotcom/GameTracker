@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import styles from './BroadcastConsole.module.css';
 import { db, storage } from './firebase';
-import { collection, doc, limit, onSnapshot, orderBy, query, setDoc } from 'firebase/firestore';
+import { collection, doc, limit, onSnapshot, orderBy, query, setDoc, deleteDoc } from 'firebase/firestore';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getDownloadURL, ref, uploadBytesResumable } from 'firebase/storage';
 import ScoutingReportTab from './ScoutingReportTab';
@@ -154,6 +154,13 @@ export default function BroadcastConsole() {
   const [eventHistory, setEventHistory] = useState([]);
   const [correctionMode, setCorrectionMode] = useState(false);
   const [selectedEvents, setSelectedEvents] = useState([]);
+
+  // 📋 Lineup Templates & Presets
+  const [lineupTemplates, setLineupTemplates] = useState([]);
+  const [showTemplateManager, setShowTemplateManager] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [templateType, setTemplateType] = useState('batting'); // 'batting' or 'fielding'
+  const [opponentType, setOpponentType] = useState('generic'); // 'lefty', 'righty', 'generic'
 
   // 📋 Game Day Checklist
   const [checklistItems, setChecklistItems] = useState([
@@ -1022,6 +1029,148 @@ export default function BroadcastConsole() {
       setSyncStatus('Revert error');
     }
   };
+
+  // 📋 Lineup Template Functions
+  const saveLineupTemplate = async () => {
+    if (!user || !templateName.trim()) return;
+    
+    try {
+      const template = {
+        id: Date.now().toString(),
+        name: templateName.trim(),
+        type: templateType,
+        opponentType,
+        createdAt: new Date().toISOString(),
+        season: selectedSeason,
+        lineup: activeLineupEntries.map(entry => ({
+          playerId: entry.player?.id,
+          position: entry.position,
+          battingOrder: entry.battingOrder,
+          status: entry.status
+        }))
+      };
+      
+      // Save to Firestore
+      await setDoc(doc(db, 'seasons', selectedSeason, 'lineupTemplates', template.id), template);
+      
+      // Update local state
+      setLineupTemplates(prev => [...prev, template]);
+      setTemplateName('');
+      setLastPlaySummary(`Lineup template "${template.name}" saved`);
+    } catch (error) {
+      console.error('Failed to save lineup template:', error);
+      setSyncStatus('Template save error');
+    }
+  };
+
+  const loadLineupTemplate = async (templateId) => {
+    if (!user) return;
+    
+    try {
+      const template = lineupTemplates.find(t => t.id === templateId);
+      if (!template) return;
+      
+      // Apply template to current lineup
+      const newLineupEntries = template.lineup.map((templateEntry, index) => {
+        const player = processedRoster.find(p => p.id === templateEntry.playerId);
+        return {
+          id: `lineup-${index}`,
+          player,
+          position: templateEntry.position || player?.primaryPosition || '',
+          battingOrder: templateEntry.battingOrder || index + 1,
+          status: templateEntry.status || 'starter'
+        };
+      });
+      
+      setLineupEntries(newLineupEntries);
+      setLastPlaySummary(`Loaded lineup template "${template.name}"`);
+      setShowTemplateManager(false);
+    } catch (error) {
+      console.error('Failed to load lineup template:', error);
+      setSyncStatus('Template load error');
+    }
+  };
+
+  const deleteLineupTemplate = async (templateId) => {
+    if (!user) return;
+    
+    try {
+      await deleteDoc(doc(db, 'seasons', selectedSeason, 'lineupTemplates', templateId));
+      setLineupTemplates(prev => prev.filter(t => t.id !== templateId));
+      setLastPlaySummary('Lineup template deleted');
+    } catch (error) {
+      console.error('Failed to delete lineup template:', error);
+      setSyncStatus('Template delete error');
+    }
+  };
+
+  const createQuickTemplate = (type) => {
+    const templates = {
+      'vs-lefty': {
+        name: 'vs LHP',
+        opponentType: 'lefty',
+        lineup: generateOptimalLineup('lefty')
+      },
+      'vs-righty': {
+        name: 'vs RHP',
+        opponentType: 'righty',
+        lineup: generateOptimalLineup('righty')
+      },
+      'tournament': {
+        name: 'Tournament',
+        opponentType: 'generic',
+        lineup: generateOptimalLineup('generic')
+      }
+    };
+    
+    const template = templates[type];
+    if (template) {
+      setTemplateName(template.name);
+      setOpponentType(template.opponentType);
+      // Apply the lineup immediately
+      const newLineupEntries = template.lineup.map((player, index) => ({
+        id: `lineup-${index}`,
+        player,
+        position: player.primaryPosition || '',
+        battingOrder: index + 1,
+        status: 'starter'
+      }));
+      setLineupEntries(newLineupEntries);
+      setLastPlaySummary(`Applied ${template.name} template`);
+    }
+  };
+
+  const generateOptimalLineup = (opponentType) => {
+    // Simple lineup optimization based on player stats
+    const sortedPlayers = [...processedRoster]
+      .filter(p => p.availability !== 'unavailable')
+      .sort((a, b) => {
+        // Sort by batting average, then by experience
+        const aAvg = parseFloat(a.avg || '0');
+        const bAvg = parseFloat(b.avg || '0');
+        if (bAvg !== aAvg) return bAvg - aAvg;
+        return (a.classYear || 0) - (b.classYear || 0);
+      });
+    
+    // Return top 9 players
+    return sortedPlayers.slice(0, 9);
+  };
+
+  // Load templates from Firestore
+  useEffect(() => {
+    if (!user || !selectedSeason) return;
+    
+    const templatesRef = collection(db, 'seasons', selectedSeason, 'lineupTemplates');
+    const unsubscribe = onSnapshot(templatesRef, (snapshot) => {
+      const templates = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setLineupTemplates(templates);
+    });
+    
+    return unsubscribe;
+  }, [user, selectedSeason]);
 
   const isOurTeamBatting = () => (scoringLocation === 'Away' ? isTopInning : !isTopInning);
 
@@ -3923,6 +4072,10 @@ export default function BroadcastConsole() {
 
                 {/* Field view + full-screen toggles */}
                 <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                  <button onClick={() => setShowTemplateManager(v => !v)}
+                    style={{ background: showTemplateManager ? 'rgba(56,189,248,0.15)' : '#0f172a', border: `1px solid ${showTemplateManager ? '#38bdf8' : '#334155'}`, borderRadius: '8px', color: showTemplateManager ? '#38bdf8' : '#64748b', cursor: 'pointer', fontSize: '14px', padding: '6px 9px' }} title="Lineup templates">
+                    📋
+                  </button>
                   <button onClick={() => setShowPlayLog(v => !v)}
                     style={{ background: showPlayLog ? 'rgba(56,189,248,0.15)' : '#0f172a', border: `1px solid ${showPlayLog ? '#38bdf8' : '#334155'}`, borderRadius: '8px', color: showPlayLog ? '#38bdf8' : '#64748b', cursor: 'pointer', fontSize: '14px', padding: '6px 9px' }} title="Toggle play log">
                     📝
@@ -4982,6 +5135,191 @@ export default function BroadcastConsole() {
                             </button>
                           </div>
                         )}
+                      </div>
+                    )}
+
+                    {/* ── LINEUP TEMPLATE MANAGER ── */}
+                    {showTemplateManager && (
+                      <div style={{ background: '#0a0f1f', border: '1px solid #1e293b', borderRadius: '12px', padding: '12px', marginBottom: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                          <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '800', textTransform: 'uppercase' }}>📋 Lineup Templates</span>
+                          <button onClick={() => setShowTemplateManager(false)} style={{ background: 'transparent', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '14px' }}>✕</button>
+                        </div>
+                        
+                        {/* Quick Templates */}
+                        <div style={{ marginBottom: '12px' }}>
+                          <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '6px', textTransform: 'uppercase' }}>Quick Templates</div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+                            <button
+                              onClick={() => createQuickTemplate('vs-lefty')}
+                              style={{ 
+                                background: '#0f172a', 
+                                color: '#38bdf8', 
+                                border: '1px solid #334155', 
+                                borderRadius: '6px', 
+                                padding: '6px 8px', 
+                                fontSize: '9px', 
+                                fontWeight: '600', 
+                                cursor: 'pointer' 
+                              }}
+                            >
+                              vs LHP
+                            </button>
+                            <button
+                              onClick={() => createQuickTemplate('vs-righty')}
+                              style={{ 
+                                background: '#0f172a', 
+                                color: '#38bdf8', 
+                                border: '1px solid #334155', 
+                                borderRadius: '6px', 
+                                padding: '6px 8px', 
+                                fontSize: '9px', 
+                                fontWeight: '600', 
+                                cursor: 'pointer' 
+                              }}
+                            >
+                              vs RHP
+                            </button>
+                            <button
+                              onClick={() => createQuickTemplate('tournament')}
+                              style={{ 
+                                background: '#0f172a', 
+                                color: '#38bdf8', 
+                                border: '1px solid #334155', 
+                                borderRadius: '6px', 
+                                padding: '6px 8px', 
+                                fontSize: '9px', 
+                                fontWeight: '600', 
+                                cursor: 'pointer' 
+                              }}
+                            >
+                              Tournament
+                            </button>
+                          </div>
+                        </div>
+                        
+                        {/* Save Current Lineup */}
+                        <div style={{ marginBottom: '12px' }}>
+                          <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '6px', textTransform: 'uppercase' }}>Save Current Lineup</div>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <input
+                              type="text"
+                              value={templateName}
+                              onChange={e => setTemplateName(e.target.value)}
+                              placeholder="Template name"
+                              style={{ 
+                                background: '#0f172a', 
+                                border: '1px solid #334155', 
+                                borderRadius: '6px', 
+                                color: '#fff', 
+                                padding: '6px 8px', 
+                                fontSize: '10px', 
+                                flex: 1 
+                              }}
+                            />
+                            <select
+                              value={opponentType}
+                              onChange={e => setOpponentType(e.target.value)}
+                              style={{ 
+                                background: '#0f172a', 
+                                border: '1px solid #334155', 
+                                borderRadius: '6px', 
+                                color: '#fff', 
+                                padding: '6px 8px', 
+                                fontSize: '10px' 
+                              }}
+                            >
+                              <option value="generic">Generic</option>
+                              <option value="lefty">vs LHP</option>
+                              <option value="righty">vs RHP</option>
+                            </select>
+                            <button
+                              onClick={saveLineupTemplate}
+                              disabled={!templateName.trim()}
+                              style={{ 
+                                background: templateName.trim() ? '#22c55e' : '#1e293b', 
+                                color: templateName.trim() ? '#fff' : '#64748b', 
+                                border: 'none', 
+                                borderRadius: '6px', 
+                                padding: '6px 12px', 
+                                fontSize: '9px', 
+                                fontWeight: '600', 
+                                cursor: templateName.trim() ? 'pointer' : 'not-allowed' 
+                              }}
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                        
+                        {/* Saved Templates */}
+                        <div>
+                          <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '6px', textTransform: 'uppercase' }}>Saved Templates</div>
+                          <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                            {lineupTemplates.length === 0 ? (
+                              <div style={{ textAlign: 'center', color: '#64748b', fontSize: '10px', padding: '20px' }}>
+                                No saved templates yet
+                              </div>
+                            ) : (
+                              lineupTemplates.map(template => (
+                                <div 
+                                  key={template.id}
+                                  style={{ 
+                                    background: '#0f172a', 
+                                    border: '1px solid #1e293b', 
+                                    borderRadius: '6px', 
+                                    padding: '8px', 
+                                    marginBottom: '6px' 
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                    <span style={{ fontSize: '11px', color: '#e2e8f0', fontWeight: '600' }}>
+                                      {template.name}
+                                    </span>
+                                    <span style={{ fontSize: '9px', color: '#64748b', background: '#1e293b', padding: '2px 6px', borderRadius: '4px' }}>
+                                      {template.opponentType}
+                                    </span>
+                                  </div>
+                                  <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '6px' }}>
+                                    {template.lineup?.length || 0} players • {new Date(template.createdAt).toLocaleDateString()}
+                                  </div>
+                                  <div style={{ display: 'flex', gap: '4px' }}>
+                                    <button
+                                      onClick={() => loadLineupTemplate(template.id)}
+                                      style={{ 
+                                        background: '#38bdf8', 
+                                        color: '#020617', 
+                                        border: 'none', 
+                                        borderRadius: '4px', 
+                                        padding: '4px 8px', 
+                                        fontSize: '8px', 
+                                        fontWeight: '600', 
+                                        cursor: 'pointer' 
+                                      }}
+                                    >
+                                      Load
+                                    </button>
+                                    <button
+                                      onClick={() => deleteLineupTemplate(template.id)}
+                                      style={{ 
+                                        background: '#ef4444', 
+                                        color: '#fff', 
+                                        border: 'none', 
+                                        borderRadius: '4px', 
+                                        padding: '4px 8px', 
+                                        fontSize: '8px', 
+                                        fontWeight: '600', 
+                                        cursor: 'pointer' 
+                                      }}
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
                       </div>
                     )}
 
