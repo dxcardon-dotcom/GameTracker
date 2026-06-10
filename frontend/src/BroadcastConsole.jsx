@@ -2452,6 +2452,7 @@ export default function BroadcastConsole() {
         <button className={`${styles.tabBarBtn} ${activeTab === 'analytics' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('analytics')}>📊 Analytics</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'team-chat' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('team-chat')}>💬 Team Chat</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'tournaments' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('tournaments')}>🏟️ Tournaments</button>
+        <button className={`${styles.tabBarBtn} ${activeTab === 'live-stream' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('live-stream')}>📹 Live Stream</button>
         <button className={`${styles.tabBarBtn} ${activeTab === 'upgrade' ? styles.tabBarBtnActive : ''}`} onClick={() => setActiveTab('upgrade')} style={{ marginLeft: 'auto', color: activeTab === 'upgrade' ? '#fff' : '#f59e0b', background: activeTab === 'upgrade' ? '#854d0e' : 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.4)' }}>⭐ Upgrade</button>
       </div>
 
@@ -4918,6 +4919,194 @@ export default function BroadcastConsole() {
                     </div>
                   ))}
                 </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* LIVE STREAM TAB */}
+      {activeTab === 'live-stream' && (
+        <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+            <h2 style={{ color: '#fff', fontSize: '28px', margin: '0 0 8px' }}>📹 Live Stream</h2>
+            <p style={{ color: '#94a3b8', margin: 0, fontSize: '14px' }}>Broadcast games live with integrated streaming platforms</p>
+          </div>
+
+          {!user && (
+            <div style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '12px', padding: '20px', textAlign: 'center', marginBottom: '32px' }}>
+              <p style={{ color: '#94a3b8', margin: '0 0 16px' }}>Sign in to start live streaming games</p>
+              <button onClick={() => setShowAuthModal(true)} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px 24px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>Sign In</button>
+            </div>
+          )}
+
+          {user && userPlan !== 'org' && (
+            <div style={{ background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.3)', borderRadius: '12px', padding: '20px', textAlign: 'center', marginBottom: '32px' }}>
+              <h3 style={{ color: '#a78bfa', margin: '0 0 8px' }}>🔒 Organization Feature</h3>
+              <p style={{ color: '#94a3b8', margin: '0 0 16px' }}>Live streaming requires an Organization plan for professional broadcasting tools.</p>
+              <button onClick={() => setActiveTab('upgrade')} style={{ background: '#a78bfa', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px 24px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>
+                Upgrade to Organization
+              </button>
+            </div>
+          )}
+
+          {user && userPlan === 'org' && (
+            <>
+              {/* Stream Setup */}
+              <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '24px', marginBottom: '24px' }}>
+                <h3 style={{ color: '#fff', margin: '0 0 16px', fontSize: '18px' }}>🎥 Start New Stream</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', color: '#e2e8f0', fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>
+                      Streaming Platform
+                    </label>
+                    <select style={{ width: '100%', background: '#020617', border: '1px solid #334155', borderRadius: '8px', padding: '12px', color: '#fff', fontSize: '14px' }}>
+                      <option>YouTube Live</option>
+                      <option>Twitch</option>
+                      <option>Facebook Live</option>
+                      <option>Custom RTMP</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', color: '#e2e8f0', fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>
+                      Stream Title
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Irvin Rockets vs Westlake Warriors"
+                      style={{ width: '100%', background: '#020617', border: '1px solid #334155', borderRadius: '8px', padding: '12px', color: '#fff', fontSize: '14px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', color: '#e2e8f0', fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>
+                      Quality
+                    </label>
+                    <select style={{ width: '100%', background: '#020617', border: '1px solid #334155', borderRadius: '8px', padding: '12px', color: '#fff', fontSize: '14px' }}>
+                      <option>1080p HD</option>
+                      <option>720p</option>
+                      <option>480p</option>
+                    </select>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px 24px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    🔴 Go Live
+                  </button>
+                  <button style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '12px 24px', fontSize: '14px', color: '#94a3b8', cursor: 'pointer' }}>
+                    Test Stream
+                  </button>
+                </div>
+              </div>
+
+              {/* Active Stream Preview */}
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px', marginBottom: '24px' }}>
+                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px' }}>
+                  <h3 style={{ color: '#fff', margin: '0 0 16px', fontSize: '16px' }}>📺 Stream Preview</h3>
+                  <div style={{ background: '#020617', border: '1px solid #334155', borderRadius: '8px', aspectRatio: '16/9', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '48px', marginBottom: '8px' }}>📹</div>
+                      <p style={{ color: '#64748b', margin: 0, fontSize: '14px' }}>Stream preview will appear here</p>
+                      <p style={{ color: '#38bdf8', margin: '4px 0 0', fontSize: '12px' }}>Connect your streaming platform to begin</p>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button style={{ flex: 1, background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', padding: '8px', color: '#94a3b8', fontSize: '12px', cursor: 'pointer' }}>
+                      📊 View Stats
+                    </button>
+                    <button style={{ flex: 1, background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', padding: '8px', color: '#94a3b8', fontSize: '12px', cursor: 'pointer' }}>
+                      💬 Chat
+                    </button>
+                    <button style={{ flex: 1, background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', padding: '8px', color: '#94a3b8', fontSize: '12px', cursor: 'pointer' }}>
+                      ⚙️ Settings
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px' }}>
+                  <h3 style={{ color: '#fff', margin: '0 0 16px', fontSize: '16px' }}>📈 Stream Stats</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {[
+                      { label: 'Viewers', value: '247', change: '+12' },
+                      { label: 'Watch Time', value: '45m', change: '+8m' },
+                      { label: 'Peak Viewers', value: '312', change: '+25' },
+                      { label: 'Chat Messages', value: '89', change: '+15' }
+                    ].map((stat, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < 3 ? '1px solid #1e293b' : 'none' }}>
+                        <span style={{ color: '#94a3b8', fontSize: '13px' }}>{stat.label}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ color: '#fff', fontSize: '14px', fontWeight: 'bold' }}>{stat.value}</span>
+                          <span style={{ color: '#22c55e', fontSize: '12px' }}>↑{stat.change}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Stream Features */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '32px', marginBottom: '8px' }}>🎯</div>
+                  <h4 style={{ color: '#fff', margin: '0 0 8px', fontSize: '14px' }}>Score Overlay</h4>
+                  <p style={{ color: '#64748b', margin: 0, fontSize: '12px' }}>Automatic live score overlay on stream</p>
+                </div>
+                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '32px', marginBottom: '8px' }}>💬</div>
+                  <h4 style={{ color: '#fff', margin: '0 0 8px', fontSize: '14px' }}>Live Chat</h4>
+                  <p style={{ color: '#64748b', margin: 0, fontSize: '12px' }}>Integrated chat with moderation tools</p>
+                </div>
+                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '32px', marginBottom: '8px' }}>📊</div>
+                  <h4 style={{ color: '#fff', margin: '0 0 8px', fontSize: '14px' }}>Analytics</h4>
+                  <p style={{ color: '#64748b', margin: 0, fontSize: '12px' }}>Real-time viewer stats and engagement</p>
+                </div>
+                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '32px', marginBottom: '8px' }}>🔗</div>
+                  <h4 style={{ color: '#fff', margin: '0 0 8px', fontSize: '14px' }}>Easy Sharing</h4>
+                  <p style={{ color: '#64748b', margin: 0, fontSize: '12px' }}>One-click sharing to social media</p>
+                </div>
+              </div>
+
+              {/* RTMP Configuration */}
+              <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px' }}>
+                <h3 style={{ color: '#fff', margin: '0 0 16px', fontSize: '16px' }}>🔧 RTMP Configuration</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', color: '#e2e8f0', fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>
+                      Server URL
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="text"
+                        value="rtmp://live.twitch.tv/live/"
+                        readOnly
+                        style={{ flex: 1, background: '#020617', border: '1px solid #334155', borderRadius: '8px', padding: '12px', color: '#94a3b8', fontSize: '12px' }}
+                      />
+                      <button style={{ background: '#38bdf8', color: '#020617', border: 'none', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', cursor: 'pointer' }}>
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', color: '#e2e8f0', fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>
+                      Stream Key
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="password"
+                        value="live_123456789_abcdef"
+                        readOnly
+                        style={{ flex: 1, background: '#020617', border: '1px solid #334155', borderRadius: '8px', padding: '12px', color: '#94a3b8', fontSize: '12px' }}
+                      />
+                      <button style={{ background: '#38bdf8', color: '#020617', border: 'none', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', cursor: 'pointer' }}>
+                        Show
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <p style={{ color: '#64748b', margin: '12px 0 0', fontSize: '12px' }}>
+                  Use these settings in OBS, Streamlabs, or other streaming software to broadcast your game.
+                </p>
               </div>
             </>
           )}
