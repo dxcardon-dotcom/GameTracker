@@ -80,7 +80,6 @@
       "VITE_DEFAULT_LIVE_GAME_ID": "@default_live_game_id"
     }
   },
-  "functions": {},
   "regions": ["iad1"],
   "framework": "vite"
 }
