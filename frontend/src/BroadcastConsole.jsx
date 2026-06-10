@@ -267,6 +267,17 @@ export default function BroadcastConsole() {
   const [digestEmail, setDigestEmail] = useState('');
   const [digestStatus, setDigestStatus] = useState('');
   const [digestBannerDismissed, setDigestBannerDismissed] = useState(() => localStorage.getItem('gt_digest_dismissed') === 'true');
+
+  // 📱 Offline Mode
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [offlineQueue, setOfflineQueue] = useState(() => {
+    const saved = localStorage.getItem('gt_offline_queue');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [offlineData, setOfflineData] = useState(() => {
+    const saved = localStorage.getItem('gt_offline_data');
+    return saved ? JSON.parse(saved) : {};
+  });
   const [referralCopied, setReferralCopied] = useState(false);
   const [onboardingDismissed, setOnboardingDismissed] = useState(() => localStorage.getItem('gt_onboarding_done') === 'true');
 
@@ -366,6 +377,100 @@ export default function BroadcastConsole() {
     utt.pitch = 1.0;
     window.speechSynthesis.speak(utt);
   }, [lastPlaySummary, speakEnabled]);
+
+  // 📱 Offline Mode Functions
+  const saveToOfflineStorage = useCallback((key, data) => {
+    try {
+      const offlineKey = `offline_${selectedSeason}_${key}`;
+      localStorage.setItem(offlineKey, JSON.stringify(data));
+      setOfflineData(prev => ({ ...prev, [offlineKey]: data }));
+    } catch (error) {
+      console.error('Failed to save offline data:', error);
+    }
+  }, [selectedSeason]);
+
+  const loadFromOfflineStorage = useCallback((key) => {
+    try {
+      const offlineKey = `offline_${selectedSeason}_${key}`;
+      const saved = localStorage.getItem(offlineKey);
+      return saved ? JSON.parse(saved) : null;
+    } catch (error) {
+      console.error('Failed to load offline data:', error);
+      return null;
+    }
+  }, [selectedSeason]);
+
+  const addToOfflineQueue = useCallback((action, data) => {
+    const queueItem = {
+      id: Date.now().toString(),
+      action,
+      data,
+      timestamp: new Date().toISOString(),
+      synced: false
+    };
+    
+    const newQueue = [...offlineQueue, queueItem];
+    setOfflineQueue(newQueue);
+    localStorage.setItem('gt_offline_queue', JSON.stringify(newQueue));
+    
+    // Try to sync if online
+    if (isOnline) {
+      syncOfflineQueue();
+    }
+  }, [offlineQueue, isOnline]);
+
+  const syncOfflineQueue = useCallback(async () => {
+    if (!isOnline || offlineQueue.length === 0) return;
+    
+    try {
+      const unsyncedItems = offlineQueue.filter(item => !item.synced);
+      
+      for (const item of unsyncedItems) {
+        // Here you would sync with Firebase
+        console.log('Syncing offline item:', item);
+        // Mark as synced
+        item.synced = true;
+      }
+      
+      // Update queue
+      const syncedQueue = offlineQueue.map(item => 
+        unsyncedItems.find(u => u.id === item.id) ? { ...item, synced: true } : item
+      );
+      setOfflineQueue(syncedQueue);
+      localStorage.setItem('gt_offline_queue', JSON.stringify(syncedQueue));
+      
+    } catch (error) {
+      console.error('Failed to sync offline queue:', error);
+    }
+  }, [offlineQueue, isOnline]);
+
+  // Network status monitoring
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      syncOfflineQueue();
+    };
+    
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [syncOfflineQueue]);
+
+  // Auto-sync when coming back online
+  useEffect(() => {
+    if (isOnline && offlineQueue.length > 0) {
+      syncOfflineQueue();
+    }
+  }, [isOnline, offlineQueue.length, syncOfflineQueue]);
+
   // ─────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
