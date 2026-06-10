@@ -1088,6 +1088,252 @@ async function sendPushToGameSubscribers(gameId, payload) {
   } catch (e) { console.error('Push error:', e.message); }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 📧 MARKETING AUTOMATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Email templates
+const emailTemplates = {
+  welcome: {
+    subject: 'Welcome to GameTracker! 🎉',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #1e40af; color: white; padding: 20px; text-align: center;">
+          <h1>⚾ Welcome to GameTracker!</h1>
+        </div>
+        <div style="padding: 20px; background: #f9fafb;">
+          <h2>Get Started with Your Team</h2>
+          <p>Thanks for joining GameTracker! Here's how to get the most out of your new account:</p>
+          <ul>
+            <li>✅ Set up your team profile</li>
+            <li>✅ Add your roster</li>
+            <li>✅ Score your first game</li>
+            <li>✅ Share stats with families</li>
+          </ul>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}" style="background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+              Get Started Now
+            </a>
+          </div>
+        </div>
+      </div>
+    `
+  },
+  engagement: {
+    subject: 'Time to update your GameTracker stats! 📊',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #059669; color: white; padding: 20px; text-align: center;">
+          <h1>📈 Keep Your Stats Fresh!</h1>
+        </div>
+        <div style="padding: 20px; background: #f9fafb;">
+          <p>It's been a while since you've updated your team stats on GameTracker.</p>
+          <p>Keeping your stats current helps:</p>
+          <ul>
+            <li>🎯 Track player development</li>
+            <li>📊 Share progress with families</li>
+            <li>🏆 Build recruiting profiles</li>
+            <li>📱 Keep fans engaged</li>
+          </ul>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}" style="background: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+              Update Your Stats
+            </a>
+          </div>
+        </div>
+      </div>
+    `
+  },
+  upgrade: {
+    subject: 'Unlock Pro Features with GameTracker+ 🚀',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #7c3aed; color: white; padding: 20px; text-align: center;">
+          <h1>⭐ Upgrade to Pro</h1>
+        </div>
+        <div style="padding: 20px; background: #f9fafb;">
+          <p>Ready to take your team to the next level? GameTracker Pro includes:</p>
+          <ul>
+            <li>🎯 Advanced analytics & spray charts</li>
+            <li>📹 Live video streaming</li>
+            <li>🏟️ Tournament management</li>
+            <li>💬 Team communication</li>
+            <li>📊 Data export & reports</li>
+          </ul>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/upgrade" style="background: #7c3aed; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+              Upgrade Now
+            </a>
+          </div>
+        </div>
+      </div>
+    `
+  }
+};
+
+// Send email function
+async function sendEmail(to, template, data = {}) {
+  try {
+    // In production, integrate with SendGrid, Mailgun, or similar
+    console.log(`Sending email to ${to}: ${template.subject}`);
+    
+    // For demo purposes, just log the email
+    const personalizedHtml = template.html.replace(/\$\{(\w+)\}/g, (match, key) => {
+      return data[key] || match;
+    });
+    
+    console.log('Email content:', personalizedHtml);
+    
+    // Simulate email send delay
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    return { success: true, message: 'Email sent successfully' };
+  } catch (error) {
+    console.error('Failed to send email:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Marketing automation endpoints
+app.post('/api/marketing/send-welcome', async (req, res) => {
+  try {
+    const { email, name } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    
+    const result = await sendEmail(email, emailTemplates.welcome, { name });
+    
+    if (result.success) {
+      res.json({ message: 'Welcome email sent successfully' });
+    } else {
+      res.status(500).json({ error: result.error });
+    }
+  } catch (error) {
+    console.error('Welcome email error:', error);
+    res.status(500).json({ error: 'Failed to send welcome email' });
+  }
+});
+
+app.post('/api/marketing/send-engagement', async (req, res) => {
+  try {
+    const { email, name, lastActive } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    
+    const result = await sendEmail(email, emailTemplates.engagement, { name, lastActive });
+    
+    if (result.success) {
+      res.json({ message: 'Engagement email sent successfully' });
+    } else {
+      res.status(500).json({ error: result.error });
+    }
+  } catch (error) {
+    console.error('Engagement email error:', error);
+    res.status(500).json({ error: 'Failed to send engagement email' });
+  }
+});
+
+app.post('/api/marketing/send-upgrade', async (req, res) => {
+  try {
+    const { email, name } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    
+    const result = await sendEmail(email, emailTemplates.upgrade, { name });
+    
+    if (result.success) {
+      res.json({ message: 'Upgrade email sent successfully' });
+    } else {
+      res.status(500).json({ error: result.error });
+    }
+  } catch (error) {
+    console.error('Upgrade email error:', error);
+    res.status(500).json({ error: 'Failed to send upgrade email' });
+  }
+});
+
+// Campaign management
+app.get('/api/marketing/campaigns', async (req, res) => {
+  try {
+    // Mock campaign data
+    const campaigns = [
+      {
+        id: 'welcome-series',
+        name: 'Welcome Series',
+        description: 'Onboarding emails for new users',
+        status: 'active',
+        sent: 245,
+        opened: 189,
+        clicked: 67
+      },
+      {
+        id: 'engagement-boost',
+        name: 'Engagement Boost',
+        description: 'Re-engage inactive users',
+        status: 'active',
+        sent: 128,
+        opened: 45,
+        clicked: 12
+      },
+      {
+        id: 'pro-upgrade',
+        name: 'Pro Upgrade Campaign',
+        description: 'Convert free users to Pro',
+        status: 'active',
+        sent: 89,
+        opened: 34,
+        clicked: 8
+      }
+    ];
+    
+    res.json(campaigns);
+  } catch (error) {
+    console.error('Campaigns fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch campaigns' });
+  }
+});
+
+// Analytics for marketing
+app.get('/api/marketing/analytics', async (req, res) => {
+  try {
+    // Mock analytics data
+    const analytics = {
+      totalUsers: 1847,
+      activeUsers: 892,
+      conversionRate: 23.4,
+      emailStats: {
+        sent: 462,
+        delivered: 445,
+        opened: 268,
+        clicked: 87,
+        unsubscribed: 3
+      },
+      campaignPerformance: [
+        { name: 'Welcome Series', sent: 245, opened: 189, clicked: 67, conversion: 27.3 },
+        { name: 'Engagement Boost', sent: 128, opened: 45, clicked: 12, conversion: 9.4 },
+        { name: 'Pro Upgrade', sent: 89, opened: 34, clicked: 8, conversion: 9.0 }
+      ],
+      userGrowth: [
+        { date: '2024-05-01', users: 1650 },
+        { date: '2024-05-08', users: 1723 },
+        { date: '2024-05-15', users: 1789 },
+        { date: '2024-05-22', users: 1847 }
+      ]
+    };
+    
+    res.json(analytics);
+  } catch (error) {
+    console.error('Analytics fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch analytics' });
+  }
+});
+
 server.listen(port, () => {
   console.log(`GameTracker backend running on http://localhost:${port}`);
   if (allowLocalAuthWrites) {
