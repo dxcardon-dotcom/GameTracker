@@ -222,6 +222,19 @@ export default function BroadcastConsole() {
   const [comparisonData, setComparisonData] = useState({});
   const [metricsLoading, setMetricsLoading] = useState(false);
 
+  // 🎯 Player Development Tracking
+  const [showPlayerDevelopment, setShowPlayerDevelopment] = useState(false);
+  const [playerDevelopmentData, setPlayerDevelopmentData] = useState({});
+  const [developmentGoals, setDevelopmentGoals] = useState({});
+  const [skillProgress, setSkillProgress] = useState({});
+  const [achievementSystem, setAchievementSystem] = useState({});
+  const [selectedPlayerForDevelopment, setSelectedPlayerForDevelopment] = useState(null);
+  const [developmentLoading, setDevelopmentLoading] = useState(false);
+  const [newGoal, setNewGoal] = useState('');
+  const [goalCategory, setGoalCategory] = useState('hitting'); // 'hitting', 'fielding', 'pitching', 'baseRunning'
+  const [goalTarget, setGoalTarget] = useState('');
+  const [goalDeadline, setGoalDeadline] = useState('');
+
   // 📋 Game Day Checklist
   const [checklistItems, setChecklistItems] = useState([
     { id: 1, label: 'Equipment packed (bats, helmets, catchers gear)', done: false },
@@ -2344,6 +2357,356 @@ export default function BroadcastConsole() {
       loadAdvancedMetrics();
     }
   }, [showAdvancedMetrics, playerMetrics, loadAdvancedMetrics]);
+
+  // 🎯 Player Development Tracking Functions
+  const calculatePlayerDevelopment = useCallback((playerId) => {
+    const player = processedRoster.find(p => p.id === playerId);
+    if (!player) return {};
+
+    const currentMetrics = calculatePlayerMetrics(playerId);
+    const historicalData = generateMockHistoricalData(playerId);
+    
+    // Calculate skill progressions
+    const hittingProgress = calculateSkillProgression(historicalData, 'hitting');
+    const fieldingProgress = calculateSkillProgression(historicalData, 'fielding');
+    const baseRunningProgress = calculateSkillProgression(historicalData, 'baseRunning');
+    
+    // Identify strengths and weaknesses
+    const strengths = identifyStrengths(currentMetrics);
+    const weaknesses = identifyWeaknesses(currentMetrics);
+    
+    // Generate development recommendations
+    const recommendations = generateDevelopmentRecommendations(currentMetrics, weaknesses);
+    
+    return {
+      playerId,
+      playerName: `${player.firstName} ${player.lastName}`,
+      currentMetrics,
+      historicalData,
+      skillProgress: {
+        hitting: hittingProgress,
+        fielding: fieldingProgress,
+        baseRunning: baseRunningProgress
+      },
+      strengths,
+      weaknesses,
+      recommendations,
+      overallProgress: calculateOverallProgress(hittingProgress, fieldingProgress, baseRunningProgress),
+      lastUpdated: new Date().toISOString()
+    };
+  }, [processedRoster, calculatePlayerMetrics]);
+
+  const generateMockHistoricalData = useCallback((playerId) => {
+    const data = [];
+    const now = new Date();
+    
+    for (let i = 12; i >= 0; i--) { // Last 12 months
+      const date = new Date(now);
+      date.setMonth(date.getMonth() - i);
+      
+      data.push({
+        date: date.toISOString().split('T')[0],
+        battingAverage: 0.200 + Math.random() * 0.200,
+        onBasePercentage: 0.280 + Math.random() * 0.150,
+        sluggingPercentage: 0.300 + Math.random() * 0.250,
+        fieldingPercentage: 0.900 + Math.random() * 0.095,
+        stolenBases: Math.floor(Math.random() * 5),
+        errors: Math.floor(Math.random() * 3),
+        gamesPlayed: Math.floor(Math.random() * 15) + 5
+      });
+    }
+    
+    return data;
+  }, []);
+
+  const calculateSkillProgression = useCallback((historicalData, skillType) => {
+    if (historicalData.length < 2) return { trend: 'stable', change: 0, trajectory: [] };
+    
+    const recent = historicalData.slice(-3); // Last 3 months
+    const older = historicalData.slice(-6, -3); // Previous 3 months
+    
+    let recentAvg = 0;
+    let olderAvg = 0;
+    
+    switch (skillType) {
+      case 'hitting':
+        recentAvg = recent.reduce((sum, d) => sum + d.battingAverage, 0) / recent.length;
+        olderAvg = older.reduce((sum, d) => sum + d.battingAverage, 0) / older.length;
+        break;
+      case 'fielding':
+        recentAvg = recent.reduce((sum, d) => sum + d.fieldingPercentage, 0) / recent.length;
+        olderAvg = older.reduce((sum, d) => sum + d.fieldingPercentage, 0) / older.length;
+        break;
+      case 'baseRunning':
+        recentAvg = recent.reduce((sum, d) => sum + d.stolenBases, 0) / recent.length;
+        olderAvg = older.reduce((sum, d) => sum + d.stolenBases, 0) / older.length;
+        break;
+    }
+    
+    const change = recentAvg - olderAvg;
+    let trend = 'stable';
+    
+    if (Math.abs(change) > 0.02) {
+      trend = change > 0 ? 'improving' : 'declining';
+    }
+    
+    return {
+      trend,
+      change,
+      trajectory: historicalData.map(d => ({
+        date: d.date,
+        value: skillType === 'hitting' ? d.battingAverage : 
+               skillType === 'fielding' ? d.fieldingPercentage : 
+               d.stolenBases
+      }))
+    };
+  }, []);
+
+  const identifyStrengths = useCallback((metrics) => {
+    const strengths = [];
+    
+    if (metrics.basic?.battingAverage > 0.300) {
+      strengths.push({ type: 'hitting', metric: 'Batting Average', value: metrics.basic.battingAverage, level: 'excellent' });
+    }
+    
+    if (metrics.basic?.onBasePercentage > 0.380) {
+      strengths.push({ type: 'discipline', metric: 'On-Base Percentage', value: metrics.basic.onBasePercentage, level: 'excellent' });
+    }
+    
+    if (metrics.advanced?.walkRate > 0.10) {
+      strengths.push({ type: 'discipline', metric: 'Plate Discipline', value: metrics.advanced.walkRate, level: 'excellent' });
+    }
+    
+    if (metrics.basic?.sluggingPercentage > 0.450) {
+      strengths.push({ type: 'power', metric: 'Power Hitting', value: metrics.basic.sluggingPercentage, level: 'excellent' });
+    }
+    
+    return strengths;
+  }, []);
+
+  const identifyWeaknesses = useCallback((metrics) => {
+    const weaknesses = [];
+    
+    if (metrics.basic?.battingAverage < 0.250) {
+      weaknesses.push({ type: 'hitting', metric: 'Batting Average', value: metrics.basic.battingAverage, priority: 'high' });
+    }
+    
+    if (metrics.advanced?.strikeoutRate > 0.25) {
+      weaknesses.push({ type: 'discipline', metric: 'Strikeout Rate', value: metrics.advanced.strikeoutRate, priority: 'high' });
+    }
+    
+    if (metrics.basic?.onBasePercentage < 0.320) {
+      weaknesses.push({ type: 'discipline', metric: 'On-Base Percentage', value: metrics.basic.onBasePercentage, priority: 'medium' });
+    }
+    
+    if (metrics.basic?.sluggingPercentage < 0.350) {
+      weaknesses.push({ type: 'power', metric: 'Power Hitting', value: metrics.basic.sluggingPercentage, priority: 'medium' });
+    }
+    
+    return weaknesses;
+  }, []);
+
+  const generateDevelopmentRecommendations = useCallback((metrics, weaknesses) => {
+    const recommendations = [];
+    
+    weaknesses.forEach(weakness => {
+      switch (weakness.metric) {
+        case 'Batting Average':
+          recommendations.push({
+            category: 'hitting',
+            title: 'Improve Bat Contact',
+            description: 'Focus on tee work and soft toss drills to improve bat-to-ball contact',
+            exercises: ['Tee work (100 reps daily)', 'Soft toss drills', 'Bat speed training'],
+            timeframe: '4-6 weeks',
+            priority: weakness.priority
+          });
+          break;
+          
+        case 'Strikeout Rate':
+          recommendations.push({
+            category: 'discipline',
+            title: 'Reduce Strikeouts',
+            description: 'Work on two-strike approach and pitch recognition',
+            exercises: ['Two-strike hitting drills', 'Pitch recognition training', 'Opposite field hitting'],
+            timeframe: '3-4 weeks',
+            priority: weakness.priority
+          });
+          break;
+          
+        case 'On-Base Percentage':
+          recommendations.push({
+            category: 'discipline',
+            title: 'Improve Plate Discipline',
+            description: 'Focus on taking walks and working counts',
+            exercises: ['Count awareness drills', 'Taking pitches practice', 'Situational hitting'],
+            timeframe: '4-5 weeks',
+            priority: weakness.priority
+          });
+          break;
+          
+        case 'Power Hitting':
+          recommendations.push({
+            category: 'power',
+            title: 'Increase Power Output',
+            description: 'Develop strength and improve swing mechanics for more power',
+            exercises: ['Strength training', 'Mechanical adjustments', 'Launch angle optimization'],
+            timeframe: '6-8 weeks',
+            priority: weakness.priority
+          });
+          break;
+      }
+    });
+    
+    return recommendations;
+  }, []);
+
+  const calculateOverallProgress = useCallback((hitting, fielding, baseRunning) => {
+    const scores = [];
+    
+    if (hitting.trend === 'improving') scores.push(1);
+    else if (hitting.trend === 'stable') scores.push(0.5);
+    else scores.push(0);
+    
+    if (fielding.trend === 'improving') scores.push(1);
+    else if (fielding.trend === 'stable') scores.push(0.5);
+    else scores.push(0);
+    
+    if (baseRunning.trend === 'improving') scores.push(1);
+    else if (baseRunning.trend === 'stable') scores.push(0.5);
+    else scores.push(0);
+    
+    const average = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+    
+    return {
+      score: average,
+      level: average >= 0.8 ? 'excellent' : average >= 0.6 ? 'good' : average >= 0.4 ? 'fair' : 'needs_improvement',
+      trend: average >= 0.6 ? 'positive' : 'needs_attention'
+    };
+  }, []);
+
+  const addDevelopmentGoal = useCallback((playerId, goalData) => {
+    const newGoal = {
+      id: Date.now(),
+      playerId,
+      ...goalData,
+      status: 'active',
+      progress: 0,
+      createdAt: new Date().toISOString(),
+      milestones: []
+    };
+    
+    setDevelopmentGoals(prev => ({
+      ...prev,
+      [playerId]: [...(prev[playerId] || []), newGoal]
+    }));
+    
+    // Add achievement for setting goals
+    addAchievement(playerId, 'goal_setter', 'First Development Goal Set');
+  }, []);
+
+  const updateGoalProgress = useCallback((playerId, goalId, progress) => {
+    setDevelopmentGoals(prev => ({
+      ...prev,
+      [playerId]: prev[playerId].map(goal => 
+        goal.id === goalId 
+          ? { ...goal, progress, lastUpdated: new Date().toISOString() }
+          : goal
+      )
+    }));
+    
+    // Check for goal completion
+    if (progress >= 100) {
+      addAchievement(playerId, 'goal_achiever', 'Development Goal Completed');
+    }
+  }, []);
+
+  const addAchievement = useCallback((playerId, achievementType, description) => {
+    const newAchievement = {
+      id: Date.now(),
+      type: achievementType,
+      description,
+      unlockedAt: new Date().toISOString(),
+      icon: getAchievementIcon(achievementType)
+    };
+    
+    setAchievementSystem(prev => ({
+      ...prev,
+      [playerId]: [...(prev[playerId] || []), newAchievement]
+    }));
+  }, []);
+
+  const getAchievementIcon = useCallback((type) => {
+    const icons = {
+      goal_setter: '🎯',
+      goal_achiever: '🏆',
+      streak_holder: '🔥',
+      improvement_leader: '📈',
+      team_player: '🤝',
+      defensive_star: '⭐',
+      power_hitter: '💪',
+      speed_demon: '⚡'
+    };
+    return icons[type] || '🎖️';
+  }, []);
+
+  const loadPlayerDevelopmentData = useCallback(async () => {
+    setDevelopmentLoading(true);
+    
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
+      
+      const developmentData = {};
+      processedRoster.forEach(player => {
+        developmentData[player.id] = calculatePlayerDevelopment(player.id);
+      });
+      
+      setPlayerDevelopmentData(developmentData);
+      
+      // Load existing goals and achievements (mock data)
+      const mockGoals = {};
+      const mockAchievements = {};
+      
+      processedRoster.forEach(player => {
+        mockGoals[player.id] = [
+          {
+            id: 1,
+            title: 'Improve Batting Average',
+            category: 'hitting',
+            target: '0.300',
+            current: '0.275',
+            progress: 75,
+            deadline: '2026-07-01',
+            status: 'active'
+          }
+        ];
+        
+        mockAchievements[player.id] = [
+          {
+            id: 1,
+            type: 'improvement_leader',
+            description: 'Most Improved Player',
+            unlockedAt: new Date().toISOString(),
+            icon: '📈'
+          }
+        ];
+      });
+      
+      setDevelopmentGoals(mockGoals);
+      setAchievementSystem(mockAchievements);
+      
+    } catch (error) {
+      console.error('Failed to load player development data:', error);
+    } finally {
+      setDevelopmentLoading(false);
+    }
+  }, [processedRoster, calculatePlayerDevelopment]);
+
+  // Load development data when panel is opened
+  useEffect(() => {
+    if (showPlayerDevelopment && Object.keys(playerDevelopmentData).length === 0) {
+      loadPlayerDevelopmentData();
+    }
+  }, [showPlayerDevelopment, playerDevelopmentData, loadPlayerDevelopmentData]);
 
   const isOurTeamBatting = () => (scoringLocation === 'Away' ? isTopInning : !isTopInning);
 
@@ -5284,6 +5647,10 @@ export default function BroadcastConsole() {
 
                 {/* Field view + full-screen toggles */}
                 <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                  <button onClick={() => setShowPlayerDevelopment(v => !v)}
+                    style={{ background: showPlayerDevelopment ? 'rgba(56,189,248,0.15)' : '#0f172a', border: `1px solid ${showPlayerDevelopment ? '#38bdf8' : '#334155'}`, borderRadius: '8px', color: showPlayerDevelopment ? '#38bdf8' : '#64748b', cursor: 'pointer', fontSize: '14px', padding: '6px 9px' }} title="Player development tracking and goals">
+                    🎯
+                  </button>
                   <button onClick={() => setShowAdvancedMetrics(v => !v)}
                     style={{ background: showAdvancedMetrics ? 'rgba(56,189,248,0.15)' : '#0f172a', border: `1px solid ${showAdvancedMetrics ? '#38bdf8' : '#334155'}`, borderRadius: '8px', color: showAdvancedMetrics ? '#38bdf8' : '#64748b', cursor: 'pointer', fontSize: '14px', padding: '6px 9px' }} title="Advanced performance metrics and analytics">
                     📈
@@ -8350,6 +8717,487 @@ export default function BroadcastConsole() {
                               }}
                             >
                               🔄 Refresh
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ── PLAYER DEVELOPMENT PANEL ── */}
+                    {showPlayerDevelopment && (
+                      <div style={{ background: '#0a0f1f', border: '1px solid #1e293b', borderRadius: '12px', padding: '12px', marginBottom: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                          <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '800', textTransform: 'uppercase' }}>🎯 Player Development</span>
+                          <button onClick={() => setShowPlayerDevelopment(false)} style={{ background: 'transparent', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '14px' }}>✕</button>
+                        </div>
+                        
+                        {/* Loading State */}
+                        {developmentLoading && (
+                          <div style={{ 
+                            textAlign: 'center', 
+                            padding: '20px', 
+                            color: '#64748b',
+                            fontSize: '9px'
+                          }}>
+                            <div style={{ marginBottom: '8px' }}>🎯 Loading development data...</div>
+                            <div style={{ 
+                              background: '#1e293b', 
+                              borderRadius: '4px', 
+                              height: '4px', 
+                              overflow: 'hidden',
+                              margin: '0 auto',
+                              width: '100px'
+                            }}>
+                              <div style={{ 
+                                background: '#38bdf8', 
+                                height: '100%', 
+                                borderRadius: '4px',
+                                width: '60%',
+                                animation: 'pulse 1.5s infinite'
+                              }} />
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Player Selection */}
+                        {!developmentLoading && (
+                          <div style={{ marginBottom: '12px' }}>
+                            <div style={{ fontSize: '9px', color: '#e2e8f0', fontWeight: '600', marginBottom: '4px' }}>Select Player</div>
+                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                              {processedRoster.map(player => (
+                                <button
+                                  key={player.id}
+                                  onClick={() => setSelectedPlayerForDevelopment(player.id)}
+                                  style={{ 
+                                    background: selectedPlayerForDevelopment === player.id ? '#38bdf8' : '#1e293b', 
+                                    color: selectedPlayerForDevelopment === player.id ? '#020617' : '#94a3b8', 
+                                    border: '1px solid #334155', 
+                                    borderRadius: '4px', 
+                                    padding: '2px 6px', 
+                                    fontSize: '7px', 
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  {player.firstName} {player.lastName}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Player Development Details */}
+                        {!developmentLoading && selectedPlayerForDevelopment && playerDevelopmentData[selectedPlayerForDevelopment] && (
+                          <div style={{ marginBottom: '12px' }}>
+                            {(() => {
+                              const playerData = playerDevelopmentData[selectedPlayerForDevelopment];
+                              return (
+                                <>
+                                  {/* Overall Progress */}
+                                  <div style={{ marginBottom: '12px' }}>
+                                    <div style={{ fontSize: '10px', color: '#e2e8f0', fontWeight: '600', marginBottom: '6px' }}>
+                                      📊 {playerData.playerName} - Overall Progress
+                                    </div>
+                                    <div style={{ 
+                                      background: '#0f172a', 
+                                      border: '1px solid #1e293b', 
+                                      borderRadius: '8px', 
+                                      padding: '8px' 
+                                    }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                                        <div style={{ 
+                                          width: '40px', 
+                                          height: '40px', 
+                                          borderRadius: '50%',
+                                          background: playerData.overallProgress.level === 'excellent' ? '#22c55e' :
+                                                     playerData.overallProgress.level === 'good' ? '#38bdf8' :
+                                                     playerData.overallProgress.level === 'fair' ? '#f59e0b' : '#ef4444',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          fontSize: '12px',
+                                          fontWeight: 'bold',
+                                          color: '#fff'
+                                        }}>
+                                          {Math.round(playerData.overallProgress.score * 100)}%
+                                        </div>
+                                        <div>
+                                          <div style={{ fontSize: '9px', color: '#e2e8f0', fontWeight: '600' }}>
+                                            {playerData.overallProgress.level.replace('_', ' ').toUpperCase()}
+                                          </div>
+                                          <div style={{ fontSize: '7px', color: '#64748b' }}>
+                                            {playerData.overallProgress.trend === 'positive' ? '📈 Positive trajectory' : '⚠️ Needs attention'}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Skill Progress Bars */}
+                                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+                                        <div>
+                                          <div style={{ fontSize: '6px', color: '#64748b', marginBottom: '2px' }}>Hitting</div>
+                                          <div style={{ 
+                                            background: '#1e293b', 
+                                            borderRadius: '2px', 
+                                            height: '4px', 
+                                            overflow: 'hidden' 
+                                          }}>
+                                            <div style={{ 
+                                              background: playerData.skillProgress.hitting.trend === 'improving' ? '#22c55e' : 
+                                                         playerData.skillProgress.hitting.trend === 'stable' ? '#f59e0b' : '#ef4444', 
+                                              height: '100%', 
+                                              borderRadius: '2px',
+                                              width: playerData.skillProgress.hitting.trend === 'improving' ? '80%' : 
+                                                     playerData.skillProgress.hitting.trend === 'stable' ? '50%' : '20%'
+                                            }} />
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <div style={{ fontSize: '6px', color: '#64748b', marginBottom: '2px' }}>Fielding</div>
+                                          <div style={{ 
+                                            background: '#1e293b', 
+                                            borderRadius: '2px', 
+                                            height: '4px', 
+                                            overflow: 'hidden' 
+                                          }}>
+                                            <div style={{ 
+                                              background: playerData.skillProgress.fielding.trend === 'improving' ? '#22c55e' : 
+                                                         playerData.skillProgress.fielding.trend === 'stable' ? '#f59e0b' : '#ef4444', 
+                                              height: '100%', 
+                                              borderRadius: '2px',
+                                              width: playerData.skillProgress.fielding.trend === 'improving' ? '80%' : 
+                                                     playerData.skillProgress.fielding.trend === 'stable' ? '50%' : '20%'
+                                            }} />
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <div style={{ fontSize: '6px', color: '#64748b', marginBottom: '2px' }}>Base Running</div>
+                                          <div style={{ 
+                                            background: '#1e293b', 
+                                            borderRadius: '2px', 
+                                            height: '4px', 
+                                            overflow: 'hidden' 
+                                          }}>
+                                            <div style={{ 
+                                              background: playerData.skillProgress.baseRunning.trend === 'improving' ? '#22c55e' : 
+                                                         playerData.skillProgress.baseRunning.trend === 'stable' ? '#f59e0b' : '#ef4444', 
+                                              height: '100%', 
+                                              borderRadius: '2px',
+                                              width: playerData.skillProgress.baseRunning.trend === 'improving' ? '80%' : 
+                                                     playerData.skillProgress.baseRunning.trend === 'stable' ? '50%' : '20%'
+                                            }} />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Strengths & Weaknesses */}
+                                  <div style={{ marginBottom: '12px' }}>
+                                    <div style={{ fontSize: '10px', color: '#e2e8f0', fontWeight: '600', marginBottom: '6px' }}>💪 Strengths & Weaknesses</div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                      {/* Strengths */}
+                                      <div>
+                                        <div style={{ fontSize: '8px', color: '#22c55e', fontWeight: '600', marginBottom: '4px' }}>Strengths</div>
+                                        <div style={{ 
+                                          background: '#0f172a', 
+                                          border: '1px solid #1e293b', 
+                                          borderRadius: '6px', 
+                                          padding: '6px',
+                                          minHeight: '60px'
+                                        }}>
+                                          {playerData.strengths.length > 0 ? (
+                                            playerData.strengths.map((strength, index) => (
+                                              <div key={index} style={{ fontSize: '7px', color: '#94a3b8', marginBottom: '2px' }}>
+                                                ✅ {strength.metric}: {(strength.value || 0).toFixed(3)}
+                                              </div>
+                                            ))
+                                          ) : (
+                                            <div style={{ fontSize: '7px', color: '#64748b', fontStyle: 'italic' }}>
+                                              No significant strengths identified
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Weaknesses */}
+                                      <div>
+                                        <div style={{ fontSize: '8px', color: '#ef4444', fontWeight: '600', marginBottom: '4px' }}>Areas for Improvement</div>
+                                        <div style={{ 
+                                          background: '#0f172a', 
+                                          border: '1px solid #1e293b', 
+                                          borderRadius: '6px', 
+                                          padding: '6px',
+                                          minHeight: '60px'
+                                        }}>
+                                          {playerData.weaknesses.length > 0 ? (
+                                            playerData.weaknesses.map((weakness, index) => (
+                                              <div key={index} style={{ fontSize: '7px', color: '#94a3b8', marginBottom: '2px' }}>
+                                                ⚠️ {weakness.metric}: {(weakness.value || 0).toFixed(3)}
+                                              </div>
+                                            ))
+                                          ) : (
+                                            <div style={{ fontSize: '7px', color: '#64748b', fontStyle: 'italic' }}>
+                                              No major weaknesses identified
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Development Goals */}
+                                  <div style={{ marginBottom: '12px' }}>
+                                    <div style={{ fontSize: '10px', color: '#e2e8f0', fontWeight: '600', marginBottom: '6px' }}>🎯 Development Goals</div>
+                                    <div style={{ 
+                                      background: '#0f172a', 
+                                      border: '1px solid #1e293b', 
+                                      borderRadius: '8px', 
+                                      padding: '8px' 
+                                    }}>
+                                      {/* Existing Goals */}
+                                      {developmentGoals[selectedPlayerForDevelopment] && developmentGoals[selectedPlayerForDevelopment].length > 0 && (
+                                        <div style={{ marginBottom: '8px' }}>
+                                          {developmentGoals[selectedPlayerForDevelopment].map(goal => (
+                                            <div key={goal.id} style={{ 
+                                              background: '#1e293b', 
+                                              borderRadius: '4px', 
+                                              padding: '6px', 
+                                              marginBottom: '4px' 
+                                            }}>
+                                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                                <span style={{ fontSize: '8px', color: '#e2e8f0', fontWeight: '600' }}>
+                                                  {goal.title}
+                                                </span>
+                                                <span style={{ fontSize: '6px', color: '#64748b' }}>
+                                                  {goal.progress}%
+                                                </span>
+                                              </div>
+                                              <div style={{ 
+                                                background: '#0f172a', 
+                                                borderRadius: '2px', 
+                                                height: '3px', 
+                                                overflow: 'hidden',
+                                                marginBottom: '4px'
+                                              }}>
+                                                <div style={{ 
+                                                  background: '#38bdf8', 
+                                                  height: '100%', 
+                                                  borderRadius: '2px',
+                                                  width: `${goal.progress}%`
+                                                }} />
+                                              </div>
+                                              <div style={{ fontSize: '6px', color: '#64748b' }}>
+                                                Target: {goal.target} • Deadline: {goal.deadline}
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                      
+                                      {/* Add New Goal */}
+                                      <div>
+                                        <div style={{ fontSize: '8px', color: '#94a3b8', fontWeight: '600', marginBottom: '4px' }}>Add New Goal</div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '4px', marginBottom: '4px' }}>
+                                          <input
+                                            type="text"
+                                            placeholder="Goal description"
+                                            value={newGoal}
+                                            onChange={(e) => setNewGoal(e.target.value)}
+                                            style={{ 
+                                              background: '#0f172a', 
+                                              border: '1px solid #334155', 
+                                              borderRadius: '3px', 
+                                              padding: '3px', 
+                                              fontSize: '6px', 
+                                              color: '#e2e8f0' 
+                                            }}
+                                          />
+                                          <input
+                                            type="text"
+                                            placeholder="Target"
+                                            value={goalTarget}
+                                            onChange={(e) => setGoalTarget(e.target.value)}
+                                            style={{ 
+                                              background: '#0f172a', 
+                                              border: '1px solid #334155', 
+                                              borderRadius: '3px', 
+                                              padding: '3px', 
+                                              fontSize: '6px', 
+                                              color: '#e2e8f0' 
+                                            }}
+                                          />
+                                          <input
+                                            type="date"
+                                            value={goalDeadline}
+                                            onChange={(e) => setGoalDeadline(e.target.value)}
+                                            style={{ 
+                                              background: '#0f172a', 
+                                              border: '1px solid #334155', 
+                                              borderRadius: '3px', 
+                                              padding: '3px', 
+                                              fontSize: '6px', 
+                                              color: '#e2e8f0' 
+                                            }}
+                                          />
+                                        </div>
+                                        <button
+                                          onClick={() => {
+                                            if (newGoal && goalTarget && goalDeadline) {
+                                              addDevelopmentGoal(selectedPlayerForDevelopment, {
+                                                title: newGoal,
+                                                category: goalCategory,
+                                                target: goalTarget,
+                                                deadline: goalDeadline
+                                              });
+                                              setNewGoal('');
+                                              setGoalTarget('');
+                                              setGoalDeadline('');
+                                            }
+                                          }}
+                                          style={{ 
+                                            background: '#22c55e', 
+                                            color: '#fff', 
+                                            border: '1px solid #334155', 
+                                            borderRadius: '3px', 
+                                            padding: '3px 6px', 
+                                            fontSize: '6px', 
+                                            cursor: 'pointer' 
+                                          }}
+                                        >
+                                          Add Goal
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Development Recommendations */}
+                                  <div style={{ marginBottom: '12px' }}>
+                                    <div style={{ fontSize: '10px', color: '#e2e8f0', fontWeight: '600', marginBottom: '6px' }}>📋 Development Plan</div>
+                                    <div style={{ 
+                                      background: '#0f172a', 
+                                      border: '1px solid #1e293b', 
+                                      borderRadius: '8px', 
+                                      padding: '8px',
+                                      maxHeight: '120px',
+                                      overflowY: 'auto'
+                                    }}>
+                                      {playerData.recommendations.length > 0 ? (
+                                        playerData.recommendations.map((rec, index) => (
+                                          <div key={index} style={{ 
+                                            background: '#1e293b', 
+                                            borderRadius: '4px', 
+                                            padding: '6px', 
+                                            marginBottom: '4px' 
+                                          }}>
+                                            <div style={{ fontSize: '8px', color: '#e2e8f0', fontWeight: '600', marginBottom: '2px' }}>
+                                              {rec.title}
+                                            </div>
+                                            <div style={{ fontSize: '6px', color: '#94a3b8', marginBottom: '3px' }}>
+                                              {rec.description}
+                                            </div>
+                                            <div style={{ fontSize: '6px', color: '#64748b', marginBottom: '2px' }}>
+                                              <strong>Exercises:</strong> {rec.exercises.join(', ')}
+                                            </div>
+                                            <div style={{ fontSize: '6px', color: '#64748b' }}>
+                                              <strong>Timeframe:</strong> {rec.timeframe} • <strong>Priority:</strong> {rec.priority}
+                                            </div>
+                                          </div>
+                                        ))
+                                      ) : (
+                                        <div style={{ fontSize: '7px', color: '#64748b', fontStyle: 'italic' }}>
+                                          No specific recommendations at this time
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Achievements */}
+                                  <div style={{ marginBottom: '12px' }}>
+                                    <div style={{ fontSize: '10px', color: '#e2e8f0', fontWeight: '600', marginBottom: '6px' }}>🏆 Achievements</div>
+                                    <div style={{ 
+                                      background: '#0f172a', 
+                                      border: '1px solid #1e293b', 
+                                      borderRadius: '8px', 
+                                      padding: '8px' 
+                                    }}>
+                                      {achievementSystem[selectedPlayerForDevelopment] && achievementSystem[selectedPlayerForDevelopment].length > 0 ? (
+                                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                          {achievementSystem[selectedPlayerForDevelopment].map(achievement => (
+                                            <div 
+                                              key={achievement.id}
+                                              style={{ 
+                                                background: '#1e293b', 
+                                                borderRadius: '6px', 
+                                                padding: '4px 6px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '4px'
+                                              }}
+                                              title={achievement.description}
+                                            >
+                                              <span style={{ fontSize: '10px' }}>{achievement.icon}</span>
+                                              <span style={{ fontSize: '6px', color: '#94a3b8' }}>
+                                                {achievement.description}
+                                              </span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <div style={{ fontSize: '7px', color: '#64748b', fontStyle: 'italic' }}>
+                                          No achievements yet. Keep working on your goals!
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        )}
+                        
+                        {/* Action Buttons */}
+                        {!developmentLoading && (
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            <button
+                              onClick={loadPlayerDevelopmentData}
+                              style={{ 
+                                background: '#38bdf8', 
+                                color: '#020617', 
+                                border: '1px solid #334155', 
+                                borderRadius: '4px', 
+                                padding: '4px 8px', 
+                                fontSize: '8px', 
+                                cursor: 'pointer' 
+                              }}
+                            >
+                              🔄 Refresh Data
+                            </button>
+                            <button
+                              onClick={() => {
+                                const exportData = {
+                                  playerDevelopmentData,
+                                  developmentGoals,
+                                  achievementSystem,
+                                  exportedAt: new Date().toISOString()
+                                };
+                                const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `player-development-${new Date().toISOString().split('T')[0]}.json`;
+                                a.click();
+                                URL.revokeObjectURL(url);
+                              }}
+                              style={{ 
+                                background: '#f59e0b', 
+                                color: '#020617', 
+                                border: '1px solid #334155', 
+                                borderRadius: '4px', 
+                                padding: '4px 8px', 
+                                fontSize: '8px', 
+                                cursor: 'pointer' 
+                              }}
+                            >
+                              💾 Export Report
                             </button>
                           </div>
                         )}
